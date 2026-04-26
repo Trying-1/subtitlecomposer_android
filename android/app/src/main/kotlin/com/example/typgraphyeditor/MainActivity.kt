@@ -1,0 +1,151 @@
+package com.example.typgraphyeditor
+
+import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodChannel
+import io.flutter.view.TextureRegistry
+
+class MainActivity : FlutterActivity() {
+    private val CHANNEL = "com.example.typgraphyeditor/bridge"
+    private var renderer: TypographyRenderer? = null
+    private var textureEntry: TextureRegistry.SurfaceTextureEntry? = null
+
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "initRenderer" -> {
+                    val width = (call.argument<Number>("width"))?.toInt() ?: 1280
+                    val height = (call.argument<Number>("height"))?.toInt() ?: 720
+                    
+                    textureEntry = flutterEngine.renderer.createSurfaceTexture()
+                    val surfaceTexture = textureEntry?.surfaceTexture()
+                    
+                    if (surfaceTexture != null) {
+                        renderer = TypographyRenderer(surfaceTexture, width, height, assets)
+                        renderer?.start()
+                        result.success(textureEntry?.id())
+                    } else {
+                        result.error("ERROR", "Failed to create SurfaceTexture", null)
+                    }
+                }
+                "updateClips" -> {
+                    val clipsRaw = call.argument<List<Map<String, Any>>>("clips") ?: emptyList()
+                    val clips = parseClips(clipsRaw)
+                    renderer?.setClips(clips)
+                    result.success(null)
+                }
+                "updateProjectSettings" -> {
+                    val ratio = (call.argument<Number>("aspectRatio"))?.toDouble() ?: (16.0/9.0)
+                    val bgColor = (call.argument<Number>("backgroundColor"))?.toInt() ?: 0xFF000000.toInt()
+                    val width = (call.argument<Number>("width"))?.toInt()
+                    val height = (call.argument<Number>("height"))?.toInt()
+                    renderer?.updateSettings(ratio, bgColor, width, height)
+                    result.success(null)
+                }
+                "seekTo" -> {
+                    val timeMs = (call.argument<Number>("timeMs"))?.toLong() ?: 0L
+                    renderer?.seekTo(timeMs)
+                    result.success(null)
+                }
+                "exportVideo" -> {
+                    val width = (call.argument<Number>("width"))?.toInt() ?: 1280
+                    val height = (call.argument<Number>("height"))?.toInt() ?: 720
+                    val durationMs = (call.argument<Number>("durationMs"))?.toLong() ?: 0L
+                    val clipsRaw = call.argument<List<Map<String, Any>>>("clips") ?: emptyList()
+                    val audioPath = call.argument<String>("audioPath")
+                    val clips = parseClips(clipsRaw)
+
+                    Thread {
+                        try {
+                            val fileName = "TypographyExport_${System.currentTimeMillis()}.mp4"
+                            val values = android.content.ContentValues().apply {
+                                put(android.provider.MediaStore.Video.Media.DISPLAY_NAME, fileName)
+                                put(android.provider.MediaStore.Video.Media.MIME_TYPE, "video/mp4")
+                                put(android.provider.MediaStore.Video.Media.RELATIVE_PATH, "Movies/TypographyEditor")
+                                put(android.provider.MediaStore.Video.Media.IS_PENDING, 1)
+                            }
+
+                            val resolver = contentResolver
+                            val collection = android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+                            val itemUri = resolver.insert(collection, values)
+
+                            if (itemUri != null) {
+                                val pfd = resolver.openFileDescriptor(itemUri, "w")
+                                if (pfd != null) {
+                                    val bgColor = (call.argument<Number>("backgroundColor"))?.toInt() ?: 0xFF000000.toInt()
+                                    val exporter = VideoExporter(pfd.fileDescriptor, width, height, clips = clips, durationMs = durationMs, assetManager = assets, audioPath = audioPath, backgroundColor = bgColor)
+                                    exporter.export { progress ->
+                                        // Optional: Send progress back
+                                    }
+                                    pfd.close()
+                                    
+                                    values.clear()
+                                    values.put(android.provider.MediaStore.Video.Media.IS_PENDING, 0)
+                                    resolver.update(itemUri, values, null, null)
+                                    
+                                    android.media.MediaScannerConnection.scanFile(this@MainActivity, arrayOf(itemUri.toString()), null, null)
+                                    
+                                    runOnUiThread { result.success(itemUri.toString()) }
+                                } else {
+                                    runOnUiThread { result.error("PFD_ERROR", "Failed to open FileDescriptor", null) }
+                                }
+                            } else {
+                                runOnUiThread { result.error("URI_ERROR", "Failed to create MediaStore entry", null) }
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                            runOnUiThread { result.error("EXPORT_ERROR", e.message, null) }
+                        }
+                    }.start()
+                }
+                "disposeRenderer" -> {
+                    renderer?.stop()
+                    textureEntry?.release()
+                    renderer = null
+                    textureEntry = null
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun parseClips(clipsRaw: List<Map<String, Any>>): List<SubtitleClip> {
+        return clipsRaw.map {
+            SubtitleClip(
+                id = it["id"] as String,
+                text = it["text"] as String,
+                startTime = (it["startTime"] as Number).toLong(),
+                endTime = (it["endTime"] as Number).toLong(),
+                x = (it["x"] as Number).toFloat(),
+                y = (it["y"] as Number).toFloat(),
+                fontSize = (it["fontSize"] as Number).toFloat(),
+                color = (it["color"] as Number).toInt(),
+                strokeColor = (it["strokeColor"] as? Number)?.toInt() ?: 0xFF000000.toInt(),
+                strokeWidth = (it["strokeWidth"] as? Number)?.toFloat() ?: 0f,
+                shadowColor = (it["shadowColor"] as? Number)?.toInt() ?: 0x00000000,
+                shadowBlur = (it["shadowBlur"] as? Number)?.toFloat() ?: 0f,
+                shadowOffsetX = (it["shadowOffsetX"] as? Number)?.toFloat() ?: 0f,
+                shadowOffsetY = (it["shadowOffsetY"] as? Number)?.toFloat() ?: 0f,
+                backgroundColor = (it["backgroundColor"] as? Number)?.toInt() ?: 0x00000000,
+                backgroundRadius = (it["backgroundRadius"] as? Number)?.toFloat() ?: 0f,
+                letterSpacing = (it["letterSpacing"] as? Number)?.toFloat() ?: 0f,
+                rotation = (it["rotation"] as? Number)?.toFloat() ?: 0f,
+                scale = (it["scale"] as? Number)?.toFloat() ?: 1f,
+                opacity = (it["opacity"] as? Number)?.toFloat() ?: 1f,
+                fontFamily = it["fontFamily"] as? String ?: "Poppins",
+                entranceAnimation = ClipAnimation.fromMap(it["entranceAnimation"] as? Map<String, Any>),
+                exitAnimation = ClipAnimation.fromMap(it["exitAnimation"] as? Map<String, Any>)
+            )
+        }
+    }
+
+    override fun onDestroy() {
+        renderer?.stop()
+        textureEntry?.release()
+        super.onDestroy()
+    }
+}
