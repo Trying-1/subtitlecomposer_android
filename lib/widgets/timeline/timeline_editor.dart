@@ -21,6 +21,10 @@ class TimelineEditor extends StatefulWidget {
   final Function(String) onResolveCollisions;
   final VoidCallback onStackSelected;
   final VoidCallback onResetSelected;
+  final bool isPlaying;
+  final VoidCallback onTogglePlay;
+  final bool isCollapsed;
+  final VoidCallback onToggleCollapse;
 
   const TimelineEditor({
     super.key,
@@ -43,6 +47,10 @@ class TimelineEditor extends StatefulWidget {
     required this.onResolveCollisions,
     required this.onStackSelected,
     required this.onResetSelected,
+    required this.isPlaying,
+    required this.onTogglePlay,
+    required this.isCollapsed,
+    required this.onToggleCollapse,
   });
 
   @override
@@ -67,85 +75,157 @@ class _TimelineEditorState extends State<TimelineEditor> {
       color: const Color(0xFF16161E),
       child: Column(
         children: [
-          _buildZoomControls(context),
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: _isScrollingLocked ? const NeverScrollableScrollPhysics() : const AlwaysScrollableScrollPhysics(),
-              child: SizedBox(
-                width: timelineWidth,
-                child: Column(
-                  children: [
-                    _buildTimeRuler(),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => widget.onSelect(null),
-                        child: SingleChildScrollView(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              ...widget.tracks.map((track) => _buildTrackRow(track)).toList(),
-                              _buildEmptySpaceDragTarget(),
-                              Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: TextButton.icon(
-                                  onPressed: widget.onAddTrack,
-                                  icon: const Icon(Icons.add, size: 16, color: Colors.deepPurpleAccent),
-                                  label: const Text("ADD TRACK", style: TextStyle(fontSize: 10, color: Colors.deepPurpleAccent, fontWeight: FontWeight.bold)),
-                                  style: TextButton.styleFrom(
-                                    backgroundColor: Colors.white.withOpacity(0.05),
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          _buildControlHeader(context),
+          if (!widget.isCollapsed)
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: _isScrollingLocked ? const NeverScrollableScrollPhysics() : const AlwaysScrollableScrollPhysics(),
+                child: SizedBox(
+                  width: timelineWidth,
+                  child: Column(
+                    children: [
+                      _buildTimeRuler(),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => widget.onSelect(null),
+                          child: SingleChildScrollView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                ...widget.tracks.map((track) => _buildTrackRow(track)).toList(),
+                                _buildEmptySpaceDragTarget(),
+                                Padding(
+                                  padding: const EdgeInsets.all(16.0),
+                                  child: TextButton.icon(
+                                    onPressed: widget.onAddTrack,
+                                    icon: const Icon(Icons.add, size: 16, color: Colors.deepPurpleAccent),
+                                    label: const Text("ADD TRACK", style: TextStyle(fontSize: 10, color: Colors.deepPurpleAccent, fontWeight: FontWeight.bold)),
+                                    style: TextButton.styleFrom(
+                                      backgroundColor: Colors.white.withOpacity(0.05),
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                    ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(height: 100), // Buffer for scrolling
-                            ],
+                                const SizedBox(height: 100), // Buffer for scrolling
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );
   }
 
-  Widget _buildZoomControls(BuildContext context) {
+  Widget _buildControlHeader(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: const BoxDecoration(
-        color: Colors.black26,
+        color: Color(0xFF1F1F29),
         border: Border(bottom: BorderSide(color: Colors.white10)),
       ),
-      child: Row(
+      child: Column(
         children: [
-          const Icon(Icons.zoom_out, size: 16, color: Colors.white54),
-          Expanded(
-            child: Slider(
-              value: widget.zoomLevel,
-              min: 0.1,
-              max: 5.0,
-              activeColor: Colors.deepPurpleAccent,
-              onChanged: widget.onZoomChanged,
+          // Row 1: Playback & Zoom
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 1, 16, 1),
+            child: Row(
+              children: [
+                IconButton(
+                  onPressed: widget.onTogglePlay,
+                  icon: Icon(
+                    widget.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    size: 20,
+                    color: Colors.deepPurpleAccent,
+                  ),
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+                const SizedBox(width: 8),
+                _buildTimeDisplay(),
+                const SizedBox(width: 16),
+                const Icon(Icons.zoom_out, size: 14, color: Colors.white30),
+                Expanded(
+                  child: SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      trackHeight: 2,
+                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+                    ),
+                    child: Slider(
+                      value: widget.zoomLevel,
+                      min: 0.1,
+                      max: 5.0,
+                      activeColor: Colors.deepPurpleAccent,
+                      inactiveColor: Colors.white10,
+                      onChanged: widget.onZoomChanged,
+                    ),
+                  ),
+                ),
+                const Icon(Icons.zoom_in, size: 14, color: Colors.white30),
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: widget.onToggleCollapse,
+                  icon: Icon(
+                    widget.isCollapsed ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
+                    size: 18,
+                    color: Colors.white70,
+                  ),
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
             ),
           ),
-          const Icon(Icons.zoom_in, size: 16, color: Colors.white54),
-          const SizedBox(width: 16),
-          const Spacer(),
-          _buildVerticalToggle("ALL", widget.isAllSelected, widget.onToggleSelectAll),
-          const SizedBox(width: 12),
-          _buildVerticalToggle("RESET", false, widget.onResetSelected, icon: Icons.history_rounded),
-          const SizedBox(width: 12),
-          _buildVerticalToggle("STACK", false, widget.onStackSelected, icon: Icons.layers_outlined),
-          const SizedBox(width: 12),
-          _buildVerticalToggle("MULTI", widget.isMultiSelectMode, widget.onToggleMultiSelect),
-          const SizedBox(width: 8),
+          if (!widget.isCollapsed) ...[
+            const Divider(height: 1, color: Colors.white10),
+            // Row 2: Tools
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 1),
+              child: Row(
+                children: [
+                  const Text('TIMELINE TOOLS', style: TextStyle(fontSize: 8, color: Colors.white24, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+                  const Spacer(),
+                  _buildVerticalToggle("ALL", widget.isAllSelected, widget.onToggleSelectAll),
+                  const SizedBox(width: 16),
+                  _buildVerticalToggle("RESET", false, widget.onResetSelected, icon: Icons.history_rounded),
+                  const SizedBox(width: 16),
+                  _buildVerticalToggle("STACK", false, widget.onStackSelected, icon: Icons.layers_outlined),
+                  const SizedBox(width: 16),
+                  _buildVerticalToggle("MULTI", widget.isMultiSelectMode, widget.onToggleMultiSelect),
+                  const SizedBox(width: 0),
+                ],
+              ),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildTimeDisplay() {
+    String formatDuration(Duration d) {
+      String twoDigits(int n) => n.toString().padLeft(2, '0');
+      final minutes = twoDigits(d.inMinutes.remainder(60));
+      final seconds = twoDigits(d.inSeconds.remainder(60));
+      return "$minutes:$seconds";
+    }
+
+    return Text(
+      "${formatDuration(widget.currentTime)} / ${formatDuration(widget.totalDuration)}",
+      style: const TextStyle(
+        fontFamily: 'monospace',
+        fontSize: 11,
+        fontWeight: FontWeight.w600,
+        color: Colors.white38,
       ),
     );
   }
@@ -200,7 +280,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
       onHorizontalDragUpdate: (details) => _handleSeek(details.localPosition.dx),
       onTapDown: (details) => _handleSeek(details.localPosition.dx),
       child: Container(
-        height: 35,
+        height: 20,
         color: const Color(0xFF1F1F29),
         child: Stack(
           children: [
@@ -225,8 +305,8 @@ class _TimelineEditorState extends State<TimelineEditor> {
     return Column(
       children: [
         Container(
-          width: 12,
-          height: 12,
+          width: 8,
+          height: 8,
           decoration: const BoxDecoration(
             color: Colors.redAccent,
             shape: BoxShape.circle,
@@ -265,7 +345,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
       },
       builder: (context, candidateData, rejectedData) {
         return Container(
-          height: 70,
+          height: 48,
           decoration: BoxDecoration(
             color: candidateData.isNotEmpty ? Colors.deepPurpleAccent.withOpacity(0.05) : Colors.transparent,
             border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.05))),
@@ -285,8 +365,8 @@ class _TimelineEditorState extends State<TimelineEditor> {
 
     return Positioned(
       left: left,
-      top: 8,
-      bottom: 8,
+      top: 4,
+      bottom: 4,
       width: width.clamp(20.0, double.infinity),
       child: LongPressDraggable<SubtitleClip>(
         data: clip,
@@ -294,7 +374,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
         feedback: Material(
           color: Colors.transparent,
           child: SizedBox(
-            height: 54,
+            height: 40,
             child: _buildClipContent(clip, isSelected, true),
           ),
         ),
@@ -507,7 +587,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
       onAccept: (_) => widget.onAddTrack(),
       builder: (context, candidateData, rejectedData) {
         return Container(
-          height: 100,
+          height: 60,
           width: double.infinity,
           decoration: BoxDecoration(
             color: candidateData.isNotEmpty ? Colors.deepPurpleAccent.withOpacity(0.05) : Colors.transparent,
@@ -544,15 +624,15 @@ class RulerPainter extends CustomPainter {
 
     for (int i = 0; i <= totalDuration.inSeconds; i++) {
         double x = i * pixelsPerSecond;
-        canvas.drawLine(Offset(x, 20), Offset(x, 35), paint);
+        canvas.drawLine(Offset(x, 12), Offset(x, 20), paint);
         
         if (i % 5 == 0 || pixelsPerSecond > 100) {
           textPainter.text = TextSpan(
             text: "${i}s",
-            style: const TextStyle(color: Colors.white38, fontSize: 10),
+            style: const TextStyle(color: Colors.white38, fontSize: 8),
           );
           textPainter.layout();
-          textPainter.paint(canvas, Offset(x + 4, 5));
+          textPainter.paint(canvas, Offset(x + 4, 1));
         }
     }
   }

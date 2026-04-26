@@ -7,30 +7,34 @@ import java.io.File
 import java.nio.ByteBuffer
 
 class VideoExporter(
-    private val fileDescriptor: java.io.FileDescriptor,
+    private val outputPath: String,
     private val width: Int,
     private val height: Int,
-    private val bitrate: Int = 5000000,
+    private val bitrate: Int = 8000000, // Higher bitrate for better quality before final mux
     private val frameRate: Int = 30,
     private val clips: List<SubtitleClip>,
     private val durationMs: Long,
     private val assetManager: android.content.res.AssetManager,
-    private val audioPath: String? = null,
-    private val backgroundColor: Int = 0xFF000000.toInt()
+    private val backgroundColor: Int = 0xFF000000.toInt(),
+    private val backgroundImagePath: String? = null,
+    private val bgScale: Float = 1f,
+    private val bgRotation: Float = 0f,
+    private val bgX: Float = 0f,
+    private val bgY: Float = 0f,
+    private val bgFillMode: Int = 0
 ) {
     private var encoder: MediaCodec? = null
     private var inputSurface: Surface? = null
     private var muxer: MediaMuxer? = null
     private var trackIndex = -1
-    private var audioTrackIndex = -1
     private var isMuxerStarted = false
     
-    private var audioExtractor: MediaExtractor? = null
     private var eglDisplay: EGLDisplay? = EGL14.EGL_NO_DISPLAY
     private var eglContext: EGLContext? = EGL14.EGL_NO_CONTEXT
     private var eglSurface: EGLSurface? = EGL14.EGL_NO_SURFACE
     
     private var subtitleRenderer: SubtitleRenderer? = null
+    private var backgroundRenderer: BackgroundRenderer? = null
 
     fun export(onProgress: (Float) -> Unit) {
         prepareEncoder()
@@ -39,11 +43,15 @@ class VideoExporter(
         subtitleRenderer = SubtitleRenderer(width, height)
         subtitleRenderer?.init()
 
+        backgroundRenderer = BackgroundRenderer()
+        backgroundRenderer?.init()
+        backgroundRenderer?.setImage(backgroundImagePath)
+
         val totalFrames = (durationMs / 1000.0 * frameRate).toInt()
         
         for (i in 0 until totalFrames) {
             val presentationTimeNs = i * 1000000000L / frameRate
-            val currentTimeMs = i * 1000L / frameRate
+            val currentTimeMs = (i * 1000L / frameRate)
             
             drawFrame(currentTimeMs)
             
@@ -55,10 +63,6 @@ class VideoExporter(
         }
 
         drainEncoder(true)
-
-        // After video is encoding is complete, mux audio
-        muxAudio()
-        
         release()
     }
 
@@ -74,7 +78,7 @@ class VideoExporter(
         inputSurface = encoder?.createInputSurface()
         encoder?.start()
 
-        muxer = MediaMuxer(fileDescriptor, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+        muxer = MediaMuxer(outputPath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
     }
 
     private fun prepareGL() {
@@ -118,7 +122,10 @@ class VideoExporter(
         GLES20.glClearColor(r, g, b, a)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
         
-        val activeClips = clips.filter { clip: SubtitleClip -> currentTimeMs in clip.startTime..clip.endTime }
+        backgroundRenderer?.setTransform(bgScale, bgRotation, bgX, bgY, bgFillMode, width, height)
+        backgroundRenderer?.draw()
+        
+        val activeClips = clips.filter { it.startTime <= currentTimeMs && it.endTime >= currentTimeMs }
         for (clip in activeClips) {
             val animState = AnimationEvaluator.evaluate(clip, currentTimeMs)
             subtitleRenderer?.drawTextClip(clip, animState, assetManager)
@@ -138,28 +145,6 @@ class VideoExporter(
             } else if (outputBufferIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
                 val newFormat = encoder?.outputFormat
                 trackIndex = muxer?.addTrack(newFormat!!) ?: -1
-                
-                // Add audio track if available
-                if (audioPath != null) {
-                    android.util.Log.d("VideoExporter", "Adding audio track from: $audioPath")
-                    audioExtractor = MediaExtractor()
-                    try {
-                        audioExtractor?.setDataSource(audioPath)
-                        for (i in 0 until (audioExtractor?.trackCount ?: 0)) {
-                            val format = audioExtractor?.getTrackFormat(i)
-                            val mime = format?.getString(MediaFormat.KEY_MIME)
-                            if (mime?.startsWith("audio/") == true) {
-                                audioExtractor?.selectTrack(i)
-                                audioTrackIndex = muxer?.addTrack(format) ?: -1
-                                android.util.Log.d("VideoExporter", "Audio track added at index: $audioTrackIndex")
-                                break
-                            }
-                        }
-                    } catch (e: Exception) {
-                        android.util.Log.e("VideoExporter", "Failed to add audio track", e)
-                    }
-                }
-                
                 muxer?.start()
                 isMuxerStarted = true
             } else if (outputBufferIndex >= 0) {
@@ -180,45 +165,13 @@ class VideoExporter(
         }
     }
 
-    private fun muxAudio() {
-        if (audioExtractor == null || audioTrackIndex == -1 || !isMuxerStarted) {
-            android.util.Log.w("VideoExporter", "Skipping audio muxing. Extractor: $audioExtractor, Track: $audioTrackIndex, MuxerStarted: $isMuxerStarted")
-            return
-        }
-
-        android.util.Log.d("VideoExporter", "Starting audio muxing loop")
-        val bufferInfo = MediaCodec.BufferInfo()
-        val bufferSize = 256 * 1024
-        val byteBuffer = ByteBuffer.allocate(bufferSize)
-        var samplesMuxed = 0
-
-        while (true) {
-            byteBuffer.clear()
-            bufferInfo.offset = 0
-            bufferInfo.size = audioExtractor?.readSampleData(byteBuffer, 0) ?: -1
-            if (bufferInfo.size < 0) break
-
-            bufferInfo.presentationTimeUs = audioExtractor?.sampleTime ?: 0L
-            if (bufferInfo.presentationTimeUs > durationMs * 1000) break
-            
-            bufferInfo.flags = audioExtractor?.sampleFlags ?: 0
-            
-            byteBuffer.position(0)
-            byteBuffer.limit(bufferInfo.size)
-            
-            muxer?.writeSampleData(audioTrackIndex, byteBuffer, bufferInfo)
-            audioExtractor?.advance()
-            samplesMuxed++
-        }
-        android.util.Log.d("VideoExporter", "Audio muxing finished. Samples muxed: $samplesMuxed")
-    }
-
     private fun release() {
-        audioExtractor?.release()
         encoder?.stop()
         encoder?.release()
         try {
-            muxer?.stop()
+            if (isMuxerStarted) {
+                muxer?.stop()
+            }
             muxer?.release()
         } catch (e: Exception) {
             e.printStackTrace()

@@ -11,6 +11,8 @@ enum AnimationType {
   typewriter,
   bounceIn,
   rotateIn,
+  wobble,
+  shake,
 }
 
 enum EasingType {
@@ -78,11 +80,14 @@ class SubtitleClip {
   final double scale;
   final double opacity;
   final String fontFamily;
-  final ClipAnimation entranceAnimation;
-  final ClipAnimation exitAnimation;
+  final bool isShadowEnabled;
+  final bool isBackgroundEnabled;
   final Duration originalStartTime;
   final Duration originalEndTime;
   final String? originalTrackId;
+  final ClipAnimation entranceAnimation;
+  final ClipAnimation exitAnimation;
+  final ClipAnimation loopAnimation;
 
   SubtitleClip({
     required this.id,
@@ -90,24 +95,27 @@ class SubtitleClip {
     required this.startTime,
     required this.endTime,
     this.x = 0.5,
-    this.y = 0.8,
-    this.fontSize = 24.0,
-    this.color = 0xFFFFFFFF,
+    this.y = 0.5,
+    this.fontSize = 50.0,
+    this.color = 0xFF000000,
     this.strokeColor = 0xFF000000,
     this.strokeWidth = 0.0,
     this.shadowColor = 0x00000000,
     this.shadowBlur = 0.0,
     this.shadowOffsetX = 0.0,
     this.shadowOffsetY = 0.0,
-    this.backgroundColor = 0x00000000,
+    this.backgroundColor = 0xFFFFFFFF,
     this.backgroundRadius = 0.0,
     this.letterSpacing = 0.0,
     this.rotation = 0.0,
     this.scale = 1.0,
     this.opacity = 1.0,
+    this.isShadowEnabled = true,
+    this.isBackgroundEnabled = true,
     this.fontFamily = 'Poppins',
     this.entranceAnimation = const ClipAnimation(),
     this.exitAnimation = const ClipAnimation(),
+    this.loopAnimation = const ClipAnimation(),
     Duration? originalStartTime,
     Duration? originalEndTime,
     this.originalTrackId,
@@ -135,9 +143,12 @@ class SubtitleClip {
     'rotation': rotation,
     'scale': scale,
     'opacity': opacity,
+    'isShadowEnabled': isShadowEnabled,
+    'isBackgroundEnabled': isBackgroundEnabled,
     'fontFamily': fontFamily,
     'entranceAnimation': entranceAnimation.toJson(),
     'exitAnimation': exitAnimation.toJson(),
+    'loopAnimation': loopAnimation.toJson(),
     'originalStartTime': originalStartTime.inMilliseconds,
     'originalEndTime': originalEndTime.inMilliseconds,
     'originalTrackId': originalTrackId,
@@ -164,9 +175,12 @@ class SubtitleClip {
     double? rotation,
     double? scale,
     double? opacity,
+    bool? isShadowEnabled,
+    bool? isBackgroundEnabled,
     String? fontFamily,
     ClipAnimation? entranceAnimation,
     ClipAnimation? exitAnimation,
+    ClipAnimation? loopAnimation,
     Duration? originalStartTime,
     Duration? originalEndTime,
     String? originalTrackId,
@@ -191,9 +205,12 @@ class SubtitleClip {
     rotation: rotation ?? this.rotation,
     scale: scale ?? this.scale,
     opacity: opacity ?? this.opacity,
+    isShadowEnabled: isShadowEnabled ?? this.isShadowEnabled,
+    isBackgroundEnabled: isBackgroundEnabled ?? this.isBackgroundEnabled,
     fontFamily: fontFamily ?? this.fontFamily,
     entranceAnimation: entranceAnimation ?? this.entranceAnimation,
     exitAnimation: exitAnimation ?? this.exitAnimation,
+    loopAnimation: loopAnimation ?? this.loopAnimation,
     originalStartTime: originalStartTime ?? this.originalStartTime,
     originalEndTime: originalEndTime ?? this.originalEndTime,
     originalTrackId: originalTrackId ?? this.originalTrackId,

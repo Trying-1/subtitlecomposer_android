@@ -48,6 +48,16 @@ object AnimationEvaluator {
             rotation += state.rotation
         }
 
+        // Loop
+        val loop = clip.loopAnimation
+        if (loop.type != AnimationType.NONE) {
+            val state = evaluateLoop(loop.type, currentTimeMs, loop.durationMs)
+            offsetX += state.offsetX
+            offsetY += state.offsetY
+            rotation += state.rotation
+            scale *= state.scale
+        }
+
         return AnimatedTextState(
             opacity = opacity.coerceIn(0f, 1f),
             offsetX = offsetX,
@@ -86,6 +96,32 @@ object AnimationEvaluator {
             AnimationType.SCALE_DOWN -> AnimatedTextState(scale = 2f - t, opacity = t)
             AnimationType.BOUNCE_IN -> AnimatedTextState(scale = t, offsetY = -0.2f * (1f - t))
             AnimationType.ROTATE_IN -> AnimatedTextState(rotation = -360f * (1f - t), opacity = t, scale = t)
+            else -> AnimatedTextState()
+        }
+    }
+
+    private fun evaluateLoop(type: AnimationType, timeMs: Long, durationMs: Int): AnimatedTextState {
+        val t = timeMs.toFloat() / 1000f
+        return when (type) {
+            AnimationType.SHAKE -> {
+                // Rapid vibration
+                val freq = 15f
+                val intensity = 0.02f
+                AnimatedTextState(
+                    offsetX = sin(t * freq * 2f * PI.toFloat()) * intensity,
+                    offsetY = cos(t * freq * 1.5f * PI.toFloat()) * intensity
+                )
+            }
+            AnimationType.WOBBLE -> {
+                // Floating rotation/scale
+                val freq = 3f
+                val rotIntensity = 5f
+                val scaleIntensity = 0.05f
+                AnimatedTextState(
+                    rotation = sin(t * freq * 2f * PI.toFloat()) * rotIntensity,
+                    scale = 1f + sin(t * freq * 1.2f * PI.toFloat()) * scaleIntensity
+                )
+            }
             else -> AnimatedTextState()
         }
     }

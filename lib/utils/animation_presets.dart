@@ -92,6 +92,8 @@ class AnimationPresets {
       case AnimationType.typewriter: return 'Typewriter';
       case AnimationType.bounceIn: return 'Bounce In';
       case AnimationType.rotateIn: return 'Rotate In';
+      case AnimationType.wobble: return 'Wobble';
+      case AnimationType.shake: return 'Shake';
     }
   }
 

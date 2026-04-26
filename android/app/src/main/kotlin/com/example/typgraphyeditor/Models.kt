@@ -12,7 +12,9 @@ enum class AnimationType {
     SCALE_DOWN,
     TYPEWRITER,
     BOUNCE_IN,
-    ROTATE_IN;
+    ROTATE_IN,
+    WOBBLE,
+    SHAKE;
 
     companion object {
         fun fromIndex(index: Int): AnimationType = entries.getOrElse(index) { NONE }
@@ -70,9 +72,12 @@ data class SubtitleClip(
     val rotation: Float = 0f,
     val scale: Float = 1f,
     val opacity: Float = 1f,
+    val isShadowEnabled: Boolean = true,
+    val isBackgroundEnabled: Boolean = true,
     val fontFamily: String = "Poppins",
     val entranceAnimation: ClipAnimation = ClipAnimation(),
-    val exitAnimation: ClipAnimation = ClipAnimation()
+    val exitAnimation: ClipAnimation = ClipAnimation(),
+    val loopAnimation: ClipAnimation = ClipAnimation()
 )
 
 /**

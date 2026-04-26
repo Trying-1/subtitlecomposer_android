@@ -31,3 +31,11 @@ got it]
 [good, also allow to select text directly in the preview canvas, understood, so that we can select any text directly from the preview window, got it]
 [good, next allow direct select and drag as well in the preview window, like right now I want to directly drag the text position but it don't allow it like that, I first had to select the text, so to improve the users experience allow direct selection and drag, in preview.  got it]
 [cool, now next lets add apect ratio and background control panel.]
+
+
+[for the background image picker use the image picker, in which instead of file browser a bottom sheets open up.  understood]
+[make the timeline control 2 row layout, and also lets put the play pause control inside this, this was we will have more space for the preview window]
+[in the upper timeline control panel add a full screen icon button,  what this will do is collapse the timeline control panel and timeline track, making the preview window full screen, so that we can edit things on it easily, udnerstood]
+[good, now during this full screen mode, when we swipe the lower area of the preview window allow seek, so what we can effiently edit,  got it. ]
+[good, now add the visual feedback for this swipe, like the progess bar of where the current play head is, so this indicator bwetween the bottom control panel and the timeline control panel, unerstood,  like this will kind of % based indicator not ther acutal play head, we have in the timeline ruler, got it]
+[cool, next man improve the project tab layout, move aspect ratio as separate control panel tab. use small square buttons for import export button instead of full width buttons]

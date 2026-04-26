@@ -4,8 +4,9 @@ import 'package:file_picker/file_picker.dart';
 import '../providers/editor_provider.dart';
 import '../widgets/preview/video_preview.dart';
 import '../widgets/timeline/timeline_editor.dart';
-import '../widgets/controls/transport_controls.dart';
+import '../widgets/timeline/timeline_editor.dart';
 import '../widgets/controls/bottom_control_panel.dart';
+import '../models/editor_models.dart';
 
 class EditorScreen extends StatelessWidget {
   const EditorScreen({super.key});
@@ -50,29 +51,22 @@ class EditorScreen extends StatelessWidget {
         child: Column(
           children: [
             Expanded(
-              flex: 5,
+              flex: provider.isTimelineCollapsed ? 1 : 6,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-                child: Column(
-                  children: [
-                    const Expanded(child: VideoPreview()),
-                    const SizedBox(height: 8),
-                    TransportControls(
-                      isPlaying: provider.isPlaying,
-                      currentTime: provider.currentTime,
-                      totalDuration: provider.totalDuration,
-                      onTogglePlay: provider.togglePlay,
-                    ),
-                  ],
-                ),
+                child: const VideoPreview(),
               ),
             ),
-            Expanded(
-              flex: 3,
-              child: TimelineEditor(
+            if (provider.isTimelineCollapsed)
+               TimelineEditor(
                 tracks: provider.tracks,
                 currentTime: provider.currentTime,
                 totalDuration: provider.totalDuration,
+                isPlaying: provider.isPlaying,
+                onTogglePlay: provider.togglePlay,
+                isCollapsed: true,
+                onToggleCollapse: provider.toggleTimelineCollapse,
+                onSeek: (dur) => provider.seek(dur),
                 selectedClipIds: provider.selectedClipIds,
                 isMultiSelectMode: provider.isMultiSelectMode,
                 onToggleMultiSelect: provider.toggleMultiSelectMode,
@@ -81,7 +75,6 @@ class EditorScreen extends StatelessWidget {
                 zoomLevel: provider.zoomLevel,
                 onSelect: (id) => provider.selectClip(id),
                 onToggleSelect: (id) => provider.toggleClipSelection(id),
-                onSeek: (dur) => provider.seek(dur),
                 onZoomChanged: (v) => provider.setZoomLevel(v),
                 onMoveClip: (clip, trackId, startTime) => provider.moveClip(clip, trackId, startTime),
                 onAddTrack: () => provider.addNewTrack(),
@@ -89,8 +82,45 @@ class EditorScreen extends StatelessWidget {
                 onResolveCollisions: (id) => provider.forceResolveCollisions(id),
                 onStackSelected: () => provider.stackSelectedClips(),
                 onResetSelected: () => provider.resetSelectedClips(),
+              )
+            else
+              Expanded(
+                flex: 3,
+                child: TimelineEditor(
+                  tracks: provider.tracks,
+                  currentTime: provider.currentTime,
+                  totalDuration: provider.totalDuration,
+                  isPlaying: provider.isPlaying,
+                  onTogglePlay: provider.togglePlay,
+                  isCollapsed: false,
+                  onToggleCollapse: provider.toggleTimelineCollapse,
+                  onSeek: (dur) => provider.seek(dur),
+                  selectedClipIds: provider.selectedClipIds,
+                  isMultiSelectMode: provider.isMultiSelectMode,
+                  onToggleMultiSelect: provider.toggleMultiSelectMode,
+                  isAllSelected: provider.isAllSelected,
+                  onToggleSelectAll: () => provider.toggleSelectAll(),
+                  zoomLevel: provider.zoomLevel,
+                  onSelect: (id) => provider.selectClip(id),
+                  onToggleSelect: (id) => provider.toggleClipSelection(id),
+                  onZoomChanged: (v) => provider.setZoomLevel(v),
+                  onMoveClip: (clip, trackId, startTime) => provider.moveClip(clip, trackId, startTime),
+                  onAddTrack: () => provider.addNewTrack(),
+                  onUpdateClipTiming: (clip, start, end, resolve) => provider.updateClipTiming(clip, start, end, resolveCollisions: resolve),
+                  onResolveCollisions: (id) => provider.forceResolveCollisions(id),
+                  onStackSelected: () => provider.stackSelectedClips(),
+                  onResetSelected: () => provider.resetSelectedClips(),
+                ),
               ),
-            ),
+            if (provider.isTimelineCollapsed)
+              LinearProgressIndicator(
+                value: provider.totalDuration.inMilliseconds > 0 
+                    ? provider.currentTime.inMilliseconds / provider.totalDuration.inMilliseconds 
+                    : 0.0,
+                backgroundColor: Colors.white.withOpacity(0.05),
+                color: Colors.deepPurpleAccent,
+                minHeight: 2,
+              ),
             if (provider.isExporting)
               const LinearProgressIndicator(color: Colors.deepPurpleAccent, backgroundColor: Colors.white10),
             const Divider(height: 1, color: Colors.white10),
@@ -110,6 +140,8 @@ class EditorScreen extends StatelessWidget {
                 double? rotation,
                 double? scale,
                 double? opacity,
+                bool? isShadowEnabled,
+                bool? isBackgroundEnabled,
                 int? color,
                 int? strokeColor,
                 double? strokeWidth,
@@ -120,8 +152,9 @@ class EditorScreen extends StatelessWidget {
                 int? backgroundColor,
                 double? backgroundRadius,
                 String? fontFamily,
-                entranceAnimation,
-                exitAnimation,
+                ClipAnimation? entranceAnimation,
+                ClipAnimation? exitAnimation,
+                ClipAnimation? loopAnimation,
               }) {
                 provider.updateClips(
                   provider.selectedClipIds,
@@ -142,9 +175,12 @@ class EditorScreen extends StatelessWidget {
                   rotation: rotation,
                   scale: scale,
                   opacity: opacity,
+                  isShadowEnabled: isShadowEnabled,
+                  isBackgroundEnabled: isBackgroundEnabled,
                   fontFamily: fontFamily,
                   entranceAnimation: entranceAnimation,
                   exitAnimation: exitAnimation,
+                  loopAnimation: loopAnimation,
                 );
               },
               onApplyPreset: (preset) {

@@ -106,8 +106,8 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         val canvas = Canvas(bitmap)
         canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
 
-        // Draw Background
-        if (Color.alpha(clip.backgroundColor) > 0) {
+        // Draw Background if enabled
+        if (clip.isBackgroundEnabled && Color.alpha(clip.backgroundColor) > 0) {
             val bgPaint = Paint().apply {
                 isAntiAlias = true
                 color = clip.backgroundColor
@@ -124,7 +124,7 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         }
 
         // Apply Shadow if enabled
-        if (Color.alpha(clip.shadowColor) > 0 && clip.shadowBlur > 0) {
+        if (clip.isShadowEnabled && Color.alpha(clip.shadowColor) > 0 && clip.shadowBlur > 0) {
             paint.setShadowLayer(clip.shadowBlur, clip.shadowOffsetX, clip.shadowOffsetY, clip.shadowColor)
         }
 
@@ -151,9 +151,6 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
             canvas.drawText(displayText, textCenterX, textBaselineY, paint)
         }
 
-        if (animState.rotation != 0f || clip.rotation != 0f) {
-            canvas.restore()
-        }
 
         val textureId = IntArray(1)
         GLES20.glGenTextures(1, textureId, 0)

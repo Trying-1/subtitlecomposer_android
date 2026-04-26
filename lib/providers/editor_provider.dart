@@ -21,9 +21,23 @@ class EditorProvider extends ChangeNotifier {
   String? _audioPath;
   double _aspectRatio = 16 / 9;
   int _backgroundColor = 0xFF000000;
+  String? _backgroundImagePath;
+  double _backgroundScale = 1.0;
+  double _backgroundRotation = 0.0;
+  double _backgroundX = 0.0;
+  double _backgroundY = 0.0;
+  int _backgroundFillMode = 0; // 0: cover, 1: fit, 2: center
+  bool _isTimelineCollapsed = false;
 
   List<Track> get tracks => _tracks;
   Duration get currentTime => _currentTime;
+  int get backgroundColor => _backgroundColor;
+  String? get backgroundImagePath => _backgroundImagePath;
+  double get backgroundScale => _backgroundScale;
+  double get backgroundRotation => _backgroundRotation;
+  double get backgroundX => _backgroundX;
+  double get backgroundY => _backgroundY;
+  int get backgroundFillMode => _backgroundFillMode;
   Duration get totalDuration => _totalDuration;
   bool get isPlaying => _isPlaying;
   bool get isExporting => _isExporting;
@@ -36,10 +50,15 @@ class EditorProvider extends ChangeNotifier {
   String? get selectedClipId => _selectedClipIds.isNotEmpty ? _selectedClipIds.first : null;
   double get zoomLevel => _zoomLevel;
   double get aspectRatio => _aspectRatio;
-  int get backgroundColor => _backgroundColor;
+  bool get isTimelineCollapsed => _isTimelineCollapsed;
 
   void setZoomLevel(double level) {
     _zoomLevel = level.clamp(0.1, 10.0);
+    notifyListeners();
+  }
+
+  void toggleTimelineCollapse() {
+    _isTimelineCollapsed = !_isTimelineCollapsed;
     notifyListeners();
   }
 
@@ -55,10 +74,52 @@ class EditorProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setBackgroundImage(String? path) {
+    _backgroundImagePath = path;
+    _syncToNative();
+    notifyListeners();
+  }
+
+  void setBackgroundScale(double scale) {
+    _backgroundScale = scale;
+    _syncToNative();
+    notifyListeners();
+  }
+
+  void setBackgroundRotation(double rotation) {
+    _backgroundRotation = rotation;
+    _syncToNative();
+    notifyListeners();
+  }
+
+  void setBackgroundX(double x) {
+    _backgroundX = x;
+    _syncToNative();
+    notifyListeners();
+  }
+
+  void setBackgroundY(double y) {
+    _backgroundY = y;
+    _syncToNative();
+    notifyListeners();
+  }
+
+  void setBackgroundFillMode(int mode) {
+    _backgroundFillMode = mode;
+    _syncToNative();
+    notifyListeners();
+  }
+
   void updateProjectSync({int? width, int? height}) {
     _bridge.updateProjectSettings(
       aspectRatio: _aspectRatio,
       backgroundColor: _backgroundColor,
+      backgroundImagePath: _backgroundImagePath,
+      bgScale: _backgroundScale,
+      bgRotation: _backgroundRotation,
+      bgX: _backgroundX,
+      bgY: _backgroundY,
+      bgFillMode: _backgroundFillMode,
       width: width,
       height: height,
     );
@@ -183,9 +244,12 @@ class EditorProvider extends ChangeNotifier {
     double? rotation,
     double? scale,
     double? opacity,
+    bool? isShadowEnabled,
+    bool? isBackgroundEnabled,
     String? fontFamily,
     ClipAnimation? entranceAnimation,
     ClipAnimation? exitAnimation,
+    ClipAnimation? loopAnimation,
   }) {
     updateClips([id],
       text: text,
@@ -205,9 +269,12 @@ class EditorProvider extends ChangeNotifier {
       rotation: rotation,
       scale: scale,
       opacity: opacity,
+      isShadowEnabled: isShadowEnabled,
+      isBackgroundEnabled: isBackgroundEnabled,
       fontFamily: fontFamily,
       entranceAnimation: entranceAnimation,
       exitAnimation: exitAnimation,
+      loopAnimation: loopAnimation,
     );
   }
 
@@ -229,9 +296,12 @@ class EditorProvider extends ChangeNotifier {
     double? rotation,
     double? scale,
     double? opacity,
+    bool? isShadowEnabled,
+    bool? isBackgroundEnabled,
     String? fontFamily,
     ClipAnimation? entranceAnimation,
     ClipAnimation? exitAnimation,
+    ClipAnimation? loopAnimation,
   }) {
     final idSet = ids.toSet();
     for (var track in _tracks) {
@@ -256,9 +326,12 @@ class EditorProvider extends ChangeNotifier {
             rotation: rotation,
             scale: scale,
             opacity: opacity,
+            isShadowEnabled: isShadowEnabled,
+            isBackgroundEnabled: isBackgroundEnabled,
             fontFamily: fontFamily,
             entranceAnimation: entranceAnimation,
             exitAnimation: exitAnimation,
+            loopAnimation: loopAnimation,
           );
         }
       }
@@ -281,6 +354,12 @@ class EditorProvider extends ChangeNotifier {
     _bridge.updateProjectSettings(
       aspectRatio: _aspectRatio,
       backgroundColor: _backgroundColor,
+      backgroundImagePath: _backgroundImagePath,
+      bgScale: _backgroundScale,
+      bgRotation: _backgroundRotation,
+      bgX: _backgroundX,
+      bgY: _backgroundY,
+      bgFillMode: _backgroundFillMode,
     );
   }
 
@@ -662,6 +741,12 @@ class EditorProvider extends ChangeNotifier {
         clips: clipsJson,
         audioPath: _audioPath,
         backgroundColor: _backgroundColor,
+        backgroundImagePath: _backgroundImagePath,
+        bgScale: _backgroundScale,
+        bgRotation: _backgroundRotation,
+        bgX: _backgroundX,
+        bgY: _backgroundY,
+        bgFillMode: _backgroundFillMode,
       );
       
       return result;

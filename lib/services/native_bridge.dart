@@ -27,6 +27,12 @@ class NativeBridge {
   Future<void> updateProjectSettings({
     required double aspectRatio,
     required int backgroundColor,
+    String? backgroundImagePath,
+    double? bgScale,
+    double? bgRotation,
+    double? bgX,
+    double? bgY,
+    int? bgFillMode,
     int? width,
     int? height,
   }) async {
@@ -34,6 +40,12 @@ class NativeBridge {
       await _channel.invokeMethod('updateProjectSettings', {
         'aspectRatio': aspectRatio,
         'backgroundColor': backgroundColor,
+        'backgroundImagePath': backgroundImagePath,
+        'bgScale': bgScale,
+        'bgRotation': bgRotation,
+        'bgX': bgX,
+        'bgY': bgY,
+        'bgFillMode': bgFillMode,
         'width': width,
         'height': height,
       });
@@ -58,6 +70,12 @@ class NativeBridge {
     required List<Map<String, dynamic>> clips,
     String? audioPath,
     int? backgroundColor,
+    String? backgroundImagePath,
+    double? bgScale,
+    double? bgRotation,
+    double? bgX,
+    double? bgY,
+    int? bgFillMode,
   }) async {
     try {
       final String? result = await _channel.invokeMethod('exportVideo', {
@@ -67,6 +85,12 @@ class NativeBridge {
         'clips': clips,
         'audioPath': audioPath,
         'backgroundColor': backgroundColor,
+        'backgroundImagePath': backgroundImagePath,
+        'bgScale': bgScale,
+        'bgRotation': bgRotation,
+        'bgX': bgX,
+        'bgY': bgY,
+        'bgFillMode': bgFillMode,
       });
       return result;
     } on PlatformException catch (e) {

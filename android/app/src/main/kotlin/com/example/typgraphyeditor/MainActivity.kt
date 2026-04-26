@@ -4,11 +4,20 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.view.TextureRegistry
+import java.io.File
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.example.typgraphyeditor/bridge"
     private var renderer: TypographyRenderer? = null
     private var textureEntry: TextureRegistry.SurfaceTextureEntry? = null
+
+    companion object {
+        init {
+            System.loadLibrary("native-lib")
+        }
+    }
+
+    private external fun muxVideoAudio(videoPath: String, audioPath: String, outputPath: String): Int
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -39,9 +48,15 @@ class MainActivity : FlutterActivity() {
                 "updateProjectSettings" -> {
                     val ratio = (call.argument<Number>("aspectRatio"))?.toDouble() ?: (16.0/9.0)
                     val bgColor = (call.argument<Number>("backgroundColor"))?.toInt() ?: 0xFF000000.toInt()
+                    val imagePath = call.argument<String>("backgroundImagePath")
                     val width = (call.argument<Number>("width"))?.toInt()
                     val height = (call.argument<Number>("height"))?.toInt()
-                    renderer?.updateSettings(ratio, bgColor, width, height)
+                    val bgScale = (call.argument<Number>("bgScale"))?.toFloat()
+                    val bgRotation = (call.argument<Number>("bgRotation"))?.toFloat()
+                    val bgX = (call.argument<Number>("bgX"))?.toFloat()
+                    val bgY = (call.argument<Number>("bgY"))?.toFloat()
+                    val bgFillMode = (call.argument<Number>("bgFillMode"))?.toInt()
+                    renderer?.updateSettings(ratio, bgColor, imagePath, width, height, bgScale, bgRotation, bgX, bgY, bgFillMode)
                     result.success(null)
                 }
                 "seekTo" -> {
@@ -59,6 +74,9 @@ class MainActivity : FlutterActivity() {
 
                     Thread {
                         try {
+                            val tempSilentFile = File(cacheDir, "temp_silent_${System.currentTimeMillis()}.mp4")
+                            val tempMuxedFile = File(cacheDir, "temp_muxed_${System.currentTimeMillis()}.mp4")
+                            
                             val fileName = "TypographyExport_${System.currentTimeMillis()}.mp4"
                             val values = android.content.ContentValues().apply {
                                 put(android.provider.MediaStore.Video.Media.DISPLAY_NAME, fileName)
@@ -72,25 +90,54 @@ class MainActivity : FlutterActivity() {
                             val itemUri = resolver.insert(collection, values)
 
                             if (itemUri != null) {
-                                val pfd = resolver.openFileDescriptor(itemUri, "w")
-                                if (pfd != null) {
-                                    val bgColor = (call.argument<Number>("backgroundColor"))?.toInt() ?: 0xFF000000.toInt()
-                                    val exporter = VideoExporter(pfd.fileDescriptor, width, height, clips = clips, durationMs = durationMs, assetManager = assets, audioPath = audioPath, backgroundColor = bgColor)
-                                    exporter.export { progress ->
-                                        // Optional: Send progress back
-                                    }
-                                    pfd.close()
-                                    
-                                    values.clear()
-                                    values.put(android.provider.MediaStore.Video.Media.IS_PENDING, 0)
-                                    resolver.update(itemUri, values, null, null)
-                                    
-                                    android.media.MediaScannerConnection.scanFile(this@MainActivity, arrayOf(itemUri.toString()), null, null)
-                                    
-                                    runOnUiThread { result.success(itemUri.toString()) }
-                                } else {
-                                    runOnUiThread { result.error("PFD_ERROR", "Failed to open FileDescriptor", null) }
+                                val bgColor = (call.argument<Number>("backgroundColor"))?.toInt() ?: 0xFF000000.toInt()
+                                val imagePath = call.argument<String>("backgroundImagePath")
+                                val bgScale = (call.argument<Number>("bgScale"))?.toFloat() ?: 1f
+                                val bgRotation = (call.argument<Number>("bgRotation"))?.toFloat() ?: 0f
+                                val bgX = (call.argument<Number>("bgX"))?.toFloat() ?: 0f
+                                val bgY = (call.argument<Number>("bgY"))?.toFloat() ?: 0f
+                                val bgFillMode = (call.argument<Number>("bgFillMode"))?.toInt() ?: 0
+                                val exporter = VideoExporter(tempSilentFile.absolutePath, width, height, clips = clips, durationMs = durationMs, assetManager = assets, backgroundColor = bgColor, backgroundImagePath = imagePath, bgScale = bgScale, bgRotation = bgRotation, bgX = bgX, bgY = bgY, bgFillMode = bgFillMode)
+                                
+                                exporter.export { progress ->
+                                    // Optional: Send progress back
                                 }
+
+                                val finalSourcePath: String
+                                if (audioPath != null && File(audioPath).exists()) {
+                                    android.util.Log.d("MainActivity", "Starting FFmpeg mux: V=${tempSilentFile.path}, A=$audioPath")
+                                    val ret = muxVideoAudio(tempSilentFile.absolutePath, audioPath, tempMuxedFile.absolutePath)
+                                    if (ret == 0) {
+                                        finalSourcePath = tempMuxedFile.absolutePath
+                                    } else {
+                                        android.util.Log.e("MainActivity", "FFmpeg mux failed with code $ret, falling back to silent video")
+                                        finalSourcePath = tempSilentFile.absolutePath
+                                    }
+                                } else {
+                                    finalSourcePath = tempSilentFile.absolutePath
+                                }
+
+                                // Copy to MediaStore
+                                val outStream = resolver.openOutputStream(itemUri)
+                                if (outStream != null) {
+                                    outStream.use { os ->
+                                        File(finalSourcePath).inputStream().use { isStream ->
+                                            isStream.copyTo(os)
+                                        }
+                                    }
+                                }
+
+                                // Cleanup temp files
+                                tempSilentFile.delete()
+                                tempMuxedFile.delete()
+
+                                values.clear()
+                                values.put(android.provider.MediaStore.Video.Media.IS_PENDING, 0)
+                                resolver.update(itemUri, values, null, null)
+                                
+                                android.media.MediaScannerConnection.scanFile(this@MainActivity, arrayOf(itemUri.toString()), null, null)
+                                
+                                runOnUiThread { result.success(itemUri.toString()) }
                             } else {
                                 runOnUiThread { result.error("URI_ERROR", "Failed to create MediaStore entry", null) }
                             }
@@ -136,6 +183,8 @@ class MainActivity : FlutterActivity() {
                 rotation = (it["rotation"] as? Number)?.toFloat() ?: 0f,
                 scale = (it["scale"] as? Number)?.toFloat() ?: 1f,
                 opacity = (it["opacity"] as? Number)?.toFloat() ?: 1f,
+                isShadowEnabled = it["isShadowEnabled"] as? Boolean ?: true,
+                isBackgroundEnabled = it["isBackgroundEnabled"] as? Boolean ?: true,
                 fontFamily = it["fontFamily"] as? String ?: "Poppins",
                 entranceAnimation = ClipAnimation.fromMap(it["entranceAnimation"] as? Map<String, Any>),
                 exitAnimation = ClipAnimation.fromMap(it["exitAnimation"] as? Map<String, Any>)

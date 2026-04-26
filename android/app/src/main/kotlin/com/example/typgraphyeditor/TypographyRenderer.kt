@@ -19,7 +19,14 @@ class TypographyRenderer(
     private val clips = mutableListOf<SubtitleClip>()
     private var currentTimeMs = 0L
     private var subtitleRenderer: SubtitleRenderer? = null
+    private var backgroundRenderer: BackgroundRenderer? = null
     private var bgColor: Int = 0xFF000000.toInt()
+    private var backgroundImagePath: String? = null
+    private var bgScale: Float = 1f
+    private var bgRotation: Float = 0f
+    private var bgX: Float = 0f
+    private var bgY: Float = 0f
+    private var bgFillMode: Int = 0
     private var aspectRatio: Double = 16.0 / 9.0
     private var currentWidth: Int = width
     private var currentHeight: Int = height
@@ -40,9 +47,27 @@ class TypographyRenderer(
         currentTimeMs = timeMs
     }
 
-    fun updateSettings(ratio: Double, backgroundColor: Int, width: Int? = null, height: Int? = null) {
+    fun updateSettings(
+        ratio: Double, 
+        backgroundColor: Int, 
+        imagePath: String? = null, 
+        width: Int? = null, 
+        height: Int? = null,
+        bgScale: Float? = null,
+        bgRotation: Float? = null,
+        bgX: Float? = null,
+        bgY: Float? = null,
+        bgFillMode: Int? = null
+    ) {
         this.aspectRatio = ratio
         this.bgColor = backgroundColor
+        this.backgroundImagePath = imagePath
+        if (bgScale != null) this.bgScale = bgScale
+        if (bgRotation != null) this.bgRotation = bgRotation
+        if (bgX != null) this.bgX = bgX
+        if (bgY != null) this.bgY = bgY
+        if (bgFillMode != null) this.bgFillMode = bgFillMode
+        
         if (width != null && height != null && (width != currentWidth || height != currentHeight)) {
             currentWidth = width
             currentHeight = height
@@ -110,6 +135,9 @@ class TypographyRenderer(
         
         subtitleRenderer = SubtitleRenderer(width, height)
         subtitleRenderer?.init()
+        
+        backgroundRenderer = BackgroundRenderer()
+        backgroundRenderer?.init()
     }
 
     private fun drawFrame() {
@@ -130,6 +158,10 @@ class TypographyRenderer(
 
         GLES20.glClearColor(r, g, b, a)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
+
+        backgroundRenderer?.setImage(backgroundImagePath)
+        backgroundRenderer?.setTransform(bgScale, bgRotation, bgX, bgY, bgFillMode, currentWidth, currentHeight)
+        backgroundRenderer?.draw()
 
         GLES20.glViewport(0, 0, currentWidth, currentHeight)
 
