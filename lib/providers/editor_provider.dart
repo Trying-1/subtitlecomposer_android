@@ -31,6 +31,8 @@ class EditorProvider extends ChangeNotifier {
   int _backgroundFillMode = 0; // 0: cover, 1: fit, 2: center
   bool _isTimelineCollapsed = false;
   bool _isInitialized = false;
+  bool _showTextTracks = true;
+  bool _showOverlayTracks = true;
 
   List<Track> get tracks => _tracks;
   List<Track> get overlayTracks => _overlayTracks;
@@ -57,6 +59,8 @@ class EditorProvider extends ChangeNotifier {
   double get zoomLevel => _zoomLevel;
   double get aspectRatio => _aspectRatio;
   bool get isTimelineCollapsed => _isTimelineCollapsed;
+  bool get showTextTracks => _showTextTracks;
+  bool get showOverlayTracks => _showOverlayTracks;
 
   void setZoomLevel(double level) {
     _zoomLevel = level.clamp(0.1, 10.0);
@@ -71,6 +75,16 @@ class EditorProvider extends ChangeNotifier {
   void setAspectRatio(double ratio) {
     _aspectRatio = ratio;
     _syncToNative();
+    notifyListeners();
+  }
+
+  void toggleTextTracks() {
+    _showTextTracks = !_showTextTracks;
+    notifyListeners();
+  }
+
+  void toggleOverlayTracks() {
+    _showOverlayTracks = !_showOverlayTracks;
     notifyListeners();
   }
 
@@ -297,6 +311,7 @@ class EditorProvider extends ChangeNotifier {
     ClipAnimation? entranceAnimation,
     ClipAnimation? exitAnimation,
     ClipAnimation? loopAnimation,
+    List<Keyframe>? keyframes,
   }) {
     updateClips([id],
       text: text,
@@ -322,6 +337,7 @@ class EditorProvider extends ChangeNotifier {
       entranceAnimation: entranceAnimation,
       exitAnimation: exitAnimation,
       loopAnimation: loopAnimation,
+      keyframes: keyframes,
     );
   }
 
@@ -350,14 +366,41 @@ class EditorProvider extends ChangeNotifier {
     ClipAnimation? exitAnimation,
     ClipAnimation? loopAnimation,
     double? textOpacity,
+    List<Keyframe>? keyframes,
   }) {
     final idSet = ids.toSet();
+    final isPropertyUpdate = x != null || y != null || scale != null || rotation != null || opacity != null;
     
     // Update text tracks
     for (var track in _tracks) {
       for (int i = 0; i < track.clips.length; i++) {
         final clip = track.clips[i];
         if (idSet.contains(clip.id)) {
+          List<Keyframe>? updatedKeyframes = keyframes ?? clip.keyframes;
+          
+          if (isPropertyUpdate && keyframes == null && clip.keyframes.isNotEmpty) {
+            final relPosSec = (_currentTime - clip.startTime).inMilliseconds / 1000.0;
+            final newKeyframes = List<Keyframe>.from(clip.keyframes);
+            final index = newKeyframes.indexWhere((k) => (k.timeOffset - relPosSec).abs() < 0.05);
+            
+            final keyframe = Keyframe(
+              timeOffset: relPosSec,
+              x: x ?? clip.x,
+              y: y ?? clip.y,
+              scale: scale ?? clip.scale,
+              rotation: rotation ?? clip.rotation,
+              opacity: opacity ?? clip.opacity,
+            );
+
+            if (index >= 0) {
+              newKeyframes[index] = keyframe;
+            } else {
+              newKeyframes.add(keyframe);
+              newKeyframes.sort((a, b) => a.timeOffset.compareTo(b.timeOffset));
+            }
+            updatedKeyframes = newKeyframes;
+          }
+
           track.clips[i] = clip.copyWith(
             text: text,
             x: x,
@@ -383,6 +426,7 @@ class EditorProvider extends ChangeNotifier {
             entranceAnimation: entranceAnimation,
             exitAnimation: exitAnimation,
             loopAnimation: loopAnimation,
+            keyframes: updatedKeyframes,
           );
         }
       }
@@ -393,6 +437,31 @@ class EditorProvider extends ChangeNotifier {
       for (int i = 0; i < track.overlays.length; i++) {
         final clip = track.overlays[i];
         if (idSet.contains(clip.id)) {
+          List<Keyframe>? updatedKeyframes = keyframes ?? clip.keyframes;
+
+          if (isPropertyUpdate && keyframes == null && clip.keyframes.isNotEmpty) {
+            final relPosSec = (_currentTime - clip.startTime).inMilliseconds / 1000.0;
+            final newKeyframes = List<Keyframe>.from(clip.keyframes);
+            final index = newKeyframes.indexWhere((k) => (k.timeOffset - relPosSec).abs() < 0.05);
+
+            final keyframe = Keyframe(
+              timeOffset: relPosSec,
+              x: x ?? clip.x,
+              y: y ?? clip.y,
+              scale: scale ?? clip.scale,
+              rotation: rotation ?? clip.rotation,
+              opacity: opacity ?? clip.opacity,
+            );
+
+            if (index >= 0) {
+              newKeyframes[index] = keyframe;
+            } else {
+              newKeyframes.add(keyframe);
+              newKeyframes.sort((a, b) => a.timeOffset.compareTo(b.timeOffset));
+            }
+            updatedKeyframes = newKeyframes;
+          }
+
           track.overlays[i] = clip.copyWith(
             x: x,
             y: y,
@@ -402,6 +471,7 @@ class EditorProvider extends ChangeNotifier {
             entranceAnimation: entranceAnimation,
             exitAnimation: exitAnimation,
             loopAnimation: loopAnimation,
+            keyframes: updatedKeyframes,
           );
         }
       }
@@ -645,6 +715,49 @@ class EditorProvider extends ChangeNotifier {
       ));
     }
     notifyListeners();
+  }
+
+  bool get isKeyframeAtCurrentTime {
+    final clip = selectedTimelineClip;
+    if (clip == null) return false;
+    final relPosSec = (_currentTime - clip.startTime).inMilliseconds / 1000.0;
+    return clip.keyframes.any((k) => (k.timeOffset - relPosSec).abs() < 0.05);
+  }
+
+  void addKeyframeAtCurrentTime() {
+    final clip = selectedTimelineClip;
+    if (clip == null) return;
+
+    final relPosMs = (_currentTime - clip.startTime).inMilliseconds;
+    if (relPosMs < 0 || _currentTime > clip.endTime) return;
+
+    final relPosSec = relPosMs / 1000.0;
+
+    final newKeyframes = List<Keyframe>.from(clip.keyframes);
+    final index = newKeyframes.indexWhere((k) => (k.timeOffset - relPosSec).abs() < 0.05);
+
+    if (index >= 0) {
+      newKeyframes.removeAt(index);
+    } else {
+      final keyframe = Keyframe(
+        timeOffset: relPosSec,
+        x: clip.x,
+        y: clip.y,
+        scale: clip.scale,
+        rotation: clip.rotation,
+        opacity: clip.opacity,
+      );
+      newKeyframes.add(keyframe);
+      newKeyframes.sort((a, b) => a.timeOffset.compareTo(b.timeOffset));
+    }
+
+    updateClip(clip.id, keyframes: newKeyframes);
+  }
+
+  void clearKeyframes() {
+    final clip = selectedTimelineClip;
+    if (clip == null) return;
+    updateClip(clip.id, keyframes: []);
   }
 
   void updateClipTiming(dynamic clip, Duration? newStart, Duration? newEnd, {bool resolveCollisions = true}) {

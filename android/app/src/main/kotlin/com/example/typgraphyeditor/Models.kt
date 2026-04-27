@@ -38,7 +38,9 @@ enum class EasingType {
     EASE_OUT,
     EASE_IN_OUT,
     BOUNCE_OUT,
-    ELASTIC_OUT;
+    ELASTIC_OUT,
+    CUSTOM,
+    GRAPH;
 
     companion object {
         fun fromIndex(index: Int): EasingType = entries.getOrElse(index) { LINEAR }
@@ -57,6 +59,41 @@ data class ClipAnimation(
                 type = AnimationType.fromIndex((map["type"] as? Number)?.toInt() ?: 0),
                 easing = EasingType.fromIndex((map["easing"] as? Number)?.toInt() ?: 0),
                 durationMs = (map["durationMs"] as? Number)?.toInt() ?: 500
+            )
+        }
+    }
+}
+
+data class Keyframe(
+    val timeOffset: Float, // seconds
+    val x: Float? = null,
+    val y: Float? = null,
+    val scale: Float? = null,
+    val rotation: Float? = null,
+    val opacity: Float? = null,
+    val easing: EasingType = EasingType.LINEAR,
+    val cp1x: Float? = null,
+    val cp1y: Float? = null,
+    val cp2x: Float? = null,
+    val cp2y: Float? = null,
+    val customGraphPoints: List<Float>? = null
+) {
+    companion object {
+        fun fromMap(map: Map<String, Any>?): Keyframe? {
+            if (map == null) return null
+            return Keyframe(
+                timeOffset = (map["timeOffset"] as? Number)?.toFloat() ?: 0f,
+                x = (map["x"] as? Number)?.toFloat(),
+                y = (map["y"] as? Number)?.toFloat(),
+                scale = (map["scale"] as? Number)?.toFloat(),
+                rotation = (map["rotation"] as? Number)?.toFloat(),
+                opacity = (map["opacity"] as? Number)?.toFloat(),
+                easing = EasingType.fromIndex((map["easing"] as? Number)?.toInt() ?: 0),
+                cp1x = (map["cp1x"] as? Number)?.toFloat(),
+                cp1y = (map["cp1y"] as? Number)?.toFloat(),
+                cp2x = (map["cp2x"] as? Number)?.toFloat(),
+                cp2y = (map["cp2y"] as? Number)?.toFloat(),
+                customGraphPoints = (map["customGraphPoints"] as? List<*>)?.mapNotNull { (it as? Number)?.toFloat() }
             )
         }
     }
@@ -90,6 +127,7 @@ data class SubtitleClip(
     val entranceAnimation: ClipAnimation = ClipAnimation(),
     val exitAnimation: ClipAnimation = ClipAnimation(),
     val loopAnimation: ClipAnimation = ClipAnimation(),
+    val keyframes: List<Keyframe> = emptyList(),
     val imagePath: String? = null,
     val isText: Boolean = true
 )

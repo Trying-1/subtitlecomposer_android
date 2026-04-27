@@ -299,6 +299,25 @@ class _OverlayTabState extends State<OverlayTab> {
                 widget.selectedOverlay!.rotation,
                 (v) => widget.onUpdate(rotation: v),
               ),
+              const SizedBox(height: 16),
+              const Text('POSITION', style: TextStyle(fontSize: 8, color: Colors.deepPurpleAccent, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+              const SizedBox(height: 12),
+              CommonControls.buildSlider(
+                context,
+                'X Position',
+                widget.selectedOverlay!.x,
+                -0.5,
+                1.5,
+                (v) => widget.onUpdate(x: v),
+              ),
+              CommonControls.buildSlider(
+                context,
+                'Y Position',
+                widget.selectedOverlay!.y,
+                -0.5,
+                1.5,
+                (v) => widget.onUpdate(y: v),
+              ),
             ],
           )
         else if (_activeTab == 2 && widget.selectedOverlay != null)

@@ -200,6 +200,7 @@ class MainActivity : FlutterActivity() {
                 entranceAnimation = ClipAnimation.fromMap(it["entranceAnimation"] as? Map<String, Any>),
                 exitAnimation = ClipAnimation.fromMap(it["exitAnimation"] as? Map<String, Any>),
                 loopAnimation = ClipAnimation.fromMap(it["loopAnimation"] as? Map<String, Any>),
+                keyframes = (it["keyframes"] as? List<Map<String, Any>>)?.mapNotNull { k -> Keyframe.fromMap(k) } ?: emptyList(),
                 imagePath = it["imagePath"] as? String,
                 isText = it["isText"] as? Boolean ?: (it["imagePath"] == null)
             )

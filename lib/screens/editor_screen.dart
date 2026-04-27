@@ -116,6 +116,13 @@ class EditorScreen extends StatelessWidget {
                 onResolveCollisions: (id) => provider.forceResolveCollisions(id),
                 onStackSelected: () => provider.stackSelectedClips(),
                 onResetSelected: () => provider.resetSelectedClips(),
+                onAddKeyframe: () => provider.addKeyframeAtCurrentTime(),
+                onClearKeyframes: () => provider.clearKeyframes(),
+                isKeyframeAtCurrentTime: provider.isKeyframeAtCurrentTime,
+                showTextTracks: provider.showTextTracks,
+                showOverlayTracks: provider.showOverlayTracks,
+                onToggleTextTracks: provider.toggleTextTracks,
+                onToggleOverlayTracks: provider.toggleOverlayTracks,
               )
             else
               Expanded(
@@ -145,6 +152,13 @@ class EditorScreen extends StatelessWidget {
                   onResolveCollisions: (id) => provider.forceResolveCollisions(id),
                   onStackSelected: () => provider.stackSelectedClips(),
                   onResetSelected: () => provider.resetSelectedClips(),
+                  onAddKeyframe: () => provider.addKeyframeAtCurrentTime(),
+                  onClearKeyframes: () => provider.clearKeyframes(),
+                  isKeyframeAtCurrentTime: provider.isKeyframeAtCurrentTime,
+                  showTextTracks: provider.showTextTracks,
+                  showOverlayTracks: provider.showOverlayTracks,
+                  onToggleTextTracks: provider.toggleTextTracks,
+                  onToggleOverlayTracks: provider.toggleOverlayTracks,
                 ),
               ),
             if (provider.isTimelineCollapsed)
@@ -163,6 +177,7 @@ class EditorScreen extends StatelessWidget {
               clip: provider.selectedTimelineClip,
               selectedOverlay: provider.selectedOverlay,
               selectedClipIds: provider.selectedClipIds,
+              currentTime: provider.currentTime,
               onImportAudio: () => _pickAudio(context),
               onImportSubtitles: () => _pickSubtitles(context),
               onExport: () => _handleExport(context, provider),
@@ -194,6 +209,7 @@ class EditorScreen extends StatelessWidget {
                 ClipAnimation? exitAnimation,
                 ClipAnimation? loopAnimation,
                 double? textOpacity,
+                List<Keyframe>? keyframes,
               }) {
                 provider.updateClips(
                   provider.selectedClipIds,
@@ -221,6 +237,7 @@ class EditorScreen extends StatelessWidget {
                   entranceAnimation: entranceAnimation,
                   exitAnimation: exitAnimation,
                   loopAnimation: loopAnimation,
+                  keyframes: keyframes,
                 );
               },
               onApplyPreset: (preset) {

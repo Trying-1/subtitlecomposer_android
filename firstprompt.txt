@@ -58,3 +58,15 @@ got it]
 [in the colors tab add text opaciyt, like something I want 0 opacity of text fill but only the stroke remains, so we need to control the text opacity  understood]
 [for color lets add custom color picker as well, like a rectangular picker with HSL slider, Hex code input, rgba input. as well, create new widget for this color picker. to be used accoss got it]
 [alright next lets add overlay animatons. create a separate file for this, and list them in overlay tab, understood, ]
+
+
+===============version4==================
+[alright right now lets add keyframe animations. so that we can animate text segement or overlay with keyframes based logics, understood, create new file for this and wire it. ]
+[add indicator in the segment where keyframe is added, like a rhombus.]
+[yo after adding first keyframe, I am unable to move the overlay position, then how am i suppose add the another keyframe to it]
+[change the state of the add key frame button to remove keyframe when a already added key frame is there in that time, understood]
+[good, add clear keyframe in the bottom control panel tab as well.]
+[add subtab inside the keyframe tab for graph based speed controls. understood]
+[also inside allow to create custom speed graph. by customizing the speed. if needed create separate file for this]
+[good, but make the graph widget full width. and allow to add node point based graph control. where we can add intermediat nodes in the curve, understood]
+[good, lets make the lower timeline control tab, horizontally scrollable  to add more buttons in it, first we add to switch on/off the each timeline visiblity, for the text and the overlay timeline, so what when we work with overlay we can turn of the text, and vice versa understood]

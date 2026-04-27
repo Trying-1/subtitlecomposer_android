@@ -26,6 +26,13 @@ class TimelineEditor extends StatefulWidget {
   final VoidCallback onTogglePlay;
   final bool isCollapsed;
   final VoidCallback onToggleCollapse;
+  final VoidCallback? onAddKeyframe;
+  final VoidCallback? onClearKeyframes;
+  final bool isKeyframeAtCurrentTime;
+  final bool showTextTracks;
+  final bool showOverlayTracks;
+  final VoidCallback onToggleTextTracks;
+  final VoidCallback onToggleOverlayTracks;
 
   const TimelineEditor({
     super.key,
@@ -53,6 +60,13 @@ class TimelineEditor extends StatefulWidget {
     required this.onTogglePlay,
     required this.isCollapsed,
     required this.onToggleCollapse,
+    this.onAddKeyframe,
+    this.onClearKeyframes,
+    this.isKeyframeAtCurrentTime = false,
+    required this.showTextTracks,
+    required this.showOverlayTracks,
+    required this.onToggleTextTracks,
+    required this.onToggleOverlayTracks,
   });
 
   @override
@@ -96,14 +110,18 @@ class _TimelineEditorState extends State<TimelineEditor> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                _buildSectionHeader("TEXT"),
-                                ...widget.tracks.map((track) => _buildTrackRow(track)).toList(),
-                                _buildEmptySpaceDragTarget(TrackType.text),
+                                if (widget.showTextTracks) ...[
+                                  _buildSectionHeader("TEXT"),
+                                  ...widget.tracks.map((track) => _buildTrackRow(track)).toList(),
+                                  _buildEmptySpaceDragTarget(TrackType.text),
+                                ],
                                 
-                                const SizedBox(height: 16),
-                                _buildSectionHeader("OVERLAYS"),
-                                ...widget.overlayTracks.map((track) => _buildTrackRow(track)).toList(),
-                                _buildEmptySpaceDragTarget(TrackType.overlay),
+                                if (widget.showOverlayTracks) ...[
+                                  const SizedBox(height: 16),
+                                  _buildSectionHeader("OVERLAYS"),
+                                  ...widget.overlayTracks.map((track) => _buildTrackRow(track)).toList(),
+                                  _buildEmptySpaceDragTarget(TrackType.overlay),
+                                ],
                                 
                                 const SizedBox(height: 100), // Buffer for scrolling
                               ],
@@ -184,22 +202,46 @@ class _TimelineEditorState extends State<TimelineEditor> {
           ),
           if (!widget.isCollapsed) ...[
             const Divider(height: 1, color: Colors.white10),
-            // Row 2: Tools
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 1),
-              child: Row(
-                children: [
-                  const Text('TIMELINE TOOLS', style: TextStyle(fontSize: 8, color: Colors.white24, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
-                  const Spacer(),
-                  _buildVerticalToggle("ALL", widget.isAllSelected, widget.onToggleSelectAll),
-                  const SizedBox(width: 16),
-                  _buildVerticalToggle("RESET", false, widget.onResetSelected, icon: Icons.history_rounded),
-                  const SizedBox(width: 16),
-                  _buildVerticalToggle("STACK", false, widget.onStackSelected, icon: Icons.layers_outlined),
-                  const SizedBox(width: 16),
-                  _buildVerticalToggle("MULTI", widget.isMultiSelectMode, widget.onToggleMultiSelect),
-                  const SizedBox(width: 0),
-                ],
+            // Row 2: Tools (Scrollable)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                child: Row(
+                  children: [
+                    // Visibility Toggles
+                    _buildVerticalToggle("TEXT", widget.showTextTracks, widget.onToggleTextTracks, icon: widget.showTextTracks ? Icons.visibility_rounded : Icons.visibility_off_rounded),
+                    const SizedBox(width: 16),
+                    _buildVerticalToggle("OVERLAY", widget.showOverlayTracks, widget.onToggleOverlayTracks, icon: widget.showOverlayTracks ? Icons.visibility_rounded : Icons.visibility_off_rounded),
+                    const SizedBox(width: 16),
+                    Container(width: 1, height: 16, color: Colors.white10),
+                    const SizedBox(width: 16),
+                    
+                    if (widget.onAddKeyframe != null) ...[
+                      _buildVerticalToggle(
+                        widget.isKeyframeAtCurrentTime ? "REMOVE" : "KEYFRAME", 
+                        widget.isKeyframeAtCurrentTime, 
+                        widget.onAddKeyframe!, 
+                        icon: widget.isKeyframeAtCurrentTime ? Icons.diamond_outlined : Icons.diamond_rounded
+                      ),
+                      const SizedBox(width: 16),
+                    ],
+                    if (widget.onClearKeyframes != null) ...[
+                      _buildVerticalToggle("CLR CLIP", false, widget.onClearKeyframes!, icon: Icons.layers_clear_rounded),
+                      const SizedBox(width: 16),
+                    ],
+                    const SizedBox(width: 40), // Spacing before multi-select tools
+                    _buildVerticalToggle("ALL", widget.isAllSelected, widget.onToggleSelectAll),
+                    const SizedBox(width: 16),
+                    _buildVerticalToggle("RESET", false, widget.onResetSelected, icon: Icons.history_rounded),
+                    const SizedBox(width: 16),
+                    _buildVerticalToggle("STACK", false, widget.onStackSelected, icon: Icons.layers_outlined),
+                    const SizedBox(width: 16),
+                    _buildVerticalToggle("MULTI", widget.isMultiSelectMode, widget.onToggleMultiSelect),
+                  ],
+                ),
               ),
             ),
           ],
@@ -559,17 +601,42 @@ class _TimelineEditorState extends State<TimelineEditor> {
           BoxShadow(color: Colors.deepPurpleAccent.withOpacity(0.4), blurRadius: 10, spreadRadius: 1)
         ] : null,
       ),
-      child: Center(
-        child: Text(
-          clip is SubtitleClip ? clip.text : "Overlay",
-          overflow: TextOverflow.ellipsis,
-          maxLines: 1,
-          style: TextStyle(
-            fontSize: 11, 
-            color: isSelected ? Colors.white : Colors.white70, 
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Center(
+            child: Text(
+              clip is SubtitleClip ? clip.text : "Overlay",
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 11, 
+                color: isSelected ? Colors.white : Colors.white70, 
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
           ),
-        ),
+          // Keyframe Indicators
+          if (clip.keyframes.isNotEmpty)
+            ...clip.keyframes.map((k) {
+              final pos = k.timeOffset * _pixelsPerSecond;
+              return Positioned(
+                left: pos - 4, // Center the 8px diamond
+                bottom: -2,
+                child: Transform.rotate(
+                  angle: 0.785398, // 45 degrees in radians
+                  child: Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: isSelected ? Colors.white : Colors.deepPurpleAccent,
+                      border: Border.all(color: Colors.white24, width: 0.5),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+        ],
       ),
     );
   }

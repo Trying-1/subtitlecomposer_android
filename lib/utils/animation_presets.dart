@@ -116,6 +116,8 @@ class AnimationPresets {
       case EasingType.easeInOut: return 'Ease In-Out';
       case EasingType.bounceOut: return 'Bounce';
       case EasingType.elasticOut: return 'Elastic';
+      case EasingType.custom: return 'Custom';
+      case EasingType.graph: return 'Graph';
     }
   }
 }

@@ -399,7 +399,7 @@ class CommonControls {
   }
 
   static Widget buildQuickRotationControls(double current, ValueChanged<double> onChanged) {
-    final values = [0.0, -180.0, -90.0, -15.0, 15.0, 90.0, 180.0];
+    final values = [-180.0, -90.0, -15.0, 0.0, 15.0, 90.0, 180.0];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(

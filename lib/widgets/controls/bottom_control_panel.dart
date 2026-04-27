@@ -11,11 +11,13 @@ import 'tabs/background_tab.dart';
 import 'tabs/aspect_tab.dart';
 import 'tabs/overlay_tab.dart';
 import 'tabs/project_tab.dart';
+import 'tabs/keyframe_manager_tab.dart';
 
 class BottomControlPanel extends StatefulWidget {
   final TimelineClip? clip;
   final OverlayClip? selectedOverlay;
   final Set<String> selectedClipIds;
+  final Duration currentTime;
   final VoidCallback? onImportAudio;
   final VoidCallback? onImportSubtitles;
   final VoidCallback? onExport;
@@ -47,6 +49,7 @@ class BottomControlPanel extends StatefulWidget {
     ClipAnimation? exitAnimation,
     ClipAnimation? loopAnimation,
     double? textOpacity,
+    List<Keyframe>? keyframes,
   }) onUpdate;
   final Function(AnimationPreset) onApplyPreset;
 
@@ -55,6 +58,7 @@ class BottomControlPanel extends StatefulWidget {
     this.clip,
     this.selectedOverlay,
     this.selectedClipIds = const {},
+    required this.currentTime,
     this.onImportAudio,
     this.onImportSubtitles,
     this.onExport,
@@ -78,6 +82,7 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
     {'name': 'Style', 'icon': Icons.palette_rounded},
     {'name': 'Effects', 'icon': Icons.auto_awesome_rounded},
     {'name': 'Animation', 'icon': Icons.animation_rounded},
+    {'name': 'Keyframes', 'icon': Icons.diamond_rounded},
     {'name': 'Transform', 'icon': Icons.transform_rounded},
     {'name': 'Position', 'icon': Icons.location_on_rounded},
     {'name': 'Overlay', 'icon': Icons.add_photo_alternate_rounded},
@@ -110,7 +115,7 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
   }
 
   Widget _buildActiveTabContentWrapper() {
-    if (_activeTabIndex >= 6) {
+    if (_activeTabIndex >= 7) {
       return SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         child: _buildGlobalTabContent(),
@@ -244,8 +249,9 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
       case 3: 
         if (clip is SubtitleClip) return AnimationTab(clip: clip, onUpdate: widget.onUpdate, onApplyPreset: widget.onApplyPreset);
         return _buildWrongClipTypeMessage("ANIMATION");
-      case 4: return TransformTab(clip: clip, onUpdate: widget.onUpdate);
-      case 5: return PositionTab(clip: clip, onUpdate: widget.onUpdate);
+      case 4: return KeyframeManagerTab(clip: clip, currentPosition: widget.currentTime, onUpdate: widget.onUpdate);
+      case 5: return TransformTab(clip: clip, onUpdate: widget.onUpdate);
+      case 6: return PositionTab(clip: clip, onUpdate: widget.onUpdate);
       default: return const SizedBox();
     }
   }
@@ -268,14 +274,14 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
 
   Widget _buildGlobalTabContent() {
     switch (_activeTabIndex) {
-      case 6: return OverlayTab(
+      case 7: return OverlayTab(
         selectedOverlay: widget.selectedOverlay,
         onAddOverlay: widget.onAddOverlay,
         onUpdate: widget.onUpdate,
       );
-      case 7: return const BackgroundTab();
-      case 8: return const AspectTab();
-      case 9: return ProjectTab(
+      case 8: return const BackgroundTab();
+      case 9: return const AspectTab();
+      case 10: return ProjectTab(
         onImportAudio: widget.onImportAudio,
         onImportSubtitles: widget.onImportSubtitles,
         onAddClip: widget.onAddClip,
