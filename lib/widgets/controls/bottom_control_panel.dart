@@ -20,8 +20,11 @@ class BottomControlPanel extends StatefulWidget {
   final Duration currentTime;
   final VoidCallback? onImportAudio;
   final VoidCallback? onImportSubtitles;
+  final VoidCallback? onImportPlainText;
+  final VoidCallback? onPasteSubtitles;
   final VoidCallback? onExport;
   final VoidCallback? onAddClip;
+  final VoidCallback? onExtractAudio;
   final VoidCallback? onNewProject;
   final Function(String path) onAddOverlay;
   final Function({
@@ -50,6 +53,7 @@ class BottomControlPanel extends StatefulWidget {
     ClipAnimation? loopAnimation,
     double? textOpacity,
     List<Keyframe>? keyframes,
+    TextCase? textCase,
   }) onUpdate;
   final Function(AnimationPreset) onApplyPreset;
 
@@ -61,8 +65,11 @@ class BottomControlPanel extends StatefulWidget {
     required this.currentTime,
     this.onImportAudio,
     this.onImportSubtitles,
-    this.onExport,
+    this.onImportPlainText,
+    this.onPasteSubtitles,
     this.onAddClip,
+    this.onExtractAudio,
+    this.onExport,
     this.onNewProject,
     required this.onAddOverlay,
     required this.onUpdate,
@@ -238,7 +245,7 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
     final clip = widget.clip!;
     switch (_activeTabIndex) {
       case 0: 
-        if (clip is SubtitleClip) return TextTab(clip: clip, onUpdate: ({text, fontFamily, fontSize, letterSpacing}) => widget.onUpdate(text: text, fontFamily: fontFamily, fontSize: fontSize, letterSpacing: letterSpacing));
+        if (clip is SubtitleClip) return TextTab(clip: clip, onUpdate: ({text, fontFamily, fontSize, letterSpacing, textCase}) => widget.onUpdate(text: text, fontFamily: fontFamily, fontSize: fontSize, letterSpacing: letterSpacing, textCase: textCase));
         return _buildWrongClipTypeMessage("TEXT");
       case 1: 
         if (clip is SubtitleClip) return StyleTab(clip: clip, onUpdate: ({color, strokeColor, strokeWidth, textOpacity, entranceAnimation, exitAnimation, loopAnimation}) => widget.onUpdate(color: color, strokeColor: strokeColor, strokeWidth: strokeWidth, textOpacity: textOpacity, entranceAnimation: entranceAnimation, exitAnimation: exitAnimation, loopAnimation: loopAnimation));
@@ -284,7 +291,10 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
       case 10: return ProjectTab(
         onImportAudio: widget.onImportAudio,
         onImportSubtitles: widget.onImportSubtitles,
+        onImportPlainText: widget.onImportPlainText,
+        onPasteSubtitles: widget.onPasteSubtitles,
         onAddClip: widget.onAddClip,
+        onExtractAudio: widget.onExtractAudio,
         onExport: widget.onExport,
         onNewProject: widget.onNewProject,
       );

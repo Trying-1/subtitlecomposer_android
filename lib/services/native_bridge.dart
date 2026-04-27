@@ -117,4 +117,16 @@ class NativeBridge {
       print("Failed to register font: '${e.message}'.");
     }
   }
+
+  Future<void> extractAudio(String videoPath, String outputPath) async {
+    try {
+      await _channel.invokeMethod('extractAudio', {
+        'videoPath': videoPath,
+        'outputPath': outputPath,
+      });
+    } on PlatformException catch (e) {
+      print("Failed to extract audio: '${e.message}'.");
+      rethrow;
+    }
+  }
 }

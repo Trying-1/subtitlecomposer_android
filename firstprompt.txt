@@ -70,3 +70,15 @@ got it]
 [also inside allow to create custom speed graph. by customizing the speed. if needed create separate file for this]
 [good, but make the graph widget full width. and allow to add node point based graph control. where we can add intermediat nodes in the curve, understood]
 [good, lets make the lower timeline control tab, horizontally scrollable  to add more buttons in it, first we add to switch on/off the each timeline visiblity, for the text and the overlay timeline, so what when we work with overlay we can turn of the text, and vice versa understood]
+
+
+==========version5=============
+[alright next this is new feature, I don't if this will work, right now for subtitle we are import json file which has time stam for each segment, what i want now is lets also allow plain text.  which can contains the texts as in paragraphs, so when its imported we break it to single word, and then place them in timeline with duration of 0.5s each, understood.]
+[also allow to directly paste paragraph in the project setting paste your subtitles, where we can directly paste as paragraph. ]
+[next lets add split button in the timeline control panel, to split any segment. also deleted button to delete any segment. understood]
+[good, when we add new text. check if theres already segement at the play head, if then add next to new track, and don't directly add, ask a text input before adding, understood.]
+[next for the audio, lets allow to extract audio directly from video, using image_picker we pick the video file and then we extract its audio and use that audio, create new file to handle this, we have ffmpeg so we can use that right?]
+[next lets add merge feature, so that we can merge two consequitive segement words into segment,  like now two words will be in single segment with the same start and finish, understood, ]
+[also add new split button for split to word for this type segment with multiple words. so that we can also spilt them into single word segments. got it]
+[in the bottom text tab add method to change casing, like AA, aa, Aa]
+[also the merging only working for 2, allow more than 2 as well but they should be consequitive. ]

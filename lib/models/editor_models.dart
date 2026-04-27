@@ -42,6 +42,13 @@ enum TrackType {
   overlay,
 }
 
+enum TextCase {
+  none,
+  upper,
+  lower,
+  title,
+}
+
 class ClipAnimation {
   final AnimationType type;
   final EasingType easing;
@@ -180,6 +187,7 @@ abstract class TimelineClip {
   ClipAnimation get exitAnimation;
   ClipAnimation get loopAnimation;
   List<Keyframe> get keyframes;
+  Duration get duration => endTime - startTime;
 
   Map<String, dynamic> toJson();
 }
@@ -231,6 +239,8 @@ class SubtitleClip implements TimelineClip {
   final ClipAnimation loopAnimation;
   @override
   final List<Keyframe> keyframes;
+  @override
+  Duration get duration => endTime - startTime;
 
   SubtitleClip({
     required this.id,
@@ -434,6 +444,8 @@ class OverlayClip implements TimelineClip {
   final ClipAnimation loopAnimation;
   @override
   final List<Keyframe> keyframes;
+  @override
+  Duration get duration => endTime - startTime;
 
   OverlayClip({
     required this.id,
@@ -559,5 +571,19 @@ class Track {
     type: TrackType.values[json['type'] ?? 0],
     clips: (json['clips'] as List? ?? []).map((c) => SubtitleClip.fromJson(Map<String, dynamic>.from(c))).toList(),
     overlays: (json['overlays'] as List? ?? []).map((o) => OverlayClip.fromJson(Map<String, dynamic>.from(o))).toList(),
+  );
+
+  Track copyWith({
+    String? id,
+    String? name,
+    TrackType? type,
+    List<SubtitleClip>? clips,
+    List<OverlayClip>? overlays,
+  }) => Track(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    type: type ?? this.type,
+    clips: clips ?? this.clips,
+    overlays: overlays ?? this.overlays,
   );
 }

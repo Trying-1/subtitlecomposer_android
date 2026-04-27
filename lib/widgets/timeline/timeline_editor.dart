@@ -22,17 +22,26 @@ class TimelineEditor extends StatefulWidget {
   final Function(String) onResolveCollisions;
   final VoidCallback onStackSelected;
   final VoidCallback onResetSelected;
+  final VoidCallback onSplit;
+  final VoidCallback onMerge;
+  final VoidCallback onSplitToWords;
+  final VoidCallback onDelete;
+  final VoidCallback onActionStart; // For undo saving
   final bool isPlaying;
   final VoidCallback onTogglePlay;
   final bool isCollapsed;
   final VoidCallback onToggleCollapse;
-  final VoidCallback? onAddKeyframe;
-  final VoidCallback? onClearKeyframes;
   final bool isKeyframeAtCurrentTime;
+  final VoidCallback onUndo;
+  final VoidCallback onRedo;
+  final bool canUndo;
+  final bool canRedo;
   final bool showTextTracks;
   final bool showOverlayTracks;
   final VoidCallback onToggleTextTracks;
   final VoidCallback onToggleOverlayTracks;
+  final VoidCallback? onAddKeyframe;
+  final VoidCallback? onClearKeyframes;
 
   const TimelineEditor({
     super.key,
@@ -56,6 +65,15 @@ class TimelineEditor extends StatefulWidget {
     required this.onResolveCollisions,
     required this.onStackSelected,
     required this.onResetSelected,
+    required this.onSplit,
+    required this.onMerge,
+    required this.onSplitToWords,
+    required this.onDelete,
+    required this.onActionStart,
+    required this.onUndo,
+    required this.onRedo,
+    required this.canUndo,
+    required this.canRedo,
     required this.isPlaying,
     required this.onTogglePlay,
     required this.isCollapsed,
@@ -63,8 +81,8 @@ class TimelineEditor extends StatefulWidget {
     this.onAddKeyframe,
     this.onClearKeyframes,
     this.isKeyframeAtCurrentTime = false,
-    required this.showTextTracks,
-    required this.showOverlayTracks,
+    this.showTextTracks = true,
+    this.showOverlayTracks = true,
     required this.onToggleTextTracks,
     required this.onToggleOverlayTracks,
   });
@@ -214,7 +232,34 @@ class _TimelineEditorState extends State<TimelineEditor> {
                     // Visibility Toggles
                     _buildVerticalToggle("TEXT", widget.showTextTracks, widget.onToggleTextTracks, icon: widget.showTextTracks ? Icons.visibility_rounded : Icons.visibility_off_rounded),
                     const SizedBox(width: 16),
-                    _buildVerticalToggle("OVERLAY", widget.showOverlayTracks, widget.onToggleOverlayTracks, icon: widget.showOverlayTracks ? Icons.visibility_rounded : Icons.visibility_off_rounded),
+                    _buildVerticalToggle("OVERLAY", widget.showOverlayTracks, widget.onToggleOverlayTracks, icon: widget.showOverlayTracks ? Icons.layers_rounded : Icons.layers_clear_rounded),
+                    const SizedBox(width: 16),
+                    _buildVerticalToggle("UNDO", false, widget.onUndo, icon: Icons.undo_rounded, color: widget.canUndo ? Colors.white : Colors.white10),
+                    const SizedBox(width: 16),
+                    _buildVerticalToggle("REDO", false, widget.onRedo, icon: Icons.redo_rounded, color: widget.canRedo ? Colors.white : Colors.white10),
+                    const SizedBox(width: 16),
+                    Container(width: 1, height: 16, color: Colors.white10),
+                    const SizedBox(width: 16),
+                    
+                    _buildVerticalToggle("SPLIT", false, widget.onSplit, icon: Icons.content_cut_rounded),
+                    const SizedBox(width: 16),
+                    _buildVerticalToggle(
+                      "MERGE", 
+                      false, 
+                      widget.onMerge, 
+                      icon: Icons.link_rounded, 
+                      color: widget.selectedClipIds.length >= 2 ? Colors.white : Colors.white10
+                    ),
+                    const SizedBox(width: 16),
+                    _buildVerticalToggle(
+                      "DIVIDE", 
+                      false, 
+                      widget.onSplitToWords, 
+                      icon: Icons.format_list_bulleted_rounded,
+                      color: widget.selectedClipIds.length == 1 ? Colors.white : Colors.white10
+                    ),
+                    const SizedBox(width: 16),
+                    _buildVerticalToggle("DEL", false, widget.onDelete, icon: Icons.delete_outline_rounded),
                     const SizedBox(width: 16),
                     Container(width: 1, height: 16, color: Colors.white10),
                     const SizedBox(width: 16),
@@ -269,7 +314,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
     );
   }
 
-  Widget _buildVerticalToggle(String label, bool value, VoidCallback onTap, {IconData? icon}) {
+  Widget _buildVerticalToggle(String label, bool value, VoidCallback onTap, {IconData? icon, Color? color}) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(4),
@@ -283,7 +328,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
               width: 32,
               child: Center(
                 child: icon != null 
-                  ? Icon(icon, size: 16, color: Colors.white70)
+                  ? Icon(icon, size: 16, color: color ?? Colors.white70)
                   : FittedBox(
                       fit: BoxFit.contain,
                       child: Switch(
@@ -441,6 +486,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
                     _dragAccumulatedDelta = 0;
                     _initialClipStartTime = clip.startTime;
                   });
+                  widget.onActionStart();
                 },
                 onPointerUp: (_) {
                   if (_dragAccumulatedDelta.abs() < 5) {
@@ -511,6 +557,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
                     _dragAccumulatedDelta = 0;
                     _initialClipEndTime = clip.endTime;
                   });
+                  widget.onActionStart();
                 },
                 onPointerUp: (_) {
                   if (_dragAccumulatedDelta.abs() < 5) {

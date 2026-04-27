@@ -4,35 +4,162 @@ import 'package:file_picker/file_picker.dart';
 import '../providers/editor_provider.dart';
 import '../widgets/preview/video_preview.dart';
 import '../widgets/timeline/timeline_editor.dart';
-import '../widgets/timeline/timeline_editor.dart';
 import '../widgets/controls/bottom_control_panel.dart';
+import '../services/audio_service.dart';
 import '../models/editor_models.dart';
 
-class EditorScreen extends StatelessWidget {
+class EditorScreen extends StatefulWidget {
   const EditorScreen({super.key});
 
-  Future<void> _pickAudio(BuildContext context) async {
+  @override
+  State<EditorScreen> createState() => _EditorScreenState();
+}
+
+class _EditorScreenState extends State<EditorScreen> {
+  final AudioService _audioService = AudioService();
+
+  Future<void> _pickAudio(BuildContext context, EditorProvider provider) async {
     final result = await FilePicker.pickFiles(type: FileType.audio);
     if (result != null && context.mounted) {
-      context.read<EditorProvider>().loadAudio(result.files.single.path!);
+      provider.loadAudio(result.files.single.path!);
     }
   }
 
-  Future<void> _pickSubtitles(BuildContext context) async {
+  Future<void> _pickSubtitles(BuildContext context, EditorProvider provider) async {
     final result = await FilePicker.pickFiles();
     if (result != null && context.mounted) {
       final path = result.files.single.path!;
       final format = path.endsWith('.json') ? 'json' : 'ass';
-      context.read<EditorProvider>().loadSubtitles(path, format);
+      provider.loadSubtitles(path, format);
     }
+  }
+
+  Future<void> _pickPlainText(BuildContext context, EditorProvider provider) async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['txt'],
+    );
+    if (result != null && context.mounted) {
+      provider.importPlainText(result.files.single.path!);
+    }
+  }
+
+  Future<void> _extractAudioFromVideo(BuildContext context, EditorProvider provider) async {
+    final audioPath = await _audioService.pickVideoAndExtractAudio();
+    if (audioPath != null) {
+      provider.loadAudio(audioPath);
+    }
+  }
+
+  void _showPasteSubtitlesDialog(BuildContext context, EditorProvider provider) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Paste Subtitles', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: TextField(
+            controller: controller,
+            maxLines: 8,
+            autofocus: true,
+            style: const TextStyle(color: Colors.white, fontSize: 13),
+            decoration: InputDecoration(
+              hintText: 'Paste your paragraph here...',
+              hintStyle: TextStyle(color: Colors.white.withOpacity(0.2)),
+              filled: true,
+              fillColor: Colors.black26,
+              contentPadding: const EdgeInsets.all(12),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCEL', style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (controller.text.trim().isNotEmpty) {
+                provider.generateSubtitlesFromText(controller.text.trim());
+              }
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.deepPurpleAccent,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('GENERATE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddTextDialog(BuildContext context, EditorProvider provider) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Add New Text', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: TextField(
+            controller: controller,
+            autofocus: true,
+            style: const TextStyle(color: Colors.white, fontSize: 13),
+            decoration: InputDecoration(
+              hintText: 'Enter text here...',
+              hintStyle: TextStyle(color: Colors.white.withOpacity(0.2)),
+              filled: true,
+              fillColor: Colors.black26,
+              contentPadding: const EdgeInsets.all(12),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+            ),
+            onSubmitted: (val) {
+              if (val.trim().isNotEmpty) {
+                provider.addClip(val.trim());
+              }
+              Navigator.pop(context);
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCEL', style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (controller.text.trim().isNotEmpty) {
+                provider.addClip(controller.text.trim());
+              }
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.deepPurpleAccent,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('ADD', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _handleExport(BuildContext context, EditorProvider provider) async {
     final path = await provider.exportVideo();
     if (path != null && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Video exported to gallery'),
+        const SnackBar(
+          content: Text('Video exported to gallery'),
           backgroundColor: Colors.deepPurpleAccent,
           behavior: SnackBarBehavior.floating,
         ),
@@ -79,15 +206,14 @@ class EditorScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F0F13),
-      // AppBar removed for a cleaner look
       body: SafeArea(
         child: Column(
           children: [
             Expanded(
               flex: provider.isTimelineCollapsed ? 1 : 6,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-                child: const VideoPreview(),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                child: VideoPreview(),
               ),
             ),
             if (provider.isTimelineCollapsed)
@@ -116,6 +242,15 @@ class EditorScreen extends StatelessWidget {
                 onResolveCollisions: (id) => provider.forceResolveCollisions(id),
                 onStackSelected: () => provider.stackSelectedClips(),
                 onResetSelected: () => provider.resetSelectedClips(),
+                onSplit: () => provider.selectedClipIds.isNotEmpty ? provider.splitClip(provider.selectedClipIds.first) : null,
+                onMerge: () => provider.mergeSelectedClips(),
+                onSplitToWords: () => provider.splitSelectedClipToWords(),
+                onDelete: () => provider.deleteSelectedClips(),
+                onActionStart: () => provider.saveState(),
+                onUndo: () => provider.undo(),
+                onRedo: () => provider.redo(),
+                canUndo: provider.canUndo,
+                canRedo: provider.canRedo,
                 onAddKeyframe: () => provider.addKeyframeAtCurrentTime(),
                 onClearKeyframes: () => provider.clearKeyframes(),
                 isKeyframeAtCurrentTime: provider.isKeyframeAtCurrentTime,
@@ -152,6 +287,15 @@ class EditorScreen extends StatelessWidget {
                   onResolveCollisions: (id) => provider.forceResolveCollisions(id),
                   onStackSelected: () => provider.stackSelectedClips(),
                   onResetSelected: () => provider.resetSelectedClips(),
+                  onSplit: () => provider.selectedClipIds.isNotEmpty ? provider.splitClip(provider.selectedClipIds.first) : null,
+                  onMerge: () => provider.mergeSelectedClips(),
+                  onSplitToWords: () => provider.splitSelectedClipToWords(),
+                  onDelete: () => provider.deleteSelectedClips(),
+                  onActionStart: () => provider.saveState(),
+                  onUndo: () => provider.undo(),
+                  onRedo: () => provider.redo(),
+                  canUndo: provider.canUndo,
+                  canRedo: provider.canRedo,
                   onAddKeyframe: () => provider.addKeyframeAtCurrentTime(),
                   onClearKeyframes: () => provider.clearKeyframes(),
                   isKeyframeAtCurrentTime: provider.isKeyframeAtCurrentTime,
@@ -178,10 +322,13 @@ class EditorScreen extends StatelessWidget {
               selectedOverlay: provider.selectedOverlay,
               selectedClipIds: provider.selectedClipIds,
               currentTime: provider.currentTime,
-              onImportAudio: () => _pickAudio(context),
-              onImportSubtitles: () => _pickSubtitles(context),
+              onImportAudio: () => _pickAudio(context, provider),
+              onExtractAudio: () => _extractAudioFromVideo(context, provider),
+              onImportSubtitles: () => _pickSubtitles(context, provider),
+              onImportPlainText: () => _pickPlainText(context, provider),
+              onPasteSubtitles: () => _showPasteSubtitlesDialog(context, provider),
               onExport: () => _handleExport(context, provider),
-              onAddClip: () => provider.addClip("New Text"),
+              onAddClip: () => _showAddTextDialog(context, provider),
               onNewProject: () => _handleNewProject(context, provider),
               onAddOverlay: (path) => provider.addOverlay(path),
               onUpdate: ({
@@ -210,6 +357,7 @@ class EditorScreen extends StatelessWidget {
                 ClipAnimation? loopAnimation,
                 double? textOpacity,
                 List<Keyframe>? keyframes,
+                TextCase? textCase,
               }) {
                 provider.updateClips(
                   provider.selectedClipIds,
@@ -238,6 +386,7 @@ class EditorScreen extends StatelessWidget {
                   exitAnimation: exitAnimation,
                   loopAnimation: loopAnimation,
                   keyframes: keyframes,
+                  textCase: textCase,
                 );
               },
               onApplyPreset: (preset) {

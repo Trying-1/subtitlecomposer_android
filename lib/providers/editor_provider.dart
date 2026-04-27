@@ -7,6 +7,47 @@ import '../utils/subtitle_parser.dart';
 import '../utils/animation_presets.dart';
 import 'package:hive/hive.dart';
 
+class HistoryState {
+  final List<Track> tracks;
+  final List<Track> overlayTracks;
+  final double aspectRatio;
+  final int backgroundColor;
+  final String? backgroundImagePath;
+  final double backgroundScale;
+  final double backgroundRotation;
+  final double backgroundX;
+  final double backgroundY;
+  final int backgroundFillMode;
+
+  HistoryState({
+    required this.tracks,
+    required this.overlayTracks,
+    required this.aspectRatio,
+    required this.backgroundColor,
+    this.backgroundImagePath,
+    required this.backgroundScale,
+    required this.backgroundRotation,
+    required this.backgroundX,
+    required this.backgroundY,
+    required this.backgroundFillMode,
+  });
+
+  HistoryState clone() {
+    return HistoryState(
+      tracks: tracks.map((t) => t.copyWith(clips: t.clips.map((c) => c.copyWith()).toList())).toList(),
+      overlayTracks: overlayTracks.map((t) => t.copyWith(overlays: t.overlays.map((c) => c.copyWith()).toList())).toList(),
+      aspectRatio: aspectRatio,
+      backgroundColor: backgroundColor,
+      backgroundImagePath: backgroundImagePath,
+      backgroundScale: backgroundScale,
+      backgroundRotation: backgroundRotation,
+      backgroundX: backgroundX,
+      backgroundY: backgroundY,
+      backgroundFillMode: backgroundFillMode,
+    );
+  }
+}
+
 class EditorProvider extends ChangeNotifier {
   final AudioPlayer _audioPlayer = AudioPlayer();
   final NativeBridge _bridge = NativeBridge();
@@ -33,6 +74,10 @@ class EditorProvider extends ChangeNotifier {
   bool _isInitialized = false;
   bool _showTextTracks = true;
   bool _showOverlayTracks = true;
+
+  final List<HistoryState> _undoStack = [];
+  final List<HistoryState> _redoStack = [];
+  static const int _maxHistory = 50;
 
   List<Track> get tracks => _tracks;
   List<Track> get overlayTracks => _overlayTracks;
@@ -73,6 +118,7 @@ class EditorProvider extends ChangeNotifier {
   }
 
   void setAspectRatio(double ratio) {
+    saveState();
     _aspectRatio = ratio;
     _syncToNative();
     notifyListeners();
@@ -89,12 +135,14 @@ class EditorProvider extends ChangeNotifier {
   }
 
   void setBackgroundColor(int color) {
+    saveState();
     _backgroundColor = color;
     _syncToNative();
     notifyListeners();
   }
 
   void setBackgroundImage(String? path) {
+    saveState();
     _backgroundImagePath = path;
     _syncToNative();
     notifyListeners();
@@ -125,6 +173,7 @@ class EditorProvider extends ChangeNotifier {
   }
 
   void setBackgroundFillMode(int mode) {
+    saveState();
     _backgroundFillMode = mode;
     _syncToNative();
     notifyListeners();
@@ -144,6 +193,72 @@ class EditorProvider extends ChangeNotifier {
       height: height,
     );
   }
+
+  void saveState() {
+    _undoStack.add(_captureState());
+    if (_undoStack.length > _maxHistory) {
+      _undoStack.removeAt(0);
+    }
+    _redoStack.clear();
+    notifyListeners();
+  }
+
+  HistoryState _captureState() {
+    return HistoryState(
+      tracks: _tracks.map((t) => t.copyWith(clips: t.clips.map((c) => c.copyWith()).toList())).toList(),
+      overlayTracks: _overlayTracks.map((t) => t.copyWith(overlays: t.overlays.map((c) => c.copyWith()).toList())).toList(),
+      aspectRatio: _aspectRatio,
+      backgroundColor: _backgroundColor,
+      backgroundImagePath: _backgroundImagePath,
+      backgroundScale: _backgroundScale,
+      backgroundRotation: _backgroundRotation,
+      backgroundX: _backgroundX,
+      backgroundY: _backgroundY,
+      backgroundFillMode: _backgroundFillMode,
+    );
+  }
+
+  void undo() {
+    if (_undoStack.isEmpty) return;
+
+    final currentState = _captureState();
+    _redoStack.add(currentState);
+
+    final prevState = _undoStack.removeLast();
+    _applyState(prevState);
+    
+    _syncToNative();
+    notifyListeners();
+  }
+
+  void redo() {
+    if (_redoStack.isEmpty) return;
+
+    final currentState = _captureState();
+    _undoStack.add(currentState);
+
+    final nextState = _redoStack.removeLast();
+    _applyState(nextState);
+
+    _syncToNative();
+    notifyListeners();
+  }
+
+  void _applyState(HistoryState state) {
+    _tracks = state.tracks;
+    _overlayTracks = state.overlayTracks;
+    _aspectRatio = state.aspectRatio;
+    _backgroundColor = state.backgroundColor;
+    _backgroundImagePath = state.backgroundImagePath;
+    _backgroundScale = state.backgroundScale;
+    _backgroundRotation = state.backgroundRotation;
+    _backgroundX = state.backgroundX;
+    _backgroundY = state.backgroundY;
+    _backgroundFillMode = state.backgroundFillMode;
+  }
+
+  bool get canUndo => _undoStack.isNotEmpty;
+  bool get canRedo => _redoStack.isNotEmpty;
 
   void toggleMultiSelectMode() {
     _isMultiSelectMode = !_isMultiSelectMode;
@@ -312,6 +427,7 @@ class EditorProvider extends ChangeNotifier {
     ClipAnimation? exitAnimation,
     ClipAnimation? loopAnimation,
     List<Keyframe>? keyframes,
+    TextCase? textCase,
   }) {
     updateClips([id],
       text: text,
@@ -338,7 +454,27 @@ class EditorProvider extends ChangeNotifier {
       exitAnimation: exitAnimation,
       loopAnimation: loopAnimation,
       keyframes: keyframes,
+      textCase: textCase,
     );
+  }
+
+  String _applyCasing(String text, TextCase casing) {
+    switch (casing) {
+      case TextCase.upper:
+        return text.toUpperCase();
+      case TextCase.lower:
+        return text.toLowerCase();
+      case TextCase.title:
+        if (text.isEmpty) return text;
+        final words = text.trim().split(RegExp(r'\s+'));
+        return words.map((w) {
+          if (w.isEmpty) return w;
+          return w[0].toUpperCase() + w.substring(1).toLowerCase();
+        }).join(' ');
+      case TextCase.none:
+      default:
+        return text;
+    }
   }
 
   void updateClips(Iterable<String> ids, {
@@ -367,6 +503,7 @@ class EditorProvider extends ChangeNotifier {
     ClipAnimation? loopAnimation,
     double? textOpacity,
     List<Keyframe>? keyframes,
+    TextCase? textCase,
   }) {
     final idSet = ids.toSet();
     final isPropertyUpdate = x != null || y != null || scale != null || rotation != null || opacity != null;
@@ -402,7 +539,7 @@ class EditorProvider extends ChangeNotifier {
           }
 
           track.clips[i] = clip.copyWith(
-            text: text,
+            text: textCase != null ? _applyCasing(clip.text, textCase) : text,
             x: x,
             y: y,
             fontSize: fontSize,
@@ -607,6 +744,87 @@ class EditorProvider extends ChangeNotifier {
     await _audioPlayer.setFilePath(path);
   }
 
+  void deleteSelectedClips() {
+    if (_selectedClipIds.isEmpty) return;
+    saveState();
+    
+    for (var track in _tracks) {
+      track.clips.removeWhere((c) => _selectedClipIds.contains(c.id));
+    }
+    for (var track in _overlayTracks) {
+      track.overlays.removeWhere((c) => _selectedClipIds.contains(c.id));
+    }
+    
+    _selectedClipIds = {};
+    _syncToNative();
+    notifyListeners();
+  }
+
+  void splitClip(String id) {
+    saveState();
+    TimelineClip? clip;
+    int trackIdx = -1;
+    bool isOverlay = false;
+    
+    for (int i = 0; i < _tracks.length; i++) {
+      final idx = _tracks[i].clips.indexWhere((c) => c.id == id);
+      if (idx != -1) {
+        clip = _tracks[i].clips[idx];
+        trackIdx = i;
+        break;
+      }
+    }
+    
+    if (clip == null) {
+      for (int i = 0; i < _overlayTracks.length; i++) {
+        final idx = _overlayTracks[i].overlays.indexWhere((c) => c.id == id);
+        if (idx != -1) {
+          clip = _overlayTracks[i].overlays[idx];
+          trackIdx = i;
+          isOverlay = true;
+          break;
+        }
+      }
+    }
+    
+    if (clip == null) return;
+    
+    // Playhead must be inside the clip and not at the very edges
+    if (_currentTime <= clip.startTime || _currentTime >= clip.endTime) return;
+    
+    final oldEndTime = clip.endTime;
+    final splitTime = _currentTime;
+    
+    if (isOverlay) {
+      final oldClip = clip as OverlayClip;
+      final newClip = oldClip.copyWith(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        startTime: splitTime,
+        endTime: oldEndTime,
+      );
+      
+      final list = _overlayTracks[trackIdx].overlays;
+      final idx = list.indexWhere((c) => c.id == id);
+      list[idx] = oldClip.copyWith(endTime: splitTime);
+      list.insert(idx + 1, newClip);
+    } else {
+      final oldClip = clip as SubtitleClip;
+      final newClip = oldClip.copyWith(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        startTime: splitTime,
+        endTime: oldEndTime,
+      );
+      
+      final list = _tracks[trackIdx].clips;
+      final idx = list.indexWhere((c) => c.id == id);
+      list[idx] = oldClip.copyWith(endTime: splitTime);
+      list.insert(idx + 1, newClip);
+    }
+    
+    _syncToNative();
+    notifyListeners();
+  }
+
   void resetProject() {
     _tracks = [];
     _overlayTracks = [];
@@ -649,6 +867,47 @@ class EditorProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> importPlainText(String path) async {
+    final file = File(path);
+    final content = await file.readAsString();
+    await generateSubtitlesFromText(content);
+  }
+
+  Future<void> generateSubtitlesFromText(String content) async {
+    saveState();
+    final words = content.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    
+    final List<SubtitleClip> clips = [];
+    Duration currentStart = Duration.zero;
+    const duration = Duration(milliseconds: 500);
+
+    for (var word in words) {
+      final clipId = DateTime.now().millisecondsSinceEpoch.toString() + clips.length.toString();
+      clips.add(SubtitleClip(
+        id: clipId,
+        text: word,
+        startTime: currentStart,
+        endTime: currentStart + duration,
+        x: 0.5,
+        y: 0.5,
+        originalTrackId: 'main',
+        originalStartTime: currentStart,
+        originalEndTime: currentStart + duration,
+      ));
+      currentStart += duration;
+    }
+
+    _tracks = [Track(id: 'main', name: 'Main Track', clips: clips)];
+    
+    // Update total duration if needed
+    if (currentStart > _totalDuration) {
+      _totalDuration = currentStart;
+    }
+
+    _syncToNative();
+    notifyListeners();
+  }
+
   void togglePlay() {
     if (_isPlaying) {
       _audioPlayer.pause();
@@ -658,20 +917,50 @@ class EditorProvider extends ChangeNotifier {
   }
 
   void addClip(String text) {
+    saveState();
+    final startTime = _currentTime;
+    final endTime = _currentTime + const Duration(seconds: 2);
+    
+    // Find a track that is "free" at this time
+    int targetTrackIdx = -1;
+    for (int i = 0; i < _tracks.length; i++) {
+        bool isBusy = false;
+        for (var clip in _tracks[i].clips) {
+            // Standard collision check: overlaps if (start < clip.end && end > clip.start)
+            if (startTime < clip.endTime && endTime > clip.startTime) {
+                isBusy = true;
+                break;
+            }
+        }
+        if (!isBusy) {
+            targetTrackIdx = i;
+            break;
+        }
+    }
+
+    if (targetTrackIdx == -1) {
+        // All tracks busy at this position, create a new track
+        _tracks.add(Track(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          name: 'Track ${_tracks.length + 1}',
+          type: TrackType.text,
+          clips: [],
+        ));
+        targetTrackIdx = _tracks.length - 1;
+    }
+
     final newClip = SubtitleClip(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       text: text,
-      startTime: _currentTime,
-      endTime: _currentTime + const Duration(seconds: 2),
+      startTime: startTime,
+      endTime: endTime,
       y: 0.5, // Center by default for manual clips
-      originalTrackId: _tracks.isNotEmpty ? _tracks[0].id : 'main',
+      originalTrackId: _tracks[targetTrackIdx].id,
+      originalStartTime: startTime,
+      originalEndTime: endTime,
     );
 
-    if (_tracks.isEmpty) {
-      _tracks = [Track(id: 'main', name: 'Main Track', clips: [newClip])];
-    } else {
-      _tracks[0].clips.add(newClip);
-    }
+    _tracks[targetTrackIdx].clips.add(newClip);
     
     _syncToNative();
     selectClip(newClip.id);
@@ -679,6 +968,7 @@ class EditorProvider extends ChangeNotifier {
   }
 
   void addOverlay(String imagePath) {
+    saveState();
     final newOverlay = OverlayClip(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       imagePath: imagePath,
@@ -698,7 +988,132 @@ class EditorProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void mergeSelectedClips() {
+    if (_selectedClipIds.length < 2) return;
+    
+    saveState();
+    
+    // Find target track and ensure all selected clips are on it
+    Track? targetTrack;
+    final List<SubtitleClip> selectedClips = [];
+    
+    for (final track in _tracks) {
+      bool hasSome = false;
+      bool hasAllFromSelection = true;
+      final List<SubtitleClip> foundInTrack = [];
+      
+      for (final clip in track.clips) {
+        if (_selectedClipIds.contains(clip.id)) {
+          foundInTrack.add(clip);
+          hasSome = true;
+        }
+      }
+      
+      if (hasSome) {
+        if (targetTrack != null) {
+          // Already found clips in another track, merging across tracks not supported
+          return;
+        }
+        targetTrack = track;
+        selectedClips.addAll(foundInTrack);
+      }
+    }
+    
+    if (targetTrack == null || selectedClips.length != _selectedClipIds.length) {
+      return;
+    }
+    
+    // Sort by start time to check consecutiveness
+    selectedClips.sort((a, b) => a.startTime.compareTo(b.startTime));
+    
+    // Check if they are consecutive in the track's sorted clips list
+    final allClipsInTrack = List<SubtitleClip>.from(targetTrack.clips);
+    allClipsInTrack.sort((a, b) => a.startTime.compareTo(b.startTime));
+    
+    int firstIndex = allClipsInTrack.indexWhere((c) => c.id == selectedClips.first.id);
+    for (int i = 0; i < selectedClips.length; i++) {
+      if (allClipsInTrack[firstIndex + i].id != selectedClips[i].id) {
+        // Not consecutive
+        return;
+      }
+    }
+    
+    // Create merged clip
+    final first = selectedClips.first;
+    final last = selectedClips.last;
+    
+    final mergedClip = first.copyWith(
+      text: selectedClips.map((c) => c.text).join(' '),
+      endTime: last.endTime,
+      id: "merged_${DateTime.now().millisecondsSinceEpoch}",
+      keyframes: [...first.keyframes], // Keep first clip keyframes
+    );
+    
+    // Remove old clips
+    targetTrack.clips.removeWhere((c) => _selectedClipIds.contains(c.id));
+    targetTrack.clips.add(mergedClip);
+    targetTrack.clips.sort((a, b) => a.startTime.compareTo(b.startTime));
+    
+    _selectedClipIds = {mergedClip.id};
+    
+    _syncToNative();
+    notifyListeners();
+  }
+
+  void splitSelectedClipToWords() {
+    final clip = selectedTimelineClip;
+    if (clip == null || clip is! SubtitleClip) return;
+    
+    final subtitleClip = clip as SubtitleClip;
+    final words = subtitleClip.text.trim().split(RegExp(r'\s+'));
+    if (words.length <= 1) return;
+    
+    saveState();
+    
+    final totalDuration = subtitleClip.duration;
+    final durationPerWord = Duration(microseconds: (totalDuration.inMicroseconds / words.length).toInt());
+    
+    Track? targetTrack;
+    for (final track in _tracks) {
+      if (track.clips.any((c) => c.id == subtitleClip.id)) {
+        targetTrack = track;
+        break;
+      }
+    }
+    if (targetTrack == null) return;
+
+    final List<SubtitleClip> newClips = [];
+    var currentStart = subtitleClip.startTime;
+    
+    for (var i = 0; i < words.length; i++) {
+      final isLast = i == words.length - 1;
+      final endTime = isLast ? subtitleClip.endTime : currentStart + durationPerWord;
+      
+      newClips.add(subtitleClip.copyWith(
+        id: "word_${DateTime.now().millisecondsSinceEpoch}_$i",
+        text: words[i],
+        startTime: currentStart,
+        endTime: endTime,
+        keyframes: [], 
+      ));
+      
+      currentStart = endTime;
+    }
+    
+    // Replace old clip with new clips
+    targetTrack.clips.removeWhere((c) => c.id == clip.id);
+    targetTrack.clips.addAll(newClips);
+    targetTrack.clips.sort((a, b) => a.startTime.compareTo(b.startTime));
+    
+    // Select the first word of the split
+    _selectedClipIds = {newClips[0].id};
+    
+    _syncToNative();
+    notifyListeners();
+  }
+
   void addNewTrack(TrackType type) {
+    saveState();
     if (type == TrackType.text) {
       _tracks.add(Track(
         id: DateTime.now().millisecondsSinceEpoch.toString(),

@@ -172,3 +172,115 @@ end:
 
     return ret;
 }
+
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_example_typgraphyeditor_MainActivity_extractAudio(
+        JNIEnv *env,
+        jobject thiz,
+        jstring video_path,
+        jstring output_path) {
+
+    const char *in_v = env->GetStringUTFChars(video_path, nullptr);
+    const char *out = env->GetStringUTFChars(output_path, nullptr);
+
+    AVFormatContext *ifmt_ctx = nullptr, *ofmt_ctx = nullptr;
+    AVPacket pkt;
+    int ret;
+    int audio_stream_idx = -1;
+    int out_audio_stream_idx = -1;
+
+    LOGD("Extraction starting: V=%s, O=%s", in_v, out);
+
+    // Open input file
+    if ((ret = avformat_open_input(&ifmt_ctx, in_v, nullptr, nullptr)) < 0) {
+        LOGE("Could not open input file '%s'", in_v);
+        goto end;
+    }
+    if ((ret = avformat_find_stream_info(ifmt_ctx, nullptr)) < 0) {
+        LOGE("Failed to retrieve stream information");
+        goto end;
+    }
+
+    // Create output context
+    avformat_alloc_output_context2(&ofmt_ctx, nullptr, nullptr, out);
+    if (!ofmt_ctx) {
+        LOGE("Could not create output context");
+        ret = AVERROR_UNKNOWN;
+        goto end;
+    }
+
+    // Find and add audio stream to output
+    for (int i = 0; i < ifmt_ctx->nb_streams; i++) {
+        if (ifmt_ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_AUDIO) {
+            audio_stream_idx = i;
+            AVStream *in_stream = ifmt_ctx->streams[i];
+            AVStream *out_stream = avformat_new_stream(ofmt_ctx, nullptr);
+            if (!out_stream) {
+                LOGE("Failed allocating output audio stream");
+                ret = AVERROR_UNKNOWN;
+                goto end;
+            }
+            out_audio_stream_idx = out_stream->index;
+            if ((ret = avcodec_parameters_copy(out_stream->codecpar, in_stream->codecpar)) < 0) {
+                LOGE("Failed to copy audio codec parameters");
+                goto end;
+            }
+            out_stream->codecpar->codec_tag = 0;
+            break;
+        }
+    }
+
+    if (audio_stream_idx == -1) {
+        LOGE("No audio stream found in input file");
+        ret = -1;
+        goto end;
+    }
+
+    if (!(ofmt_ctx->oformat->flags & AVFMT_NOFILE)) {
+        if ((ret = avio_open(&ofmt_ctx->pb, out, AVIO_FLAG_WRITE)) < 0) {
+            LOGE("Could not open output file '%s'", out);
+            goto end;
+        }
+    }
+
+    if ((ret = avformat_write_header(ofmt_ctx, nullptr)) < 0) {
+        LOGE("Error occurred when opening output file");
+        goto end;
+    }
+
+    // Read and write audio packets
+    while (true) {
+        ret = av_read_frame(ifmt_ctx, &pkt);
+        if (ret < 0) break;
+
+        if (pkt.stream_index == audio_stream_idx) {
+            AVStream *in_stream = ifmt_ctx->streams[pkt.stream_index];
+            AVStream *out_stream = ofmt_ctx->streams[out_audio_stream_idx];
+
+            pkt.stream_index = out_audio_stream_idx;
+            av_packet_rescale_ts(&pkt, in_stream->time_base, out_stream->time_base);
+            pkt.pos = -1;
+
+            if ((ret = av_interleaved_write_frame(ofmt_ctx, &pkt)) < 0) {
+                LOGE("Error writing packet during extraction");
+                break;
+            }
+        }
+        av_packet_unref(&pkt);
+    }
+
+    av_write_trailer(ofmt_ctx);
+    LOGD("Extraction finished successfully");
+    ret = 0;
+
+end:
+    if (ifmt_ctx) avformat_close_input(&ifmt_ctx);
+    if (ofmt_ctx && !(ofmt_ctx->oformat->flags & AVFMT_NOFILE)) avio_closep(&ofmt_ctx->pb);
+    if (ofmt_ctx) avformat_free_context(ofmt_ctx);
+
+    env->ReleaseStringUTFChars(video_path, in_v);
+    env->ReleaseStringUTFChars(output_path, out);
+
+    return ret;
+}

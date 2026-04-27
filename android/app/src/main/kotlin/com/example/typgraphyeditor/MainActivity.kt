@@ -18,6 +18,7 @@ class MainActivity : FlutterActivity() {
     }
 
     private external fun muxVideoAudio(videoPath: String, audioPath: String, outputPath: String): Int
+    private external fun extractAudio(videoPath: String, outputPath: String): Int
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -144,6 +145,23 @@ class MainActivity : FlutterActivity() {
                         } catch (e: Exception) {
                             e.printStackTrace()
                             runOnUiThread { result.error("EXPORT_ERROR", e.message, null) }
+                        }
+                    }.start()
+                }
+                "extractAudio" -> {
+                    val videoPath = call.argument<String>("videoPath") ?: ""
+                    val outputPath = call.argument<String>("outputPath") ?: ""
+                    
+                    Thread {
+                        try {
+                            val ret = extractAudio(videoPath, outputPath)
+                            if (ret == 0) {
+                                runOnUiThread { result.success(null) }
+                            } else {
+                                runOnUiThread { result.error("EXTRACT_ERROR", "FFmpeg extraction failed with code $ret", null) }
+                            }
+                        } catch (e: Exception) {
+                            runOnUiThread { result.error("EXTRACT_ERROR", e.message, null) }
                         }
                     }.start()
                 }

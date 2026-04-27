@@ -217,11 +217,11 @@ class CommonControls {
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
           child: Container(
-            width: 56,
-            height: 56,
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
               color: isPrimary ? color.withOpacity(0.1) : Colors.white.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: isPrimary ? color.withOpacity(0.4) : Colors.white.withOpacity(0.08),
                 width: isPrimary ? 1.5 : 1,
@@ -229,16 +229,16 @@ class CommonControls {
             ),
             child: Icon(
               icon, 
-              size: 22, 
+              size: 18, 
               color: isPrimary ? color : color.withOpacity(0.8),
             ),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Text(
           label.toUpperCase(),
           style: TextStyle(
-            fontSize: 7, 
+            fontSize: 6.5, 
             color: isPrimary ? Colors.white : Colors.white38, 
             fontWeight: FontWeight.w900,
             letterSpacing: 0.5,
