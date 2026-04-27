@@ -154,6 +154,16 @@ class MainActivity : FlutterActivity() {
                     textureEntry = null
                     result.success(null)
                 }
+                "registerFont" -> {
+                    val family = call.argument<String>("family")
+                    val path = call.argument<String>("path")
+                    if (family != null && path != null) {
+                        FontManager.registerCustomFont(family, path)
+                        result.success(null)
+                    } else {
+                        result.error("INVALID_ARGS", "Family or path missing", null)
+                    }
+                }
                 else -> result.notImplemented()
             }
         }
@@ -164,13 +174,13 @@ class MainActivity : FlutterActivity() {
         return clipsRaw.map {
             SubtitleClip(
                 id = it["id"] as String,
-                text = it["text"] as String,
+                text = it["text"] as? String ?: "",
                 startTime = (it["startTime"] as Number).toLong(),
                 endTime = (it["endTime"] as Number).toLong(),
                 x = (it["x"] as Number).toFloat(),
                 y = (it["y"] as Number).toFloat(),
-                fontSize = (it["fontSize"] as Number).toFloat(),
-                color = (it["color"] as Number).toInt(),
+                fontSize = (it["fontSize"] as? Number)?.toFloat() ?: 50f,
+                color = (it["color"] as? Number)?.toInt() ?: 0xFF000000.toInt(),
                 strokeColor = (it["strokeColor"] as? Number)?.toInt() ?: 0xFF000000.toInt(),
                 strokeWidth = (it["strokeWidth"] as? Number)?.toFloat() ?: 0f,
                 shadowColor = (it["shadowColor"] as? Number)?.toInt() ?: 0x00000000,
@@ -183,11 +193,15 @@ class MainActivity : FlutterActivity() {
                 rotation = (it["rotation"] as? Number)?.toFloat() ?: 0f,
                 scale = (it["scale"] as? Number)?.toFloat() ?: 1f,
                 opacity = (it["opacity"] as? Number)?.toFloat() ?: 1f,
+                textOpacity = (it["textOpacity"] as? Number)?.toFloat() ?: 1f,
                 isShadowEnabled = it["isShadowEnabled"] as? Boolean ?: true,
                 isBackgroundEnabled = it["isBackgroundEnabled"] as? Boolean ?: true,
                 fontFamily = it["fontFamily"] as? String ?: "Poppins",
                 entranceAnimation = ClipAnimation.fromMap(it["entranceAnimation"] as? Map<String, Any>),
-                exitAnimation = ClipAnimation.fromMap(it["exitAnimation"] as? Map<String, Any>)
+                exitAnimation = ClipAnimation.fromMap(it["exitAnimation"] as? Map<String, Any>),
+                loopAnimation = ClipAnimation.fromMap(it["loopAnimation"] as? Map<String, Any>),
+                imagePath = it["imagePath"] as? String,
+                isText = it["isText"] as? Boolean ?: (it["imagePath"] == null)
             )
         }
     }

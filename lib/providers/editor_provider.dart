@@ -5,12 +5,14 @@ import '../models/editor_models.dart';
 import '../services/native_bridge.dart';
 import '../utils/subtitle_parser.dart';
 import '../utils/animation_presets.dart';
+import 'package:hive/hive.dart';
 
 class EditorProvider extends ChangeNotifier {
   final AudioPlayer _audioPlayer = AudioPlayer();
   final NativeBridge _bridge = NativeBridge();
   
   List<Track> _tracks = [];
+  List<Track> _overlayTracks = [];
   Duration _currentTime = Duration.zero;
   Duration _totalDuration = Duration.zero;
   bool _isPlaying = false;
@@ -20,7 +22,7 @@ class EditorProvider extends ChangeNotifier {
   double _zoomLevel = 1.0; // 1.0 = 50 pixels per second
   String? _audioPath;
   double _aspectRatio = 16 / 9;
-  int _backgroundColor = 0xFF000000;
+  int _backgroundColor = 0xFFFFFFFF;
   String? _backgroundImagePath;
   double _backgroundScale = 1.0;
   double _backgroundRotation = 0.0;
@@ -28,8 +30,10 @@ class EditorProvider extends ChangeNotifier {
   double _backgroundY = 0.0;
   int _backgroundFillMode = 0; // 0: cover, 1: fit, 2: center
   bool _isTimelineCollapsed = false;
+  bool _isInitialized = false;
 
   List<Track> get tracks => _tracks;
+  List<Track> get overlayTracks => _overlayTracks;
   Duration get currentTime => _currentTime;
   int get backgroundColor => _backgroundColor;
   String? get backgroundImagePath => _backgroundImagePath;
@@ -45,7 +49,9 @@ class EditorProvider extends ChangeNotifier {
   bool get isMultiSelectMode => _isMultiSelectMode;
   bool get isAllSelected {
     final allIds = _tracks.expand((t) => t.clips).map((c) => c.id).toSet();
-    return allIds.isNotEmpty && _selectedClipIds.length == allIds.length;
+    final allOverlayIds = _overlayTracks.expand((t) => t.overlays).map((c) => c.id).toSet();
+    final totalIds = allIds.length + allOverlayIds.length;
+    return totalIds > 0 && _selectedClipIds.length == totalIds;
   }
   String? get selectedClipId => _selectedClipIds.isNotEmpty ? _selectedClipIds.first : null;
   double get zoomLevel => _zoomLevel;
@@ -129,19 +135,40 @@ class EditorProvider extends ChangeNotifier {
     _isMultiSelectMode = !_isMultiSelectMode;
     if (!_isMultiSelectMode && _selectedClipIds.length > 1) {
       // Opt-in: Keep only the first one when turning off multi-select? 
-      // Or just keep them. Let's keep them but next tap will clear.
     }
     notifyListeners();
   }
 
-  SubtitleClip? get selectedClip {
+  TimelineClip? get selectedTimelineClip {
     if (_selectedClipIds.isEmpty) return null;
     try {
       final firstId = _selectedClipIds.first;
-      return _tracks.expand((t) => t.clips).firstWhere((c) => c.id == firstId);
+      // Search in text tracks
+      for (var track in _tracks) {
+        for (var clip in track.clips) {
+          if (clip.id == firstId) return clip;
+        }
+      }
+      // Search in overlay tracks
+      for (var track in _overlayTracks) {
+        for (var clip in track.overlays) {
+          if (clip.id == firstId) return clip;
+        }
+      }
+      return null;
     } catch (_) {
       return null;
     }
+  }
+
+  SubtitleClip? get selectedClip {
+    final clip = selectedTimelineClip;
+    return clip is SubtitleClip ? clip : null;
+  }
+
+  OverlayClip? get selectedOverlay {
+    final clip = selectedTimelineClip;
+    return clip is OverlayClip ? clip : null;
   }
 
   void selectClip(String? id) {
@@ -152,7 +179,7 @@ class EditorProvider extends ChangeNotifier {
         toggleClipSelection(id);
       } else {
         _selectedClipIds = {id};
-        final clip = selectedClip;
+        final clip = selectedTimelineClip;
         if (clip != null) {
           final center = Duration(
             milliseconds: (clip.startTime.inMilliseconds + clip.endTime.inMilliseconds) ~/ 2,
@@ -180,39 +207,59 @@ class EditorProvider extends ChangeNotifier {
 
   void toggleSelectAll() {
     final allIds = _tracks.expand((t) => t.clips).map((c) => c.id).toSet();
-    if (allIds.isEmpty) return;
+    final allOverlayIds = _overlayTracks.expand((t) => t.overlays).map((c) => c.id).toSet();
+    final totalIds = {...allIds, ...allOverlayIds};
+    
+    if (totalIds.isEmpty) return;
 
-    if (_selectedClipIds.length == allIds.length) {
+    if (_selectedClipIds.length == totalIds.length) {
       _selectedClipIds = {};
     } else {
-      _selectedClipIds = allIds;
+      _selectedClipIds = totalIds;
     }
     notifyListeners();
   }
 
   void selectClipAt(double x, double y, {bool deselectIfEmpty = true}) {
-    SubtitleClip? bestMatch;
+    TimelineClip? bestMatch;
     int highestTrack = -1;
     double closestDistSq = 1.0;
 
+    // Search in text tracks
     for (int i = 0; i < _tracks.length; i++) {
       for (var clip in _tracks[i].clips) {
         if (_currentTime >= clip.startTime && _currentTime < clip.endTime) {
           final dx = clip.x - x;
           final dy = clip.y - y;
           final distSq = dx * dx + dy * dy;
-          
-          // Dynamic threshold based on font size (approximate)
           final threshold = 0.05 + (clip.fontSize / 1000) * clip.scale; 
-
           if (distSq < threshold * threshold) {
-            // Prioritize higher track index (layered on top)
             if (i >= highestTrack) {
-              if (i > highestTrack || distSq < closestDistSq) {
-                highestTrack = i;
-                bestMatch = clip;
-                closestDistSq = distSq;
-              }
+              highestTrack = i;
+              bestMatch = clip;
+              closestDistSq = distSq;
+            }
+          }
+        }
+      }
+    }
+
+    // Search in overlay tracks (overlays are usually on top of text)
+    for (int i = 0; i < _overlayTracks.length; i++) {
+      for (var clip in _overlayTracks[i].overlays) {
+        if (_currentTime >= clip.startTime && _currentTime < clip.endTime) {
+          final dx = clip.x - x;
+          final dy = clip.y - y;
+          final distSq = dx * dx + dy * dy;
+          final threshold = 0.1 * clip.scale; // Overlays use base scale for threshold
+          if (distSq < threshold * threshold) {
+            // Overlays always win over text if they overlap at same depth, but here we just check track index
+            // Overlay index start from top of text
+            int overlayEffectiveTrack = i + _tracks.length;
+            if (overlayEffectiveTrack >= highestTrack) {
+              highestTrack = overlayEffectiveTrack;
+              bestMatch = clip;
+              closestDistSq = distSq;
             }
           }
         }
@@ -302,8 +349,11 @@ class EditorProvider extends ChangeNotifier {
     ClipAnimation? entranceAnimation,
     ClipAnimation? exitAnimation,
     ClipAnimation? loopAnimation,
+    double? textOpacity,
   }) {
     final idSet = ids.toSet();
+    
+    // Update text tracks
     for (var track in _tracks) {
       for (int i = 0; i < track.clips.length; i++) {
         final clip = track.clips[i];
@@ -326,6 +376,7 @@ class EditorProvider extends ChangeNotifier {
             rotation: rotation,
             scale: scale,
             opacity: opacity,
+            textOpacity: textOpacity,
             isShadowEnabled: isShadowEnabled,
             isBackgroundEnabled: isBackgroundEnabled,
             fontFamily: fontFamily,
@@ -336,6 +387,26 @@ class EditorProvider extends ChangeNotifier {
         }
       }
     }
+
+    // Update overlay tracks
+    for (var track in _overlayTracks) {
+      for (int i = 0; i < track.overlays.length; i++) {
+        final clip = track.overlays[i];
+        if (idSet.contains(clip.id)) {
+          track.overlays[i] = clip.copyWith(
+            x: x,
+            y: y,
+            rotation: rotation,
+            scale: scale,
+            opacity: opacity,
+            entranceAnimation: entranceAnimation,
+            exitAnimation: exitAnimation,
+            loopAnimation: loopAnimation,
+          );
+        }
+      }
+    }
+    
     _syncToNative();
     notifyListeners();
   }
@@ -349,8 +420,20 @@ class EditorProvider extends ChangeNotifier {
   }
 
   void _syncToNative() {
-    final allClips = _tracks.expand((t) => t.clips).map((c) => c.toJson()).toList();
-    _bridge.updateClips(allClips);
+    final allClips = _tracks.expand((t) => t.clips).map((c) {
+      final map = c.toJson();
+      map['isText'] = true;
+      return map;
+    }).toList();
+
+    final allOverlays = _overlayTracks.expand((t) => t.overlays).map((c) {
+      final map = c.toJson();
+      map['isText'] = false;
+      map['imagePath'] = c.imagePath;
+      return map;
+    }).toList();
+
+    _bridge.updateClips([...allClips, ...allOverlays]);
     _bridge.updateProjectSettings(
       aspectRatio: _aspectRatio,
       backgroundColor: _backgroundColor,
@@ -361,9 +444,75 @@ class EditorProvider extends ChangeNotifier {
       bgY: _backgroundY,
       bgFillMode: _backgroundFillMode,
     );
+    _persistProject();
+  }
+
+  Future<void> _loadPersistedProject() async {
+    try {
+      final box = Hive.box('project_box');
+      final data = box.get('project_state');
+      if (data != null) {
+        final Map<String, dynamic> state = Map<String, dynamic>.from(data);
+        
+        _aspectRatio = state['aspectRatio'] ?? 16 / 9;
+        _backgroundColor = state['backgroundColor'] ?? 0xFF000000;
+        _backgroundImagePath = state['backgroundImagePath'];
+        _backgroundScale = (state['backgroundScale'] as num?)?.toDouble() ?? 1.0;
+        _backgroundRotation = (state['backgroundRotation'] as num?)?.toDouble() ?? 0.0;
+        _backgroundX = (state['backgroundX'] as num?)?.toDouble() ?? 0.0;
+        _backgroundY = (state['backgroundY'] as num?)?.toDouble() ?? 0.0;
+        _backgroundFillMode = state['backgroundFillMode'] ?? 0;
+        _audioPath = state['audioPath'];
+
+        _tracks = (state['tracks'] as List? ?? []).map((t) => Track.fromJson(Map<String, dynamic>.from(t))).toList();
+        _overlayTracks = (state['overlayTracks'] as List? ?? []).map((t) => Track.fromJson(Map<String, dynamic>.from(t))).toList();
+        
+        if (_audioPath != null) {
+          try {
+             await _audioPlayer.setFilePath(_audioPath!);
+             _totalDuration = _audioPlayer.duration ?? Duration.zero;
+          } catch(e) {
+            print("Error loading persisted audio: $e");
+          }
+        }
+      }
+    } catch (e) {
+      print("Error loading project: $e");
+    } finally {
+      _isInitialized = true;
+      _syncToNative();
+      notifyListeners();
+    }
+  }
+
+  void _persistProject() {
+    if (!_isInitialized) return;
+    try {
+      final box = Hive.box('project_box');
+      final state = {
+        'aspectRatio': _aspectRatio,
+        'backgroundColor': _backgroundColor,
+        'backgroundImagePath': _backgroundImagePath,
+        'backgroundScale': _backgroundScale,
+        'backgroundRotation': _backgroundRotation,
+        'backgroundX': _backgroundX,
+        'backgroundY': _backgroundY,
+        'backgroundFillMode': _backgroundFillMode,
+        'audioPath': _audioPath,
+        'tracks': _tracks.map((t) => t.toJson()).toList(),
+        'overlayTracks': _overlayTracks.map((t) => t.toJson()).toList(),
+      };
+      box.put('project_state', state);
+    } catch (e) {
+      print("Error persisting project: $e");
+    }
   }
 
   EditorProvider() {
+    _init();
+  }
+
+  void _init() async {
     _audioPlayer.positionStream.listen((pos) {
       _currentTime = pos;
       _bridge.seekTo(pos.inMilliseconds);
@@ -379,11 +528,37 @@ class EditorProvider extends ChangeNotifier {
       _totalDuration = dur ?? Duration.zero;
       notifyListeners();
     });
+
+    await _loadPersistedProject();
   }
 
   Future<void> loadAudio(String path) async {
     _audioPath = path;
     await _audioPlayer.setFilePath(path);
+  }
+
+  void resetProject() {
+    _tracks = [];
+    _overlayTracks = [];
+    _audioPath = null;
+    _currentTime = Duration.zero;
+    _totalDuration = Duration.zero;
+    _selectedClipIds = {};
+    
+    // Reset background and aspect ratio
+    _aspectRatio = 16 / 9;
+    _backgroundColor = 0xFFFFFFFF;
+    _backgroundImagePath = null;
+    _backgroundScale = 1.0;
+    _backgroundRotation = 0.0;
+    _backgroundX = 0.0;
+    _backgroundY = 0.0;
+    _backgroundFillMode = 0;
+
+    _audioPlayer.stop();
+    
+    _syncToNative();
+    notifyListeners();
   }
 
   Future<void> loadSubtitles(String path, String format) async {
@@ -433,44 +608,83 @@ class EditorProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void addNewTrack() {
-    _tracks.add(Track(
+  void addOverlay(String imagePath) {
+    final newOverlay = OverlayClip(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
-      name: 'Track ${_tracks.length + 1}',
-      clips: [],
-    ));
+      imagePath: imagePath,
+      startTime: _currentTime,
+      endTime: _currentTime + const Duration(seconds: 1),
+      originalTrackId: _overlayTracks.isNotEmpty ? _overlayTracks[0].id : 'overlay_main',
+    );
+
+    if (_overlayTracks.isEmpty) {
+      _overlayTracks = [Track(id: 'overlay_main', name: 'Overlays', type: TrackType.overlay, overlays: [newOverlay])];
+    } else {
+      _overlayTracks[0].overlays.add(newOverlay);
+    }
+    
+    _syncToNative();
+    selectClip(newOverlay.id);
     notifyListeners();
   }
 
-  void updateClipTiming(SubtitleClip clip, Duration? newStart, Duration? newEnd, {bool resolveCollisions = true}) {
+  void addNewTrack(TrackType type) {
+    if (type == TrackType.text) {
+      _tracks.add(Track(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        name: 'Track ${_tracks.length + 1}',
+        type: TrackType.text,
+        clips: [],
+      ));
+    } else {
+      _overlayTracks.add(Track(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        name: 'Overlay Track ${_overlayTracks.length + 1}',
+        type: TrackType.overlay,
+        overlays: [],
+      ));
+    }
+    notifyListeners();
+  }
+
+  void updateClipTiming(dynamic clip, Duration? newStart, Duration? newEnd, {bool resolveCollisions = true}) {
     if (newStart == null && newEnd == null) return;
 
     int currentTrackIdx = -1;
     int clipIdx = -1;
+    final bool isOverlay = clip is OverlayClip;
+    final trackList = isOverlay ? _overlayTracks : _tracks;
 
-    for (int i = 0; i < _tracks.length; i++) {
-        final idx = _tracks[i].clips.indexWhere((c) => c.id == clip.id);
+    for (int i = 0; i < trackList.length; i++) {
+        final List<TimelineClip> clipsOnTrack = isOverlay ? trackList[i].overlays : trackList[i].clips;
+        final idx = clipsOnTrack.indexWhere((c) => c.id == clip.id);
         if (idx != -1) {
             currentTrackIdx = i;
             clipIdx = idx;
             break;
         }
     }
-
+    
     if (currentTrackIdx != -1) {
-        final foundClip = _tracks[currentTrackIdx].clips.removeAt(clipIdx);
+        final TimelineClip foundClip = isOverlay 
+           ? trackList[currentTrackIdx].overlays.removeAt(clipIdx) as TimelineClip
+           : trackList[currentTrackIdx].clips.removeAt(clipIdx) as TimelineClip;
+           
         final startTime = newStart ?? foundClip.startTime;
         final endTime = newEnd ?? foundClip.endTime;
         
-        final updatedClip = foundClip.copyWith(
-            startTime: startTime,
-            endTime: endTime,
-        );
+        final updatedClip = isOverlay
+            ? (foundClip as OverlayClip).copyWith(startTime: startTime, endTime: endTime)
+            : (foundClip as SubtitleClip).copyWith(startTime: startTime, endTime: endTime);
 
         if (resolveCollisions) {
             _resolveCollisions(updatedClip, currentTrackIdx);
         } else {
-            _tracks[currentTrackIdx].clips.insert(clipIdx, updatedClip);
+            if (isOverlay) {
+                trackList[currentTrackIdx].overlays.insert(clipIdx, updatedClip as OverlayClip);
+            } else {
+                trackList[currentTrackIdx].clips.insert(clipIdx, updatedClip as SubtitleClip);
+            }
             _syncToNative();
             notifyListeners();
         }
@@ -480,6 +694,8 @@ class EditorProvider extends ChangeNotifier {
   void forceResolveCollisions(String clipId) {
     int trackIdx = -1;
     int clipIdx = -1;
+    bool isOverlay = false;
+    
     for (int i = 0; i < _tracks.length; i++) {
       final idx = _tracks[i].clips.indexWhere((c) => c.id == clipId);
       if (idx != -1) {
@@ -488,8 +704,23 @@ class EditorProvider extends ChangeNotifier {
         break;
       }
     }
+    
+    if (trackIdx == -1) {
+      for (int i = 0; i < _overlayTracks.length; i++) {
+        final idx = _overlayTracks[i].overlays.indexWhere((c) => c.id == clipId);
+        if (idx != -1) {
+          trackIdx = i;
+          clipIdx = idx;
+          isOverlay = true;
+          break;
+        }
+      }
+    }
+
     if (trackIdx != -1) {
-      final clip = _tracks[trackIdx].clips.removeAt(clipIdx);
+      final clip = isOverlay 
+          ? _overlayTracks[trackIdx].overlays.removeAt(clipIdx)
+          : _tracks[trackIdx].clips.removeAt(clipIdx);
       _resolveCollisions(clip, trackIdx);
     }
   }
@@ -497,7 +728,7 @@ class EditorProvider extends ChangeNotifier {
   void stackSelectedClips() {
     if (_selectedClipIds.isEmpty) return;
 
-    // 1. Gather all selected clips
+    // ONLY for Text Clips for now as per previous logic
     List<SubtitleClip> selectedClips = [];
     int baseTrackIndex = 999;
 
@@ -512,22 +743,17 @@ class EditorProvider extends ChangeNotifier {
 
     if (selectedClips.isEmpty) return;
 
-    // 2. Sort by start time
     selectedClips.sort((a, b) => a.startTime.compareTo(b.startTime));
 
-    // 3. Find max end time
     Duration maxEndTime = Duration.zero;
     for (var clip in selectedClips) {
         if (clip.endTime > maxEndTime) maxEndTime = clip.endTime;
     }
 
-    // 4. Remove them from current tracks first to avoid duplicate IDs during re-insertion
     for (var track in _tracks) {
         track.clips.removeWhere((c) => _selectedClipIds.contains(c.id));
     }
 
-    // 5. Place them in sequential tracks starting from baseTrackIndex
-    // AND align them vertically in the preview column-style.
     const double gap = 0.08;
     final double totalHeight = (selectedClips.length - 1) * gap;
     final double startY = (1.0 - totalHeight) / 2;
@@ -536,15 +762,12 @@ class EditorProvider extends ChangeNotifier {
         final clip = selectedClips[i];
         final updatedClip = clip.copyWith(
           endTime: maxEndTime,
-          x: 0.5, // Center horizontally
-          y: startY + (i * gap), // Stack vertically
+          x: 0.5,
+          y: startY + (i * gap),
         );
         
-        // Target track: baseTrackIndex + (selectedClips.length - 1 - i)
-        // This puts the EARLIEST clip on the BOTTOM-most track of the stack (layered on top)
         int targetTrackIdx = baseTrackIndex + (selectedClips.length - 1 - i);
 
-        // Ensure track exists
         while (_tracks.length <= targetTrackIdx) {
             _tracks.add(Track(
                 id: DateTime.now().millisecondsSinceEpoch.toString() + _tracks.length.toString(),
@@ -553,7 +776,6 @@ class EditorProvider extends ChangeNotifier {
             ));
         }
 
-        // We use _resolveCollisions strictly to ensure we don't overlap with UNSELECTED clips
         _resolveCollisions(updatedClip, targetTrackIdx);
     }
     
@@ -573,12 +795,10 @@ class EditorProvider extends ChangeNotifier {
       }
     }
 
-    // 1. Remove them from current positions
     for (var track in _tracks) {
       track.clips.removeWhere((c) => _selectedClipIds.contains(c.id));
     }
 
-    // 2. Revert timing and move to original tracks
     for (var clip in clipsToReset) {
       final resetClip = clip.copyWith(
         startTime: clip.originalStartTime,
@@ -589,13 +809,12 @@ class EditorProvider extends ChangeNotifier {
       int trackIdx = _tracks.indexWhere((t) => t.id == targetTrackId);
       
       if (trackIdx == -1) {
-        trackIdx = 0; // Fallback to first track if original is gone
+        trackIdx = 0;
         if (_tracks.isEmpty) {
           _tracks.add(Track(id: 'main', name: 'Main Track', clips: []));
         }
       }
 
-      // Re-insert and resolve collisions strictly
       _resolveCollisions(resetClip, trackIdx);
     }
 
@@ -603,22 +822,24 @@ class EditorProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _resolveCollisions(SubtitleClip clip, int initialTrackIdx) {
+  void _resolveCollisions(dynamic clip, int initialTrackIdx) {
+    final bool isOverlay = clip is OverlayClip;
+    final trackList = isOverlay ? _overlayTracks : _tracks;
+    final trackType = isOverlay ? TrackType.overlay : TrackType.text;
+
     int targetTrackIdx = initialTrackIdx;
     bool hasCollision = true;
 
     while (hasCollision) {
         hasCollision = false;
-        if (targetTrackIdx >= _tracks.length) {
-            _tracks.add(Track(
-              id: DateTime.now().millisecondsSinceEpoch.toString(),
-              name: 'Track ${_tracks.length + 1}',
-              clips: [],
-            ));
+        if (targetTrackIdx >= trackList.length) {
+            addNewTrack(trackType);
         }
 
-        final track = _tracks[targetTrackIdx];
-        for (var existingClip in track.clips) {
+        final track = trackList[targetTrackIdx];
+        final List<TimelineClip> clipsToCompare = isOverlay ? track.overlays : track.clips;
+        
+        for (var existingClip in clipsToCompare) {
             if (existingClip.id != clip.id) {
                 if (clip.startTime < existingClip.endTime && existingClip.startTime < clip.endTime) {
                     hasCollision = true;
@@ -632,20 +853,26 @@ class EditorProvider extends ChangeNotifier {
         }
     }
 
-    _tracks[targetTrackIdx].clips.add(clip);
+    if (isOverlay) {
+        trackList[targetTrackIdx].overlays.add(clip as OverlayClip);
+    } else {
+        trackList[targetTrackIdx].clips.add(clip as SubtitleClip);
+    }
     _syncToNative();
     notifyListeners();
   }
 
-  void moveClip(SubtitleClip clip, String targetTrackId, Duration? newStartTime) {
-    // Determine if this is a batch move
-    final isPartOfSelection = _selectedClipIds.contains(clip.id);
-    final clipIdsToMove = isPartOfSelection ? _selectedClipIds.toSet() : {clip.id};
+  void moveClip(dynamic clip, String targetTrackId, Duration? newStartTime) {
+    final bool isSelected = _selectedClipIds.contains(clip.id);
+    final clipIdsToMove = isSelected ? _selectedClipIds.toSet() : {clip.id};
 
-    // 1. Find the current track indices for all clips to move
+    final bool isOverlayMove = clip is OverlayClip;
+    final trackList = isOverlayMove ? _overlayTracks : _tracks;
+
     final Map<String, int> clipToCurrentTrackIndex = {};
-    for (int i = 0; i < _tracks.length; i++) {
-      for (var c in _tracks[i].clips) {
+    for (int i = 0; i < trackList.length; i++) {
+      final List<TimelineClip> clipsOnTrack = isOverlayMove ? trackList[i].overlays : trackList[i].clips;
+      for (var c in clipsOnTrack) {
         if (clipIdsToMove.contains(c.id)) {
           clipToCurrentTrackIndex[c.id] = i;
         }
@@ -654,50 +881,43 @@ class EditorProvider extends ChangeNotifier {
 
     if (!clipToCurrentTrackIndex.containsKey(clip.id)) return;
 
-    // 2. Calculate the track index offset based on the primary clip
-    final targetTrackIndex = _tracks.indexWhere((t) => t.id == targetTrackId);
+    final targetTrackIndex = trackList.indexWhere((t) => t.id == targetTrackId);
     if (targetTrackIndex == -1) return;
     
     final primaryCurrentIndex = clipToCurrentTrackIndex[clip.id]!;
     final trackOffset = targetTrackIndex - primaryCurrentIndex;
 
-    // 3. Collect all clips to move, removing them from their current tracks
-    final List<SubtitleClip> clipsMoved = [];
+    final List<dynamic> clipsMoved = [];
     for (var clipId in clipIdsToMove) {
       final currTrackIdx = clipToCurrentTrackIndex[clipId];
       if (currTrackIdx != null) {
-        final track = _tracks[currTrackIdx];
-        final index = track.clips.indexWhere((c) => c.id == clipId);
+        final track = trackList[currTrackIdx];
+        final List<TimelineClip> clipsOnTrack = isOverlayMove ? track.overlays : track.clips;
+        final index = clipsOnTrack.indexWhere((c) => c.id == clipId);
         if (index != -1) {
-          clipsMoved.add(track.clips.removeAt(index));
+          clipsMoved.add(clipsOnTrack.removeAt(index));
         }
       }
     }
 
-    // 4. Determine time offset if newStartTime is provided (though usually locked per user request)
     final Duration timeOffset = newStartTime != null 
-        ? newStartTime - clip.startTime
+        ? newStartTime - (clip as TimelineClip).startTime 
         : Duration.zero;
 
-    // 5. Place them in their new tracks
     for (var c in clipsMoved) {
-      final oldTrackIdx = clipToCurrentTrackIndex[c.id]!;
+      final oldTrackIdx = clipToCurrentTrackIndex[(c as TimelineClip).id]!;
       int newTrackIdx = oldTrackIdx + trackOffset;
-
-      // Ensure we don't go below 0
       if (newTrackIdx < 0) newTrackIdx = 0;
 
-      // Dynamically add tracks if we go above
-      while (newTrackIdx >= _tracks.length) {
-        addNewTrack();
+      while (newTrackIdx >= trackList.length) {
+        addNewTrack(isOverlayMove ? TrackType.overlay : TrackType.text);
       }
 
       final startTime = c.startTime + timeOffset;
       final duration = c.endTime - c.startTime;
-      final updatedClip = c.copyWith(
-        startTime: startTime,
-        endTime: startTime + duration,
-      );
+      final updatedClip = isOverlayMove 
+          ? (c as OverlayClip).copyWith(startTime: startTime, endTime: startTime + duration)
+          : (c as SubtitleClip).copyWith(startTime: startTime, endTime: startTime + duration);
 
       _resolveCollisions(updatedClip, newTrackIdx);
     }
@@ -717,28 +937,34 @@ class EditorProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final clipsJson = _tracks.expand((t) => t.clips).map((c) => c.toJson()).toList();
+      final allClips = [
+        ..._tracks.expand((t) => t.clips).map((c) {
+          final map = c.toJson();
+          map['isText'] = true;
+          return map;
+        }),
+        ..._overlayTracks.expand((t) => t.overlays).map((c) {
+          final map = c.toJson();
+          map['isText'] = false;
+          map['imagePath'] = c.imagePath;
+          return map;
+        }),
+      ];
       
       final int w, h;
       if (_aspectRatio > 1.2) {
-        // Landscape (16:9)
-        w = 1920;
-        h = 1080;
+        w = 1920; h = 1080;
       } else if (_aspectRatio < 0.8) {
-        // Vertical (9:16)
-        w = 1080;
-        h = 1920;
+        w = 1080; h = 1920;
       } else {
-        // Square (1:1)
-        w = 1080;
-        h = 1080;
+        w = 1080; h = 1080;
       }
 
       final result = await _bridge.exportVideo(
         width: w,
         height: h,
         durationMs: _totalDuration.inMilliseconds,
-        clips: clipsJson,
+        clips: allClips,
         audioPath: _audioPath,
         backgroundColor: _backgroundColor,
         backgroundImagePath: _backgroundImagePath,

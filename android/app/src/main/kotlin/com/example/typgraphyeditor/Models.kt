@@ -14,7 +14,18 @@ enum class AnimationType {
     BOUNCE_IN,
     ROTATE_IN,
     WOBBLE,
-    SHAKE;
+    SHAKE,
+    ZOOM_IN,
+    ZOOM_OUT,
+    FLIP_X,
+    FLIP_Y,
+    PULSE,
+    BOUNCE,
+    SWING,
+    SPIN,
+    ELASTIC_DROP,
+    HEARTBEAT,
+    JELLO;
 
     companion object {
         fun fromIndex(index: Int): AnimationType = entries.getOrElse(index) { NONE }
@@ -72,12 +83,15 @@ data class SubtitleClip(
     val rotation: Float = 0f,
     val scale: Float = 1f,
     val opacity: Float = 1f,
+    val textOpacity: Float = 1f,
     val isShadowEnabled: Boolean = true,
     val isBackgroundEnabled: Boolean = true,
     val fontFamily: String = "Poppins",
     val entranceAnimation: ClipAnimation = ClipAnimation(),
     val exitAnimation: ClipAnimation = ClipAnimation(),
-    val loopAnimation: ClipAnimation = ClipAnimation()
+    val loopAnimation: ClipAnimation = ClipAnimation(),
+    val imagePath: String? = null,
+    val isText: Boolean = true
 )
 
 /**
@@ -88,6 +102,8 @@ data class AnimatedTextState(
     val offsetX: Float = 0f,
     val offsetY: Float = 0f,
     val scale: Float = 1f,
+    val scaleX: Float = 1f,
+    val scaleY: Float = 1f,
     val rotation: Float = 0f,
     val typewriterProgress: Float = 1f
 )

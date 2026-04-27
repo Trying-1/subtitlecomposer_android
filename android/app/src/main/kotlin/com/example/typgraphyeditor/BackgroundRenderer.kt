@@ -140,49 +140,65 @@ class BackgroundRenderer {
         val mvpMatrix = FloatArray(16)
         android.opengl.Matrix.setIdentityM(mvpMatrix, 0)
         
-        // 0. Apply Translation
-        android.opengl.Matrix.translateM(mvpMatrix, 0, bgX, bgY, 0f)
-        
-        // 1. Calculate Base Scale for Fill Mode
-        if (imageWidth > 0 && imageHeight > 0 && canvasWidth > 0 && canvasHeight > 0) {
-            val imgRatio = imageWidth.toFloat() / imageHeight
-            val canRatio = canvasWidth.toFloat() / canvasHeight
+        if (canvasWidth > 0 && canvasHeight > 0) {
+            val aspect = canvasWidth.toFloat() / canvasHeight
             
-            var baseScaleX = 1f
-            var baseScaleY = 1f
+            // 1. Create Orthographic Projection (Square-unit coordinate space)
+            // Height is always 2 units (-1 to 1), Width is 2 * aspect units (-aspect to aspect)
+            val projection = FloatArray(16)
+            android.opengl.Matrix.orthoM(projection, 0, -aspect, aspect, -1f, 1f, -1f, 1f)
             
-            when (fillMode) {
-                0 -> { // Cover
-                    if (imgRatio > canRatio) {
-                        baseScaleX = imgRatio / canRatio
-                        baseScaleY = 1f
-                    } else {
-                        baseScaleX = 1f
-                        baseScaleY = canRatio / imgRatio
-                    }
-                }
-                1 -> { // Fit
-                    if (imgRatio > canRatio) {
-                        baseScaleX = 1f
-                        baseScaleY = canRatio / imgRatio
-                    } else {
-                        baseScaleX = imgRatio / canRatio
-                        baseScaleY = 1f
-                    }
-                }
-                2 -> { // Center
-                    baseScaleX = imageWidth.toFloat() / canvasWidth
-                    baseScaleY = imageHeight.toFloat() / canvasHeight
-                }
+            // 2. Build Model Matrix
+            val model = FloatArray(16)
+            android.opengl.Matrix.setIdentityM(model, 0)
+            
+            // A. Translation (Post-multiply model by Translation)
+            // Units are uniform pixels relative to height, so we scale X by aspect to match screen
+            android.opengl.Matrix.translateM(model, 0, bgX * aspect, bgY, 0f)
+            
+            // B. Rotation (SQUARE ROTATION!)
+            if (rotation != 0f) {
+                android.opengl.Matrix.rotateM(model, 0, rotation, 0f, 0f, 1f)
             }
-            android.opengl.Matrix.scaleM(mvpMatrix, 0, baseScaleX * scale, baseScaleY * scale, 1f)
-        } else {
-            android.opengl.Matrix.scaleM(mvpMatrix, 0, scale, scale, 1f)
-        }
-
-        // 2. Apply Rotation
-        if (rotation != 0f) {
-            android.opengl.Matrix.rotateM(mvpMatrix, 0, rotation, 0f, 0f, 1f)
+            
+            // C. Base Scale (Fill Mode) and User Scale
+            if (imageWidth > 0 && imageHeight > 0) {
+                val imgRatio = imageWidth.toFloat() / imageHeight
+                
+                var baseScaleX = 1f
+                var baseScaleY = 1f
+                
+                when (fillMode) {
+                    0 -> { // Cover
+                        if (imgRatio > aspect) {
+                            baseScaleX = imgRatio
+                            baseScaleY = 1f
+                        } else {
+                            baseScaleX = aspect
+                            baseScaleY = aspect / imgRatio
+                        }
+                    }
+                    1 -> { // Fit
+                        if (imgRatio > aspect) {
+                            baseScaleX = aspect
+                            baseScaleY = aspect / imgRatio
+                        } else {
+                            baseScaleX = imgRatio
+                            baseScaleY = 1f
+                        }
+                    }
+                    2 -> { // Center
+                        baseScaleX = imageWidth.toFloat() / canvasHeight
+                        baseScaleY = imageHeight.toFloat() / canvasHeight
+                    }
+                }
+                android.opengl.Matrix.scaleM(model, 0, baseScaleX * scale, baseScaleY * scale, 1f)
+            } else {
+                android.opengl.Matrix.scaleM(model, 0, scale, scale, 1f)
+            }
+            
+            // 3. Combine: result = Projection * Model
+            android.opengl.Matrix.multiplyMM(mvpMatrix, 0, projection, 0, model, 0)
         }
 
         GLES20.glUniformMatrix4fv(uMVPMatrixLoc, 1, false, mvpMatrix, 0)

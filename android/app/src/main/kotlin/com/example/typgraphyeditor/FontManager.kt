@@ -38,19 +38,36 @@ object FontManager {
         "modernline bold" to "assets/fonts/modernline bold.otf"
     )
 
+    private val customFonts = mutableMapOf<String, String>()
+
+    fun registerCustomFont(family: String, path: String) {
+        customFonts[family] = path
+        typefaceCache.remove(family)
+    }
+
     fun getTypeface(assetManager: AssetManager, family: String): Typeface {
         return typefaceCache.getOrPut(family) {
-            val path = fontAssets[family]
-            if (path != null) {
+            val customPath = customFonts[family]
+            if (customPath != null) {
                 try {
-                    // Flutter assets are typically in "flutter_assets/" prefix in the APK
-                    Typeface.createFromAsset(assetManager, "flutter_assets/$path")
+                    Typeface.createFromFile(customPath)
                 } catch (e: Exception) {
                     e.printStackTrace()
                     Typeface.DEFAULT
                 }
             } else {
-                Typeface.DEFAULT
+                val path = fontAssets[family]
+                if (path != null) {
+                    try {
+                        // Flutter assets are typically in "flutter_assets/" prefix in the APK
+                        Typeface.createFromAsset(assetManager, "flutter_assets/$path")
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        Typeface.DEFAULT
+                    }
+                } else {
+                    Typeface.DEFAULT
+                }
             }
         }
     }

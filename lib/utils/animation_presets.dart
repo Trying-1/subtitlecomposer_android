@@ -94,6 +94,17 @@ class AnimationPresets {
       case AnimationType.rotateIn: return 'Rotate In';
       case AnimationType.wobble: return 'Wobble';
       case AnimationType.shake: return 'Shake';
+      case AnimationType.zoomIn: return 'Zoom In';
+      case AnimationType.zoomOut: return 'Zoom Out';
+      case AnimationType.flipX: return 'Flip X';
+      case AnimationType.flipY: return 'Flip Y';
+      case AnimationType.pulse: return 'Pulse';
+      case AnimationType.bounce: return 'Bounce';
+      case AnimationType.swing: return 'Swing';
+      case AnimationType.spin: return 'Spin';
+      case AnimationType.elasticDrop: return 'Elastic Drop';
+      case AnimationType.heartbeat: return 'Heartbeat';
+      case AnimationType.jello: return 'Jello';
     }
   }
 

@@ -20,9 +20,11 @@ object AnimationEvaluator {
         var offsetX = 0f
         var offsetY = 0f
         var scale = clip.scale
+        var scaleX = 1f
+        var scaleY = 1f
         var rotation = clip.rotation
         var typewriterProgress = 1f
-
+ 
         // Entrance
         val entrance = clip.entranceAnimation
         if (entrance.type != AnimationType.NONE && elapsed < entrance.durationMs) {
@@ -32,10 +34,12 @@ object AnimationEvaluator {
             offsetX += state.offsetX
             offsetY += state.offsetY
             scale *= state.scale
+            scaleX *= state.scaleX
+            scaleY *= state.scaleY
             rotation += state.rotation
             typewriterProgress = state.typewriterProgress
         }
-
+ 
         // Exit
         val exit = clip.exitAnimation
         if (exit.type != AnimationType.NONE && remaining < exit.durationMs) {
@@ -45,9 +49,11 @@ object AnimationEvaluator {
             offsetX += state.offsetX
             offsetY += state.offsetY
             scale *= state.scale
+            scaleX *= state.scaleX
+            scaleY *= state.scaleY
             rotation += state.rotation
         }
-
+ 
         // Loop
         val loop = clip.loopAnimation
         if (loop.type != AnimationType.NONE) {
@@ -56,18 +62,22 @@ object AnimationEvaluator {
             offsetY += state.offsetY
             rotation += state.rotation
             scale *= state.scale
+            scaleX *= state.scaleX
+            scaleY *= state.scaleY
         }
-
+ 
         return AnimatedTextState(
             opacity = opacity.coerceIn(0f, 1f),
             offsetX = offsetX,
             offsetY = offsetY,
             scale = scale.coerceIn(0.01f, 10f),
+            scaleX = scaleX,
+            scaleY = scaleY,
             rotation = rotation,
             typewriterProgress = typewriterProgress.coerceIn(0f, 1f)
         )
     }
-
+ 
     private fun evaluateEntrance(type: AnimationType, t: Float): AnimatedTextState {
         return when (type) {
             AnimationType.FADE_IN -> AnimatedTextState(opacity = t)
@@ -80,10 +90,19 @@ object AnimationEvaluator {
             AnimationType.TYPEWRITER -> AnimatedTextState(typewriterProgress = t)
             AnimationType.BOUNCE_IN -> AnimatedTextState(scale = t, offsetY = 0.2f * (1f - t))
             AnimationType.ROTATE_IN -> AnimatedTextState(rotation = 360f * (1f - t), opacity = t, scale = t)
+            AnimationType.ZOOM_IN -> AnimatedTextState(scale = t * t, opacity = t)
+            AnimationType.ZOOM_OUT -> AnimatedTextState(scale = 1f + (1f - t) * 2f, opacity = t)
+            AnimationType.FLIP_X -> AnimatedTextState(scaleX = t, opacity = t)
+            AnimationType.FLIP_Y -> AnimatedTextState(scaleY = t, opacity = t)
+            AnimationType.ELASTIC_DROP -> {
+                // Drop from off-screen top (-2.0 normalized)
+                val dropOffset = -2.0f * (1f - applyEasing(t, EasingType.ELASTIC_OUT))
+                AnimatedTextState(offsetY = dropOffset, opacity = if (t < 0.1f) t * 10f else 1f)
+            }
             else -> AnimatedTextState()
         }
     }
-
+ 
     private fun evaluateExit(type: AnimationType, t: Float): AnimatedTextState {
         return when (type) {
             AnimationType.FADE_OUT -> AnimatedTextState(opacity = t)
@@ -96,30 +115,79 @@ object AnimationEvaluator {
             AnimationType.SCALE_DOWN -> AnimatedTextState(scale = 2f - t, opacity = t)
             AnimationType.BOUNCE_IN -> AnimatedTextState(scale = t, offsetY = -0.2f * (1f - t))
             AnimationType.ROTATE_IN -> AnimatedTextState(rotation = -360f * (1f - t), opacity = t, scale = t)
+            AnimationType.ZOOM_IN -> AnimatedTextState(scale = t * t, opacity = t)
+            AnimationType.ZOOM_OUT -> AnimatedTextState(scale = 1f + (1f - t) * 2f, opacity = t)
+            AnimationType.FLIP_X -> AnimatedTextState(scaleX = t, opacity = t)
+            AnimationType.FLIP_Y -> AnimatedTextState(scaleY = t, opacity = t)
+            AnimationType.ELASTIC_DROP -> {
+                // Drop out the bottom (2.0 normalized)
+                val dropOffset = 2.0f * (1f - applyEasing(t, EasingType.ELASTIC_OUT))
+                AnimatedTextState(offsetY = dropOffset, opacity = t)
+            }
             else -> AnimatedTextState()
         }
     }
-
+ 
     private fun evaluateLoop(type: AnimationType, timeMs: Long, durationMs: Int): AnimatedTextState {
         val t = timeMs.toFloat() / 1000f
+        val angle = (t * 2f * PI.toFloat())
         return when (type) {
             AnimationType.SHAKE -> {
-                // Rapid vibration
                 val freq = 15f
                 val intensity = 0.02f
                 AnimatedTextState(
-                    offsetX = sin(t * freq * 2f * PI.toFloat()) * intensity,
-                    offsetY = cos(t * freq * 1.5f * PI.toFloat()) * intensity
+                    offsetX = sin(angle * freq) * intensity,
+                    offsetY = cos(angle * freq * 0.7f) * intensity
                 )
             }
             AnimationType.WOBBLE -> {
-                // Floating rotation/scale
                 val freq = 3f
                 val rotIntensity = 5f
                 val scaleIntensity = 0.05f
                 AnimatedTextState(
-                    rotation = sin(t * freq * 2f * PI.toFloat()) * rotIntensity,
-                    scale = 1f + sin(t * freq * 1.2f * PI.toFloat()) * scaleIntensity
+                    rotation = sin(angle * freq) * rotIntensity,
+                    scale = 1f + sin(angle * freq * 0.6f) * scaleIntensity
+                )
+            }
+            AnimationType.PULSE -> {
+                val freq = 2f
+                val scaleIntensity = 0.1f
+                AnimatedTextState(scale = 1f + sin(angle * freq) * scaleIntensity)
+            }
+            AnimationType.BOUNCE -> {
+                val freq = 2f
+                val intensity = 0.05f
+                AnimatedTextState(offsetY = abs(sin(angle * freq)) * -intensity)
+            }
+            AnimationType.SWING -> {
+                val freq = 1.5f
+                val rotIntensity = 15f
+                AnimatedTextState(rotation = sin(angle * freq) * rotIntensity)
+            }
+            AnimationType.SPIN -> {
+                val freq = 1f // 1 rotation per second
+                AnimatedTextState(rotation = (timeMs % 1000) / 1000f * 360f)
+            }
+            AnimationType.HEARTBEAT -> {
+                val freq = 1.2f
+                val localT = (t * freq) % 1.0f
+                val s = if (localT < 0.2f) {
+                    1f + sin(localT * 5f * PI.toFloat()) * 0.2f
+                } else if (localT < 0.5f) {
+                    val t2 = (localT - 0.2f) * (1f / 0.3f)
+                    1f + sin(t2 * PI.toFloat()) * 0.1f
+                } else {
+                    1f
+                }
+                AnimatedTextState(scale = s)
+            }
+            AnimationType.JELLO -> {
+                val freq = 2.5f
+                val intensity = 0.15f
+                val s = sin(angle * freq)
+                AnimatedTextState(
+                    scaleX = 1f + s * intensity,
+                    scaleY = 1f - s * intensity
                 )
             }
             else -> AnimatedTextState()

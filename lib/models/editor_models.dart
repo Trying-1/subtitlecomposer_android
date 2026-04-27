@@ -13,6 +13,17 @@ enum AnimationType {
   rotateIn,
   wobble,
   shake,
+  zoomIn,
+  zoomOut,
+  flipX,
+  flipY,
+  pulse,
+  bounce,
+  swing,
+  spin,
+  elasticDrop,
+  heartbeat,
+  jello,
 }
 
 enum EasingType {
@@ -22,6 +33,11 @@ enum EasingType {
   easeInOut,
   bounceOut,
   elasticOut,
+}
+
+enum TrackType {
+  text,
+  overlay,
 }
 
 class ClipAnimation {
@@ -58,12 +74,36 @@ class ClipAnimation {
   );
 }
 
-class SubtitleClip {
+abstract class TimelineClip {
+  String get id;
+  Duration get startTime;
+  Duration get endTime;
+  double get x;
+  double get y;
+  double get rotation;
+  double get scale;
+  double get opacity;
+  Duration get originalStartTime;
+  Duration get originalEndTime;
+  String? get originalTrackId;
+  ClipAnimation get entranceAnimation;
+  ClipAnimation get exitAnimation;
+  ClipAnimation get loopAnimation;
+
+  Map<String, dynamic> toJson();
+}
+
+class SubtitleClip implements TimelineClip {
+  @override
   final String id;
   final String text;
+  @override
   final Duration startTime;
+  @override
   final Duration endTime;
+  @override
   final double x;
+  @override
   final double y;
   final double fontSize;
   final int color; // ARGB
@@ -76,17 +116,27 @@ class SubtitleClip {
   final int backgroundColor;
   final double backgroundRadius;
   final double letterSpacing;
+  @override
   final double rotation;  // degrees
+  @override
   final double scale;
+  @override
   final double opacity;
   final String fontFamily;
+  final double textOpacity;
   final bool isShadowEnabled;
   final bool isBackgroundEnabled;
+  @override
   final Duration originalStartTime;
+  @override
   final Duration originalEndTime;
+  @override
   final String? originalTrackId;
+  @override
   final ClipAnimation entranceAnimation;
+  @override
   final ClipAnimation exitAnimation;
+  @override
   final ClipAnimation loopAnimation;
 
   SubtitleClip({
@@ -110,8 +160,9 @@ class SubtitleClip {
     this.rotation = 0.0,
     this.scale = 1.0,
     this.opacity = 1.0,
+    this.textOpacity = 1.0,
     this.isShadowEnabled = true,
-    this.isBackgroundEnabled = true,
+    this.isBackgroundEnabled = false,
     this.fontFamily = 'Poppins',
     this.entranceAnimation = const ClipAnimation(),
     this.exitAnimation = const ClipAnimation(),
@@ -143,6 +194,7 @@ class SubtitleClip {
     'rotation': rotation,
     'scale': scale,
     'opacity': opacity,
+    'textOpacity': textOpacity,
     'isShadowEnabled': isShadowEnabled,
     'isBackgroundEnabled': isBackgroundEnabled,
     'fontFamily': fontFamily,
@@ -153,6 +205,39 @@ class SubtitleClip {
     'originalEndTime': originalEndTime.inMilliseconds,
     'originalTrackId': originalTrackId,
   };
+
+  factory SubtitleClip.fromJson(Map<String, dynamic> json) => SubtitleClip(
+    id: json['id'],
+    text: json['text'],
+    startTime: Duration(milliseconds: json['startTime']),
+    endTime: Duration(milliseconds: json['endTime']),
+    x: (json['x'] as num?)?.toDouble() ?? 0.5,
+    y: (json['y'] as num?)?.toDouble() ?? 0.5,
+    fontSize: (json['fontSize'] as num?)?.toDouble() ?? 50.0,
+    color: json['color'] as int? ?? 0xFF000000,
+    strokeColor: json['strokeColor'] as int? ?? 0xFF000000,
+    strokeWidth: (json['strokeWidth'] as num?)?.toDouble() ?? 0.0,
+    shadowColor: json['shadowColor'] as int? ?? 0x00000000,
+    shadowBlur: (json['shadowBlur'] as num?)?.toDouble() ?? 0.0,
+    shadowOffsetX: (json['shadowOffsetX'] as num?)?.toDouble() ?? 0.0,
+    shadowOffsetY: (json['shadowOffsetY'] as num?)?.toDouble() ?? 0.0,
+    backgroundColor: json['backgroundColor'] as int? ?? 0xFFFFFFFF,
+    backgroundRadius: (json['backgroundRadius'] as num?)?.toDouble() ?? 0.0,
+    letterSpacing: (json['letterSpacing'] as num?)?.toDouble() ?? 0.0,
+    rotation: (json['rotation'] as num?)?.toDouble() ?? 0.0,
+    scale: (json['scale'] as num?)?.toDouble() ?? 1.0,
+    opacity: (json['opacity'] as num?)?.toDouble() ?? 1.0,
+    textOpacity: (json['textOpacity'] as num?)?.toDouble() ?? 1.0,
+    isShadowEnabled: json['isShadowEnabled'] as bool? ?? true,
+    isBackgroundEnabled: json['isBackgroundEnabled'] as bool? ?? true,
+    fontFamily: json['fontFamily'] as String? ?? 'Poppins',
+    entranceAnimation: ClipAnimation.fromJson(Map<String, dynamic>.from(json['entranceAnimation'])),
+    exitAnimation: ClipAnimation.fromJson(Map<String, dynamic>.from(json['exitAnimation'])),
+    loopAnimation: ClipAnimation.fromJson(Map<String, dynamic>.from(json['loopAnimation'] ?? {})),
+    originalStartTime: Duration(milliseconds: json['originalStartTime'] ?? json['startTime']),
+    originalEndTime: Duration(milliseconds: json['originalEndTime'] ?? json['endTime']),
+    originalTrackId: json['originalTrackId'],
+  );
 
   SubtitleClip copyWith({
     String? id,
@@ -175,6 +260,7 @@ class SubtitleClip {
     double? rotation,
     double? scale,
     double? opacity,
+    double? textOpacity,
     bool? isShadowEnabled,
     bool? isBackgroundEnabled,
     String? fontFamily,
@@ -205,6 +291,7 @@ class SubtitleClip {
     rotation: rotation ?? this.rotation,
     scale: scale ?? this.scale,
     opacity: opacity ?? this.opacity,
+    textOpacity: textOpacity ?? this.textOpacity,
     isShadowEnabled: isShadowEnabled ?? this.isShadowEnabled,
     isBackgroundEnabled: isBackgroundEnabled ?? this.isBackgroundEnabled,
     fontFamily: fontFamily ?? this.fontFamily,
@@ -217,20 +304,155 @@ class SubtitleClip {
   );
 }
 
+class OverlayClip implements TimelineClip {
+  @override
+  final String id;
+  final String imagePath;
+  @override
+  final Duration startTime;
+  @override
+  final Duration endTime;
+  @override
+  final double x;
+  @override
+  final double y;
+  @override
+  final double rotation;
+  @override
+  final double scale;
+  @override
+  final double opacity;
+  @override
+  final Duration originalStartTime;
+  @override
+  final Duration originalEndTime;
+  @override
+  final String? originalTrackId;
+  @override
+  final ClipAnimation entranceAnimation;
+  @override
+  final ClipAnimation exitAnimation;
+  @override
+  final ClipAnimation loopAnimation;
+
+  OverlayClip({
+    required this.id,
+    required this.imagePath,
+    required this.startTime,
+    required this.endTime,
+    this.x = 0.5,
+    this.y = 0.5,
+    this.rotation = 0.0,
+    this.scale = 1.0,
+    this.opacity = 1.0,
+    this.entranceAnimation = const ClipAnimation(),
+    this.exitAnimation = const ClipAnimation(),
+    this.loopAnimation = const ClipAnimation(),
+    Duration? originalStartTime,
+    Duration? originalEndTime,
+    this.originalTrackId,
+  }) : originalStartTime = originalStartTime ?? startTime,
+       originalEndTime = originalEndTime ?? endTime;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'imagePath': imagePath,
+    'startTime': startTime.inMilliseconds,
+    'endTime': endTime.inMilliseconds,
+    'x': x,
+    'y': y,
+    'rotation': rotation,
+    'scale': scale,
+    'opacity': opacity,
+    'entranceAnimation': entranceAnimation.toJson(),
+    'exitAnimation': exitAnimation.toJson(),
+    'loopAnimation': loopAnimation.toJson(),
+    'originalStartTime': originalStartTime.inMilliseconds,
+    'originalEndTime': originalEndTime.inMilliseconds,
+    'originalTrackId': originalTrackId,
+  };
+
+  factory OverlayClip.fromJson(Map<String, dynamic> json) => OverlayClip(
+    id: json['id'],
+    imagePath: json['imagePath'],
+    startTime: Duration(milliseconds: json['startTime']),
+    endTime: Duration(milliseconds: json['endTime']),
+    x: (json['x'] as num?)?.toDouble() ?? 0.5,
+    y: (json['y'] as num?)?.toDouble() ?? 0.5,
+    rotation: (json['rotation'] as num?)?.toDouble() ?? 0.0,
+    scale: (json['scale'] as num?)?.toDouble() ?? 1.0,
+    opacity: (json['opacity'] as num?)?.toDouble() ?? 1.0,
+    entranceAnimation: ClipAnimation.fromJson(Map<String, dynamic>.from(json['entranceAnimation'])),
+    exitAnimation: ClipAnimation.fromJson(Map<String, dynamic>.from(json['exitAnimation'])),
+    loopAnimation: ClipAnimation.fromJson(Map<String, dynamic>.from(json['loopAnimation'] ?? {})),
+    originalStartTime: Duration(milliseconds: json['originalStartTime'] ?? json['startTime']),
+    originalEndTime: Duration(milliseconds: json['originalEndTime'] ?? json['endTime']),
+    originalTrackId: json['originalTrackId'],
+  );
+
+  OverlayClip copyWith({
+    String? id,
+    String? imagePath,
+    Duration? startTime,
+    Duration? endTime,
+    double? x,
+    double? y,
+    double? rotation,
+    double? scale,
+    double? opacity,
+    ClipAnimation? entranceAnimation,
+    ClipAnimation? exitAnimation,
+    ClipAnimation? loopAnimation,
+    Duration? originalStartTime,
+    Duration? originalEndTime,
+    String? originalTrackId,
+  }) => OverlayClip(
+    id: id ?? this.id,
+    imagePath: imagePath ?? this.imagePath,
+    startTime: startTime ?? this.startTime,
+    endTime: endTime ?? this.endTime,
+    x: x ?? this.x,
+    y: y ?? this.y,
+    rotation: rotation ?? this.rotation,
+    scale: scale ?? this.scale,
+    opacity: opacity ?? this.opacity,
+    entranceAnimation: entranceAnimation ?? this.entranceAnimation,
+    exitAnimation: exitAnimation ?? this.exitAnimation,
+    loopAnimation: loopAnimation ?? this.loopAnimation,
+    originalStartTime: originalStartTime ?? this.originalStartTime,
+    originalEndTime: originalEndTime ?? this.originalEndTime,
+    originalTrackId: originalTrackId ?? this.originalTrackId,
+  );
+}
+
 class Track {
   final String id;
   final String name;
+  final TrackType type;
   final List<SubtitleClip> clips;
+  final List<OverlayClip> overlays;
 
   Track({
     required this.id,
     this.name = "Track",
+    this.type = TrackType.text,
     this.clips = const [],
+    this.overlays = const [],
   });
 
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
+    'type': type.index,
     'clips': clips.map((c) => c.toJson()).toList(),
+    'overlays': overlays.map((c) => c.toJson()).toList(),
   };
+
+  factory Track.fromJson(Map<String, dynamic> json) => Track(
+    id: json['id'],
+    name: json['name'] ?? "Track",
+    type: TrackType.values[json['type'] ?? 0],
+    clips: (json['clips'] as List? ?? []).map((c) => SubtitleClip.fromJson(Map<String, dynamic>.from(c))).toList(),
+    overlays: (json['overlays'] as List? ?? []).map((o) => OverlayClip.fromJson(Map<String, dynamic>.from(o))).toList(),
+  );
 }

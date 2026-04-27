@@ -128,7 +128,11 @@ class VideoExporter(
         val activeClips = clips.filter { it.startTime <= currentTimeMs && it.endTime >= currentTimeMs }
         for (clip in activeClips) {
             val animState = AnimationEvaluator.evaluate(clip, currentTimeMs)
-            subtitleRenderer?.drawTextClip(clip, animState, assetManager)
+            if (clip.isText) {
+                subtitleRenderer?.drawTextClip(clip, animState, assetManager)
+            } else {
+                subtitleRenderer?.drawImageClip(clip, animState)
+            }
         }
     }
 

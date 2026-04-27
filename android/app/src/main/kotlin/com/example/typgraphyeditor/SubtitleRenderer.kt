@@ -2,24 +2,30 @@ package com.example.typgraphyeditor
 
 import android.graphics.*
 import android.opengl.*
+import android.graphics.BitmapFactory
 
 class SubtitleRenderer(private var width: Int, private var height: Int) {
+    private val bitmapCache = mutableMapOf<String, Bitmap>()
+
     fun updateSize(newWidth: Int, newHeight: Int) {
         width = newWidth
         height = newHeight
     }
+    
     private var program: Int = 0
     private var vPositionLoc: Int = 0
     private var vTexCoordLoc: Int = 0
+    private var uMVPMatrixLoc: Int = 0
     private var sTextureLoc: Int = 0
     private var vColorLoc: Int = 0
 
     private val vertexShaderCode = """
         attribute vec4 vPosition;
         attribute vec2 vTexCoord;
+        uniform mat4 uMVPMatrix;
         varying vec2 fTexCoord;
         void main() {
-            gl_Position = vPosition;
+            gl_Position = uMVPMatrix * vPosition;
             fTexCoord = vTexCoord;
         }
     """.trimIndent()
@@ -46,6 +52,7 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         
         vPositionLoc = GLES20.glGetAttribLocation(program, "vPosition")
         vTexCoordLoc = GLES20.glGetAttribLocation(program, "vTexCoord")
+        uMVPMatrixLoc = GLES20.glGetUniformLocation(program, "uMVPMatrix")
         sTextureLoc = GLES20.glGetUniformLocation(program, "sTexture")
         vColorLoc = GLES20.glGetUniformLocation(program, "vColor")
         
@@ -141,16 +148,17 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
             paint.color = clip.strokeColor
             canvas.drawText(displayText, textCenterX, textBaselineY, paint)
             
-            // Draw Fill
+            // Draw Fill with textOpacity
             paint.style = Paint.Style.FILL
-            paint.color = clip.color
+            val fillAlpha = (Color.alpha(clip.color) * clip.textOpacity).toInt()
+            paint.color = Color.argb(fillAlpha, Color.red(clip.color), Color.green(clip.color), Color.blue(clip.color))
             canvas.drawText(displayText, textCenterX, textBaselineY, paint)
         } else {
             paint.style = Paint.Style.FILL
-            paint.color = clip.color
+            val fillAlpha = (Color.alpha(clip.color) * clip.textOpacity).toInt()
+            paint.color = Color.argb(fillAlpha, Color.red(clip.color), Color.green(clip.color), Color.blue(clip.color))
             canvas.drawText(displayText, textCenterX, textBaselineY, paint)
         }
-
 
         val textureId = IntArray(1)
         GLES20.glGenTextures(1, textureId, 0)
@@ -167,35 +175,45 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         
         GLES20.glUseProgram(program)
 
-        // Compute position with animation offsets
-        val finalScale = clip.scale * animState.scale
-        val totalRotation = clip.rotation + animState.rotation
-        
-        val glX = ((clip.x + animState.offsetX) * 2 - 1)
-        val glY = -((clip.y + animState.offsetY) * 2 - 1)
-        
-        // Ratio adjustment for OpenGL coordinates (-1 to 1) 
+        // 1. Calculate Matrix
         val aspect = width.toFloat() / height.toFloat()
-        val w = (bmpWidth.toFloat() / width) * 2 * finalScale
-        val h = (bmpHeight.toFloat() / height) * 2 * finalScale
+        val mvpMatrix = FloatArray(16)
+        
+        // A. Projection: Square coordinate space relative to height
+        val projection = FloatArray(16)
+        android.opengl.Matrix.orthoM(projection, 0, -aspect, aspect, -1f, 1f, -1f, 1f)
+        
+        // B. Model: Translate -> Rotate -> Scale
+        val model = FloatArray(16)
+        android.opengl.Matrix.setIdentityM(model, 0)
+        
+        val finalX = (clip.x + animState.offsetX)
+        val finalY = (clip.y + animState.offsetY)
+        val glX = (finalX * 2 - 1) * aspect
+        val glY = -(finalY * 2 - 1)
+        
+        android.opengl.Matrix.translateM(model, 0, glX, glY, 0f)
+        
+        val totalRotation = clip.rotation + animState.rotation
+        if (totalRotation != 0f) {
+            android.opengl.Matrix.rotateM(model, 0, totalRotation, 0f, 0f, 1f)
+        }
+        
+        val finalScale = clip.scale * animState.scale
+        val logW = (bmpWidth.toFloat() / height) * 2 * finalScale * animState.scaleX
+        val logH = (bmpHeight.toFloat() / height) * 2 * finalScale * animState.scaleY
+        android.opengl.Matrix.scaleM(model, 0, logW, logH, 1f)
+        
+        // C. Combine
+        android.opengl.Matrix.multiplyMM(mvpMatrix, 0, projection, 0, model, 0)
+        GLES20.glUniformMatrix4fv(uMVPMatrixLoc, 1, false, mvpMatrix, 0)
 
-        // Original unrotated vertices
-        val p1 = Pair(glX - w/2, glY + h/2)
-        val p2 = Pair(glX - w/2, glY - h/2)
-        val p3 = Pair(glX + w/2, glY + h/2)
-        val p4 = Pair(glX + w/2, glY - h/2)
-
-        // Apply rotation to vertices
-        val r1 = rotatePoint(p1.first, p1.second, glX, glY, -totalRotation)
-        val r2 = rotatePoint(p2.first, p2.second, glX, glY, -totalRotation)
-        val r3 = rotatePoint(p3.first, p3.second, glX, glY, -totalRotation)
-        val r4 = rotatePoint(p4.first, p4.second, glX, glY, -totalRotation)
-
+        // 2. Vertex Data (Unit Quad -0.5 to 0.5)
         val vertices = floatArrayOf(
-            r1.first, r1.second, 0f, 0f, 0f,
-            r2.first, r2.second, 0f, 0f, 1f,
-            r3.first, r3.second, 0f, 1f, 0f,
-            r4.first, r4.second, 0f, 1f, 1f
+            -0.5f,  0.5f, 0f, 0f, 0f,
+            -0.5f, -0.5f, 0f, 0f, 1f,
+             0.5f,  0.5f, 0f, 1f, 0f,
+             0.5f, -0.5f, 0f, 1f, 1f
         )
         
         val vertexBuffer = java.nio.ByteBuffer.allocateDirect(vertices.size * 4)
@@ -223,12 +241,89 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         GLES20.glDeleteTextures(1, textureId, 0)
     }
 
-    private fun rotatePoint(x: Float, y: Float, cx: Float, cy: Float, angleDeg: Float): Pair<Float, Float> {
-        val rad = Math.toRadians(angleDeg.toDouble()).toFloat()
-        val s = Math.sin(rad.toDouble()).toFloat()
-        val c = Math.cos(rad.toDouble()).toFloat()
-        val dx = x - cx
-        val dy = y - cy
-        return Pair(dx * c - dy * s + cx, dx * s + dy * c + cy)
+    fun drawImageClip(
+        clip: SubtitleClip,
+        animState: AnimatedTextState = AnimatedTextState()
+    ) {
+        val path = clip.imagePath ?: return
+        if (animState.opacity <= 0f) return
+
+        val bitmap = try {
+            bitmapCache.getOrPut(path) {
+                BitmapFactory.decodeFile(path) ?: return
+            }
+        } catch (e: Exception) {
+            return
+        }
+
+        val textureId = IntArray(1)
+        GLES20.glGenTextures(1, textureId, 0)
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId[0])
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
+        GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bitmap, 0)
+
+        GLES20.glUseProgram(program)
+
+        val aspect = width.toFloat() / height.toFloat()
+        val mvpMatrix = FloatArray(16)
+        val projection = FloatArray(16)
+        android.opengl.Matrix.orthoM(projection, 0, -aspect, aspect, -1f, 1f, -1f, 1f)
+        
+        val model = FloatArray(16)
+        android.opengl.Matrix.setIdentityM(model, 0)
+        
+        val glX = ((clip.x + animState.offsetX) * 2 - 1) * aspect
+        val glY = -((clip.y + animState.offsetY) * 2 - 1)
+        android.opengl.Matrix.translateM(model, 0, glX, glY, 0f)
+        
+        val totalRotation = clip.rotation + animState.rotation
+        if (totalRotation != 0f) {
+            android.opengl.Matrix.rotateM(model, 0, totalRotation, 0f, 0f, 1f)
+        }
+        
+        val finalScale = clip.scale * animState.scale
+        val imgAspect = bitmap.width.toFloat() / bitmap.height.toFloat()
+        
+        // Scale relative to height (consistent with text)
+        val logW = (2f * imgAspect) * finalScale * animState.scaleX
+        val logH = 2f * finalScale * animState.scaleY
+        android.opengl.Matrix.scaleM(model, 0, logW, logH, 1f)
+        
+        android.opengl.Matrix.multiplyMM(mvpMatrix, 0, projection, 0, model, 0)
+        GLES20.glUniformMatrix4fv(uMVPMatrixLoc, 1, false, mvpMatrix, 0)
+
+        val vertices = floatArrayOf(
+            -0.5f,  0.5f, 0f, 0f, 0f,
+            -0.5f, -0.5f, 0f, 0f, 1f,
+             0.5f,  0.5f, 0f, 1f, 0f,
+             0.5f, -0.5f, 0f, 1f, 1f
+        )
+        val vertexBuffer = java.nio.ByteBuffer.allocateDirect(vertices.size * 4)
+            .order(java.nio.ByteOrder.nativeOrder())
+            .asFloatBuffer()
+            .put(vertices)
+        vertexBuffer.position(0)
+
+        GLES20.glVertexAttribPointer(vPositionLoc, 3, GLES20.GL_FLOAT, false, 5 * 4, vertexBuffer)
+        GLES20.glEnableVertexAttribArray(vPositionLoc)
+        vertexBuffer.position(3)
+        GLES20.glVertexAttribPointer(vTexCoordLoc, 2, GLES20.GL_FLOAT, false, 5 * 4, vertexBuffer)
+        GLES20.glEnableVertexAttribArray(vTexCoordLoc)
+
+        val a = clip.opacity * animState.opacity
+        GLES20.glUniform4f(vColorLoc, 1f, 1f, 1f, a)
+
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId[0])
+        GLES20.glUniform1i(sTextureLoc, 0)
+
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+        GLES20.glDeleteTextures(1, textureId, 0)
+    }
+
+    fun clearCache() {
+        bitmapCache.forEach { (_, bmp) -> bmp.recycle() }
+        bitmapCache.clear()
     }
 }

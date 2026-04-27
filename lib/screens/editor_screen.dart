@@ -40,6 +40,39 @@ class EditorScreen extends StatelessWidget {
     }
   }
 
+  void _handleNewProject(BuildContext context, EditorProvider provider) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('New Project?', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+        content: const Text(
+          'This will clear your current timeline and background settings. Your imported assets will be saved.',
+          style: TextStyle(color: Colors.white60, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCEL', style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              provider.resetProject();
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent.withOpacity(0.8),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('RESET', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<EditorProvider>();
@@ -58,8 +91,9 @@ class EditorScreen extends StatelessWidget {
               ),
             ),
             if (provider.isTimelineCollapsed)
-               TimelineEditor(
+                TimelineEditor(
                 tracks: provider.tracks,
+                overlayTracks: provider.overlayTracks,
                 currentTime: provider.currentTime,
                 totalDuration: provider.totalDuration,
                 isPlaying: provider.isPlaying,
@@ -77,7 +111,7 @@ class EditorScreen extends StatelessWidget {
                 onToggleSelect: (id) => provider.toggleClipSelection(id),
                 onZoomChanged: (v) => provider.setZoomLevel(v),
                 onMoveClip: (clip, trackId, startTime) => provider.moveClip(clip, trackId, startTime),
-                onAddTrack: () => provider.addNewTrack(),
+                onAddTrack: (type) => provider.addNewTrack(type),
                 onUpdateClipTiming: (clip, start, end, resolve) => provider.updateClipTiming(clip, start, end, resolveCollisions: resolve),
                 onResolveCollisions: (id) => provider.forceResolveCollisions(id),
                 onStackSelected: () => provider.stackSelectedClips(),
@@ -88,6 +122,7 @@ class EditorScreen extends StatelessWidget {
                 flex: 3,
                 child: TimelineEditor(
                   tracks: provider.tracks,
+                  overlayTracks: provider.overlayTracks,
                   currentTime: provider.currentTime,
                   totalDuration: provider.totalDuration,
                   isPlaying: provider.isPlaying,
@@ -105,7 +140,7 @@ class EditorScreen extends StatelessWidget {
                   onToggleSelect: (id) => provider.toggleClipSelection(id),
                   onZoomChanged: (v) => provider.setZoomLevel(v),
                   onMoveClip: (clip, trackId, startTime) => provider.moveClip(clip, trackId, startTime),
-                  onAddTrack: () => provider.addNewTrack(),
+                  onAddTrack: (type) => provider.addNewTrack(type),
                   onUpdateClipTiming: (clip, start, end, resolve) => provider.updateClipTiming(clip, start, end, resolveCollisions: resolve),
                   onResolveCollisions: (id) => provider.forceResolveCollisions(id),
                   onStackSelected: () => provider.stackSelectedClips(),
@@ -125,12 +160,15 @@ class EditorScreen extends StatelessWidget {
               const LinearProgressIndicator(color: Colors.deepPurpleAccent, backgroundColor: Colors.white10),
             const Divider(height: 1, color: Colors.white10),
             BottomControlPanel(
-              clip: provider.selectedClip,
+              clip: provider.selectedTimelineClip,
+              selectedOverlay: provider.selectedOverlay,
               selectedClipIds: provider.selectedClipIds,
               onImportAudio: () => _pickAudio(context),
               onImportSubtitles: () => _pickSubtitles(context),
               onExport: () => _handleExport(context, provider),
               onAddClip: () => provider.addClip("New Text"),
+              onNewProject: () => _handleNewProject(context, provider),
+              onAddOverlay: (path) => provider.addOverlay(path),
               onUpdate: ({
                 String? text,
                 double? fontSize,
@@ -155,6 +193,7 @@ class EditorScreen extends StatelessWidget {
                 ClipAnimation? entranceAnimation,
                 ClipAnimation? exitAnimation,
                 ClipAnimation? loopAnimation,
+                double? textOpacity,
               }) {
                 provider.updateClips(
                   provider.selectedClipIds,
@@ -175,6 +214,7 @@ class EditorScreen extends StatelessWidget {
                   rotation: rotation,
                   scale: scale,
                   opacity: opacity,
+                  textOpacity: textOpacity,
                   isShadowEnabled: isShadowEnabled,
                   isBackgroundEnabled: isBackgroundEnabled,
                   fontFamily: fontFamily,

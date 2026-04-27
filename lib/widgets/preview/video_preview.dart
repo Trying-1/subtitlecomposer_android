@@ -53,13 +53,13 @@ class _VideoPreviewState extends State<VideoPreview> {
     provider.selectClipAt(tapX, tapY, deselectIfEmpty: false);
 
     // Now that selection is updated (if any), capture base scale
-    _baseScale = provider.selectedClip?.scale ?? 1.0;
+    _baseScale = provider.selectedTimelineClip?.scale ?? 1.0;
   }
 
   void _handleScaleUpdate(BuildContext context, ScaleUpdateDetails details, BoxConstraints constraints) {
     final provider = context.read<EditorProvider>();
     
-    final clip = provider.selectedClip;
+    final clip = provider.selectedTimelineClip;
     if (clip == null) return;
 
     // Handle drag (focalPointDelta is the movement since last update)

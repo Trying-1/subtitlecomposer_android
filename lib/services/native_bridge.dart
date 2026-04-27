@@ -106,4 +106,15 @@ class NativeBridge {
       print("Failed to dispose renderer: '${e.message}'.");
     }
   }
+
+  Future<void> registerFont(String family, String path) async {
+    try {
+      await _channel.invokeMethod('registerFont', {
+        'family': family,
+        'path': path,
+      });
+    } on PlatformException catch (e) {
+      print("Failed to register font: '${e.message}'.");
+    }
+  }
 }
