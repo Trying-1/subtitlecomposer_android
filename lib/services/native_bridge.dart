@@ -129,4 +129,37 @@ class NativeBridge {
       rethrow;
     }
   }
+
+  Future<int?> initWhisper(String modelPath) async {
+    try {
+      final int? ptr = await _channel.invokeMethod('initWhisper', {'modelPath': modelPath});
+      return ptr;
+    } on PlatformException catch (e) {
+      print("Failed to init whisper: '${e.message}'.");
+      return null;
+    }
+  }
+
+  Future<String?> transcribeWhisper(int contextPtr, String audioPath, String initialPrompt, String language) async {
+    try {
+      final String? json = await _channel.invokeMethod('transcribeWhisper', {
+        'contextPtr': contextPtr,
+        'audioPath': audioPath,
+        'initialPrompt': initialPrompt,
+        'language': language,
+      });
+      return json;
+    } on PlatformException catch (e) {
+      print("Failed to transcribe: '${e.message}'.");
+      return null;
+    }
+  }
+
+  Future<void> freeWhisper(int contextPtr) async {
+    try {
+      await _channel.invokeMethod('freeWhisper', {'contextPtr': contextPtr});
+    } on PlatformException catch (e) {
+      print("Failed to free whisper: '${e.message}'.");
+    }
+  }
 }

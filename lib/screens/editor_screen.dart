@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import '../providers/editor_provider.dart';
@@ -7,6 +8,7 @@ import '../widgets/timeline/timeline_editor.dart';
 import '../widgets/controls/bottom_control_panel.dart';
 import '../services/audio_service.dart';
 import '../models/editor_models.dart';
+import 'package:path/path.dart' as p;
 
 class EditorScreen extends StatefulWidget {
   const EditorScreen({super.key});
@@ -44,6 +46,14 @@ class _EditorScreenState extends State<EditorScreen> {
     }
   }
 
+  Future<String?> _pickModelFile() async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.any,
+      // Note: whisper models are usually .bin
+    );
+    return result?.files.single.path;
+  }
+
   Future<void> _extractAudioFromVideo(BuildContext context, EditorProvider provider) async {
     final audioPath = await _audioService.pickVideoAndExtractAudio();
     if (audioPath != null) {
@@ -53,27 +63,240 @@ class _EditorScreenState extends State<EditorScreen> {
 
   void _showPasteSubtitlesDialog(BuildContext context, EditorProvider provider) {
     final controller = TextEditingController();
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss',
+      barrierColor: Colors.black87,
+      transitionDuration: const Duration(milliseconds: 250),
+      transitionBuilder: (context, anim1, anim2, child) {
+        return SlideTransition(
+          position: Tween<Offset>(begin: const Offset(0, -1), end: Offset.zero).animate(CurvedAnimation(parent: anim1, curve: Curves.easeOutCubic)),
+          child: child,
+        );
+      },
+      pageBuilder: (context, anim1, anim2) => Align(
+        alignment: Alignment.topCenter,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            margin: EdgeInsets.only(top: MediaQuery.of(context).padding.top),
+            decoration: const BoxDecoration(
+              color: Color(0xFF111116),
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(16)),
+              boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 20)],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text('Paste Subtitles', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: controller,
+                    maxLines: 8,
+                    autofocus: true,
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: 'Paste your paragraph here...',
+                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.2)),
+                      filled: true,
+                      fillColor: Colors.white.withOpacity(0.05),
+                      contentPadding: const EdgeInsets.all(12),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('CANCEL', style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            if (controller.text.trim().isNotEmpty) {
+                              provider.generateSubtitlesFromText(controller.text.trim());
+                            }
+                            Navigator.pop(context);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.deepPurpleAccent,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          child: const Text('GENERATE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showTranscribeDialog(BuildContext context, EditorProvider provider) {
+    if (provider.audioPath == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please import audio first')),
+      );
+      return;
+    }
+
+    final promptController = TextEditingController(text: "Transcribe exactly in Romanized Hindi (Hinglish). Use phonetic English characters. Example: 'Kaise ho aap?'");
+    final languageController = TextEditingController(text: "hi");
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A24),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Paste Subtitles', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: TextField(
-            controller: controller,
-            maxLines: 8,
-            autofocus: true,
-            style: const TextStyle(color: Colors.white, fontSize: 13),
-            decoration: InputDecoration(
-              hintText: 'Paste your paragraph here...',
-              hintStyle: TextStyle(color: Colors.white.withOpacity(0.2)),
-              filled: true,
-              fillColor: Colors.black26,
-              contentPadding: const EdgeInsets.all(12),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-            ),
+        title: const Text('Voice to Text', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Using local Whisper.cpp model for word-level transcription.',
+                style: TextStyle(color: Colors.white70, fontSize: 11),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: Colors.orangeAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                child: const Text(
+                  'TIP: For Romanized (Phonetic) Hindi, use a multilingual model, set language to "hi" or "auto", and use a Romanized initial prompt.',
+                  style: TextStyle(color: Colors.orangeAccent, fontSize: 9, fontWeight: FontWeight.bold),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white10)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('ACTIVE MODEL', style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                        if (provider.whisperModelPath != null)
+                           const Icon(Icons.check_circle, color: Colors.greenAccent, size: 14),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      provider.whisperModelPath != null ? p.basename(provider.whisperModelPath!) : "No model imported",
+                      style: TextStyle(color: provider.whisperModelPath != null ? Colors.white : Colors.white24, fontSize: 13, fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final path = await _pickModelFile();
+                          if (path != null) {
+                            try {
+                              await provider.importModel(path);
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Import failed: $e')));
+                              }
+                            }
+                          }
+                        },
+                        icon: const Icon(Icons.file_download_outlined, size: 16),
+                        label: const Text('IMPORT MODEL', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.orangeAccent,
+                          side: const BorderSide(color: Colors.orangeAccent),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        promptController.text = "Transcribe strictly in Romanized Hindi (Hinglish) using phonetic English letters. NO DEVANAGARI. Example strings: 'Mera naam Trexx hai', 'Aap kaise hain?', 'Main aaj bahut khush hoon'. Only use English alphabet.";
+                        languageController.text = "hi";
+                      },
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.blueAccent),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text('HINGLISH PRESET', style: TextStyle(color: Colors.blueAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orangeAccent.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orangeAccent.withOpacity(0.2)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline, color: Colors.orangeAccent, size: 16),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        "TIP: To get clean Romanized text, use the Hinglish preset and a larger model (like 'small' or 'medium') if possible.",
+                        style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 10),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: languageController,
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+                decoration: InputDecoration(
+                  labelText: 'Target Language (hi, en, auto)',
+                  labelStyle: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11),
+                  filled: true,
+                  fillColor: Colors.black26,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: promptController,
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+                decoration: InputDecoration(
+                  labelText: 'Initial Prompt (for Romanization)',
+                  labelStyle: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11),
+                  filled: true,
+                  fillColor: Colors.black26,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                ),
+              ),
+            ],
           ),
         ),
         actions: [
@@ -82,74 +305,374 @@ class _EditorScreenState extends State<EditorScreen> {
             child: const Text('CANCEL', style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold)),
           ),
           ElevatedButton(
-            onPressed: () {
-              if (controller.text.trim().isNotEmpty) {
-                provider.generateSubtitlesFromText(controller.text.trim());
-              }
+            onPressed: () async {
+              final prompt = promptController.text.trim();
+              final lang = languageController.text.trim();
               Navigator.pop(context);
+              
+              try {
+                final segments = await provider.transcribeAudioRaw(prompt: prompt, language: lang);
+                if (segments != null && context.mounted) {
+                  _showReviewTranscriptionDialog(context, provider, segments);
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e')),
+                  );
+                }
+              }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.deepPurpleAccent,
+              backgroundColor: Colors.orangeAccent,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            child: const Text('GENERATE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+            child: const Text('TRANSCRIBE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
     );
   }
 
-  void _showAddTextDialog(BuildContext context, EditorProvider provider) {
-    final controller = TextEditingController();
-    showDialog(
+  void _showReviewTranscriptionDialog(BuildContext context, EditorProvider provider, List<Map<String, dynamic>> segments, {bool isJson = false}) {
+    final List<Map<String, dynamic>> editedSegments = List.from(segments.map((e) => Map<String, dynamic>.from(e)));
+    final jsonController = TextEditingController(text: const JsonEncoder.withIndent('  ').convert(editedSegments));
+    
+    int? activeIndex;
+    final editController = TextEditingController();
+
+    showGeneralDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A24),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Add New Text', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: TextField(
-            controller: controller,
-            autofocus: true,
-            style: const TextStyle(color: Colors.white, fontSize: 13),
-            decoration: InputDecoration(
-              hintText: 'Enter text here...',
-              hintStyle: TextStyle(color: Colors.white.withOpacity(0.2)),
-              filled: true,
-              fillColor: Colors.black26,
-              contentPadding: const EdgeInsets.all(12),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss',
+      barrierColor: Colors.black87,
+      transitionDuration: const Duration(milliseconds: 250),
+      transitionBuilder: (context, anim1, anim2, child) {
+        return SlideTransition(
+          position: Tween<Offset>(begin: const Offset(0, -1), end: Offset.zero).animate(CurvedAnimation(parent: anim1, curve: Curves.easeOutCubic)),
+          child: child,
+        );
+      },
+      pageBuilder: (context, anim1, anim2) => Align(
+        alignment: Alignment.topCenter,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            margin: EdgeInsets.only(top: MediaQuery.of(context).padding.top),
+            decoration: const BoxDecoration(
+              color: Color(0xFF111116),
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(16)),
+              boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 20)],
             ),
-            onSubmitted: (val) {
-              if (val.trim().isNotEmpty) {
-                provider.addClip(val.trim());
-              }
-              Navigator.pop(context);
-            },
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+              child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(isJson ? 'JSON Editor' : 'Visual Editor', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                    if (!isJson) ListenableBuilder(
+                      listenable: provider,
+                      builder: (context, _) => IconButton(
+                        icon: Icon(provider.isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, color: Colors.orangeAccent, size: 28),
+                        onPressed: provider.togglePlay,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 300,
+                  child: isJson ? TextField(
+                    controller: jsonController,
+                    maxLines: null,
+                    expands: true,
+                    style: const TextStyle(color: Colors.greenAccent, fontSize: 12, fontFamily: 'monospace'),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: Colors.white.withOpacity(0.05),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                    ),
+                  ) : StatefulBuilder(
+                    builder: (context, setModalState) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.05),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: SingleChildScrollView(
+                                child: ListenableBuilder(
+                                  listenable: provider,
+                                  builder: (context, _) {
+                                    final currentPosMs = provider.currentTime.inMilliseconds;
+                                    return Wrap(
+                                      spacing: 4,
+                                      runSpacing: 4,
+                                      children: List.generate(editedSegments.length, (index) {
+                                        final segment = editedSegments[index];
+                                        final isEditing = activeIndex == index;
+                                        final isHighlighted = currentPosMs >= segment['start'] && currentPosMs < segment['end'];
+                                        
+                                        return InkWell(
+                                          onTap: () {
+                                            setModalState(() {
+                                              activeIndex = index;
+                                              editController.text = editedSegments[index]['text'];
+                                              provider.seek(Duration(milliseconds: segment['start']));
+                                            });
+                                          },
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: isEditing ? Colors.orangeAccent : (isHighlighted ? Colors.green.withValues(alpha: 0.3) : Colors.white10),
+                                              borderRadius: BorderRadius.circular(4),
+                                              border: Border.all(color: (isEditing ? Colors.orangeAccent : (isHighlighted ? Colors.green : Colors.transparent))),
+                                            ),
+                                            child: Text(
+                                              segment['text'],
+                                              style: TextStyle(
+                                                color: isEditing ? Colors.black : Colors.white,
+                                                fontSize: 13,
+                                                fontWeight: (isEditing || isHighlighted) ? FontWeight.bold : FontWeight.normal,
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      }),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (activeIndex != null) ...[
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                              decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(8)),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      controller: editController,
+                                      autofocus: true,
+                                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                                      textInputAction: TextInputAction.next,
+                                      decoration: InputDecoration(
+                                        hintText: 'Edit word...',
+                                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
+                                        border: InputBorder.none,
+                                        isDense: true,
+                                      ),
+                                      onChanged: (val) {
+                                        setModalState(() {
+                                          editedSegments[activeIndex!]['text'] = val;
+                                        });
+                                      },
+                                      onSubmitted: (val) {
+                                        setModalState(() {
+                                          editedSegments[activeIndex!]['text'] = val.trim();
+                                          if (activeIndex! < editedSegments.length - 1) {
+                                            activeIndex = activeIndex! + 1;
+                                            editController.text = editedSegments[activeIndex!]['text'];
+                                          } else {
+                                            activeIndex = null;
+                                            editController.clear();
+                                          }
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                    onPressed: () {
+                                      setModalState(() {
+                                        editedSegments.removeAt(activeIndex!);
+                                        activeIndex = null;
+                                        editController.clear();
+                                      });
+                                    },
+                                  ),
+                                  const SizedBox(width: 12),
+                                  IconButton(
+                                    icon: const Icon(Icons.arrow_forward_ios, color: Colors.orangeAccent, size: 16),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                    onPressed: () {
+                                      setModalState(() {
+                                        editedSegments[activeIndex!]['text'] = editController.text.trim();
+                                        if (activeIndex! < editedSegments.length - 1) {
+                                          activeIndex = activeIndex! + 1;
+                                          editController.text = editedSegments[activeIndex!]['text'];
+                                        } else {
+                                          activeIndex = null;
+                                          editController.clear();
+                                        }
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ]
+                        ],
+                      );
+                    }
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('DISCARD', style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          if (isJson) {
+                            try {
+                              final data = jsonDecode(jsonController.text);
+                              final List<Map<String, dynamic>> newSegs = List<Map<String, dynamic>>.from(data);
+                              provider.applyTranscriptionClips(newSegs);
+                              Navigator.pop(context);
+                            } catch(e) {
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Invalid JSON format: $e')));
+                            }
+                          } else {
+                            if (activeIndex != null && editController.text.trim().isNotEmpty) {
+                              editedSegments[activeIndex!]['text'] = editController.text.trim();
+                            }
+                            provider.applyTranscriptionClips(editedSegments);
+                            Navigator.pop(context);
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orangeAccent,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: const Text('APPLY TO TIMELINE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('CANCEL', style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (controller.text.trim().isNotEmpty) {
-                provider.addClip(controller.text.trim());
-              }
-              Navigator.pop(context);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.deepPurpleAccent,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    ),
+  );
+}
+
+  void _showAddTextDialog(BuildContext context, EditorProvider provider) {
+    final controller = TextEditingController();
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss',
+      barrierColor: Colors.black87,
+      transitionDuration: const Duration(milliseconds: 250),
+      transitionBuilder: (context, anim1, anim2, child) {
+        return SlideTransition(
+          position: Tween<Offset>(begin: const Offset(0, -1), end: Offset.zero).animate(CurvedAnimation(parent: anim1, curve: Curves.easeOutCubic)),
+          child: child,
+        );
+      },
+      pageBuilder: (context, anim1, anim2) => Align(
+        alignment: Alignment.topCenter,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            margin: EdgeInsets.only(top: MediaQuery.of(context).padding.top),
+            decoration: const BoxDecoration(
+              color: Color(0xFF111116),
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(16)),
+              boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 20)],
             ),
-            child: const Text('ADD', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text('Add New Text', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: controller,
+                    autofocus: true,
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: 'Enter text here...',
+                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.2)),
+                      filled: true,
+                      fillColor: Colors.white.withOpacity(0.05),
+                      contentPadding: const EdgeInsets.all(12),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                    ),
+                    onSubmitted: (val) {
+                      if (val.trim().isNotEmpty) {
+                        provider.addClip(val.trim());
+                      }
+                      Navigator.pop(context);
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('CANCEL', style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            if (controller.text.trim().isNotEmpty) {
+                              provider.addClip(controller.text.trim());
+                            }
+                            Navigator.pop(context);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.deepPurpleAccent,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          child: const Text('ADD', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -330,6 +853,49 @@ class _EditorScreenState extends State<EditorScreen> {
               onExport: () => _handleExport(context, provider),
               onAddClip: () => _showAddTextDialog(context, provider),
               onNewProject: () => _handleNewProject(context, provider),
+              onTranscribe: () => _showTranscribeDialog(context, provider),
+              onBulkEditJson: () {
+                if (provider.tracks.isEmpty || provider.tracks.every((t) => t.clips.isEmpty)) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No subtitles to edit yet!')));
+                  return;
+                }
+                final List<Map<String, dynamic>> currentSegments = [];
+                for (var t in provider.tracks) {
+                  for (var c in t.clips) {
+                    currentSegments.add({'start': c.startTime.inMilliseconds, 'end': c.endTime.inMilliseconds, 'text': c.text});
+                  }
+                }
+                currentSegments.sort((a,b) => (a['start'] as int).compareTo(b['start'] as int));
+                _showReviewTranscriptionDialog(context, provider, currentSegments, isJson: true);
+              },
+              onBulkEditText: () {
+                if (provider.tracks.isEmpty || provider.tracks.every((t) => t.clips.isEmpty)) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No subtitles to edit yet!')));
+                  return;
+                }
+                final List<Map<String, dynamic>> currentSegments = [];
+                for (var t in provider.tracks) {
+                  for (var c in t.clips) {
+                    currentSegments.add({'start': c.startTime.inMilliseconds, 'end': c.endTime.inMilliseconds, 'text': c.text});
+                  }
+                }
+                currentSegments.sort((a,b) => (a['start'] as int).compareTo(b['start'] as int));
+                _showReviewTranscriptionDialog(context, provider, currentSegments, isJson: false);
+              },
+              onImportModel: () async {
+                final path = await _pickModelFile();
+                if (path != null) {
+                  try {
+                    await provider.importModel(path);
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Import failed: $e')));
+                    }
+                  }
+                }
+              },
+              isModelReady: provider.whisperModelPath != null,
+              isImportingModel: provider.isImportingModel,
               onAddOverlay: (path) => provider.addOverlay(path),
               onUpdate: ({
                 String? text,

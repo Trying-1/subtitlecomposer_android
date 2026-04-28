@@ -1,11 +1,15 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import '../utils/transliteration_utils.dart';
 import '../models/editor_models.dart';
 import '../services/native_bridge.dart';
 import '../utils/subtitle_parser.dart';
 import '../utils/animation_presets.dart';
 import 'package:hive/hive.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 
 class HistoryState {
   final List<Track> tracks;
@@ -62,6 +66,7 @@ class EditorProvider extends ChangeNotifier {
   bool _isMultiSelectMode = false;
   double _zoomLevel = 1.0; // 1.0 = 50 pixels per second
   String? _audioPath;
+  String? get audioPath => _audioPath;
   double _aspectRatio = 16 / 9;
   int _backgroundColor = 0xFFFFFFFF;
   String? _backgroundImagePath;
@@ -74,6 +79,8 @@ class EditorProvider extends ChangeNotifier {
   bool _isInitialized = false;
   bool _showTextTracks = true;
   bool _showOverlayTracks = true;
+  String? _whisperModelPath;
+  bool _isImportingModel = false;
 
   final List<HistoryState> _undoStack = [];
   final List<HistoryState> _redoStack = [];
@@ -94,6 +101,8 @@ class EditorProvider extends ChangeNotifier {
   bool get isExporting => _isExporting;
   Set<String> get selectedClipIds => _selectedClipIds;
   bool get isMultiSelectMode => _isMultiSelectMode;
+  String? get whisperModelPath => _whisperModelPath;
+  bool get isImportingModel => _isImportingModel;
   bool get isAllSelected {
     final allIds = _tracks.expand((t) => t.clips).map((c) => c.id).toSet();
     final allOverlayIds = _overlayTracks.expand((t) => t.overlays).map((c) => c.id).toSet();
@@ -669,6 +678,7 @@ class EditorProvider extends ChangeNotifier {
         _backgroundX = (state['backgroundX'] as num?)?.toDouble() ?? 0.0;
         _backgroundY = (state['backgroundY'] as num?)?.toDouble() ?? 0.0;
         _backgroundFillMode = state['backgroundFillMode'] ?? 0;
+        _whisperModelPath = state['whisperModelPath'];
         _audioPath = state['audioPath'];
 
         _tracks = (state['tracks'] as List? ?? []).map((t) => Track.fromJson(Map<String, dynamic>.from(t))).toList();
@@ -705,6 +715,7 @@ class EditorProvider extends ChangeNotifier {
         'backgroundX': _backgroundX,
         'backgroundY': _backgroundY,
         'backgroundFillMode': _backgroundFillMode,
+        'whisperModelPath': _whisperModelPath,
         'audioPath': _audioPath,
         'tracks': _tracks.map((t) => t.toJson()).toList(),
         'overlayTracks': _overlayTracks.map((t) => t.toJson()).toList(),
@@ -1458,6 +1469,14 @@ class EditorProvider extends ChangeNotifier {
     _audioPlayer.seek(pos);
   }
 
+  void play() {
+    _audioPlayer.play();
+  }
+
+  void pause() {
+    _audioPlayer.pause();
+  }
+
   Future<String?> exportVideo() async {
     if (_tracks.isEmpty) return null;
     
@@ -1510,9 +1529,128 @@ class EditorProvider extends ChangeNotifier {
     }
   }
 
+  Future<List<Map<String, dynamic>>?> transcribeAudioRaw({String? prompt, String? language}) async {
+    if (_audioPath == null) return null;
+    if (_whisperModelPath == null || !File(_whisperModelPath!).existsSync()) {
+      throw Exception("No Whisper model found. Please import a model first.");
+    }
+    
+    _isExporting = true; 
+    notifyListeners();
+
+    try {
+      final int? ptr = await _bridge.initWhisper(_whisperModelPath!);
+      if (ptr == null || ptr == 0) throw Exception("Failed to initialize Whisper engine");
+
+      final initialPrompt = prompt ?? "Transcribe this audio.";
+      final targetLanguage = language ?? "auto";
+      final String? jsonResult = await _bridge.transcribeWhisper(ptr, _audioPath!, initialPrompt, targetLanguage);
+      
+      await _bridge.freeWhisper(ptr);
+
+      if (jsonResult == null || jsonResult.contains("error")) {
+        throw Exception("Transcription failed: $jsonResult");
+      }
+
+      final List<dynamic> data = jsonDecode(jsonResult);
+      final List<Map<String, dynamic>> processedSegments = [];
+
+      for (var item in data) {
+        final startMs = (item['start'] as num).toInt();
+        final endMs = (item['end'] as num).toInt();
+        var text = item['text'] as String;
+        
+        if (text.trim().isEmpty) continue;
+
+        if (initialPrompt.toLowerCase().contains("hinglish") || initialPrompt.toLowerCase().contains("romanized")) {
+          text = TransliterationUtils.devanagariToRoman(text);
+        }
+
+        processedSegments.add({
+          'start': startMs,
+          'end': endMs,
+          'text': text.trim()
+        });
+      }
+
+      return processedSegments;
+    } catch (e) {
+      print("Transcription error: $e");
+      rethrow;
+    } finally {
+      _isExporting = false;
+      notifyListeners();
+    }
+  }
+
+  void applyTranscriptionClips(List<Map<String, dynamic>> data, {bool replaceExisting = true}) {
+    saveState(); 
+
+    if (replaceExisting) {
+      _tracks.clear();
+    }
+
+    final List<SubtitleClip> newClips = [];
+    for (var item in data) {
+      final startMs = (item['start'] as num).toInt();
+      final endMs = (item['end'] as num).toInt();
+      final text = item['text'] as String;
+      
+      if (text.trim().isEmpty) continue;
+
+      newClips.add(SubtitleClip(
+        id: "clip_${DateTime.now().millisecondsSinceEpoch}_${newClips.length}",
+        text: text.trim(),
+        startTime: Duration(milliseconds: startMs),
+        endTime: Duration(milliseconds: endMs),
+      ));
+    }
+
+    if (newClips.isNotEmpty) {
+      final newTrack = Track(
+        id: "track_${DateTime.now().millisecondsSinceEpoch}",
+        clips: newClips,
+      );
+      _tracks.add(newTrack);
+      _syncToNative();
+      notifyListeners();
+    }
+  }
+
   @override
   void dispose() {
     _audioPlayer.dispose();
     super.dispose();
+  }
+
+  Future<void> importModel(String originalPath) async {
+    _isImportingModel = true;
+    notifyListeners();
+    try {
+      final file = File(originalPath);
+      if (!file.existsSync()) throw Exception("Source model file not found at $originalPath");
+
+      final appDir = await getApplicationDocumentsDirectory();
+      final modelsDir = Directory(p.join(appDir.path, 'whisper_models'));
+      if (!modelsDir.existsSync()) {
+        await modelsDir.create(recursive: true);
+      }
+
+      final fileName = p.basename(originalPath);
+      final newPath = p.join(modelsDir.path, fileName);
+      
+      // Copy the file
+      await file.copy(newPath);
+      
+      _whisperModelPath = newPath;
+      _persistProject();
+      notifyListeners();
+    } catch (e) {
+      print("Error importing model: $e");
+      rethrow;
+    } finally {
+      _isImportingModel = false;
+      notifyListeners();
+    }
   }
 }

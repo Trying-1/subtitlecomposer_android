@@ -19,6 +19,10 @@ class MainActivity : FlutterActivity() {
 
     private external fun muxVideoAudio(videoPath: String, audioPath: String, outputPath: String): Int
     private external fun extractAudio(videoPath: String, outputPath: String): Int
+    
+    private external fun initWhisper(modelPath: String): Long
+    private external fun transcribeWhisper(contextPtr: Long, audioPath: String, initialPrompt: String, language: String): String
+    private external fun freeWhisper(contextPtr: Long)
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -181,6 +185,28 @@ class MainActivity : FlutterActivity() {
                     } else {
                         result.error("INVALID_ARGS", "Family or path missing", null)
                     }
+                }
+                "initWhisper" -> {
+                    val modelPath = call.argument<String>("modelPath") ?: ""
+                    Thread {
+                        val ptr = initWhisper(modelPath)
+                        runOnUiThread { result.success(ptr) }
+                    }.start()
+                }
+                "transcribeWhisper" -> {
+                    val ptr = (call.argument<Number>("contextPtr"))?.toLong() ?: 0L
+                    val audioPath = call.argument<String>("audioPath") ?: ""
+                    val prompt = call.argument<String>("initialPrompt") ?: ""
+                    val language = call.argument<String>("language") ?: "auto"
+                    Thread {
+                        val json = transcribeWhisper(ptr, audioPath, prompt, language)
+                        runOnUiThread { result.success(json) }
+                    }.start()
+                }
+                "freeWhisper" -> {
+                    val ptr = (call.argument<Number>("contextPtr"))?.toLong() ?: 0L
+                    freeWhisper(ptr)
+                    result.success(null)
                 }
                 else -> result.notImplemented()
             }

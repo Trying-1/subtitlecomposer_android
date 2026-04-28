@@ -12,16 +12,12 @@ class AudioService {
       final XFile? video = await _picker.pickVideo(source: ImageSource.gallery);
       if (video == null) return null;
 
-      final Directory tempDir = await getTemporaryDirectory();
-      final String fileName = 'extracted_audio_${DateTime.now().millisecondsSinceEpoch}.aac';
-      final String outputPath = '${tempDir.path}/$fileName';
-
-      await _bridge.extractAudio(video.path, outputPath);
-
-      if (await File(outputPath).exists()) {
-        return outputPath;
-      }
-      return null;
+      // CORE FIX: Do not artificially extract the audio to an intermediate .aac file.
+      // The intermediate extraction strips container timestamps and extradata, which 
+      // degrades FFmpeg's ability to cleanly decode it in SWR, leading to transcription 
+      // artifacts. We simply pass the raw .mp4 video path everywhere. Both our native 
+      // whisper-lib.cpp and exportVideo function fully support demuxing audio straight from mp4.
+      return video.path;
     } catch (e) {
       print("Error picking video or extracting audio: $e");
       return null;

@@ -26,6 +26,12 @@ class BottomControlPanel extends StatefulWidget {
   final VoidCallback? onAddClip;
   final VoidCallback? onExtractAudio;
   final VoidCallback? onNewProject;
+  final VoidCallback? onTranscribe;
+  final VoidCallback? onImportModel;
+  final VoidCallback? onBulkEditJson;
+  final VoidCallback? onBulkEditText;
+  final bool isModelReady;
+  final bool isImportingModel;
   final Function(String path) onAddOverlay;
   final Function({
     String? text,
@@ -71,6 +77,12 @@ class BottomControlPanel extends StatefulWidget {
     this.onExtractAudio,
     this.onExport,
     this.onNewProject,
+    this.onTranscribe,
+    this.onImportModel,
+    this.onBulkEditJson,
+    this.onBulkEditText,
+    this.isModelReady = false,
+    this.isImportingModel = false,
     required this.onAddOverlay,
     required this.onUpdate,
     required this.onApplyPreset,
@@ -297,6 +309,12 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
         onExtractAudio: widget.onExtractAudio,
         onExport: widget.onExport,
         onNewProject: widget.onNewProject,
+        onTranscribe: widget.onTranscribe,
+        onImportModel: widget.onImportModel,
+        onBulkEditJson: widget.onBulkEditJson,
+        onBulkEditText: widget.onBulkEditText,
+        isModelReady: widget.isModelReady,
+        isImporting: widget.isImportingModel,
       );
       default: return const SizedBox();
     }

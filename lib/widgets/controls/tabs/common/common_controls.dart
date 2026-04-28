@@ -204,11 +204,12 @@ class CommonControls {
   }
 
   static Widget buildSquareActionButton({
-    required IconData icon,
+    IconData? icon,
     required String label,
     required VoidCallback? onTap,
     Color color = Colors.white,
     bool isPrimary = false,
+    Widget? child,
   }) {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -227,10 +228,12 @@ class CommonControls {
                 width: isPrimary ? 1.5 : 1,
               ),
             ),
-            child: Icon(
-              icon, 
-              size: 18, 
-              color: isPrimary ? color : color.withOpacity(0.8),
+            child: Center(
+              child: child ?? (icon != null ? Icon(
+                icon, 
+                size: 18, 
+                color: isPrimary ? color : color.withOpacity(0.8),
+              ) : const SizedBox()),
             ),
           ),
         ),
