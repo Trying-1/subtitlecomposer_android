@@ -4,13 +4,171 @@
 
 extern "C" {
 #include <libavformat/avformat.h>
+#include <libavcodec/avcodec.h>
+#include <libswscale/swscale.h>
+#include <libavutil/imgutils.h>
 #include <libavutil/timestamp.h>
 }
+
+#include <android/bitmap.h>
+
+#include <android/bitmap.h>
+#include <GLES2/gl2.h>
 
 #define LOG_TAG "FFmpegNative"
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
+class FFmpegFrameExtractor {
+public:
+    AVFormatContext* fmt_ctx = nullptr;
+    AVCodecContext* codec_ctx = nullptr;
+    int video_stream_idx = -1;
+    AVFrame* frame = nullptr;
+    uint8_t* buffer = nullptr;
+    struct SwsContext* sws_ctx = nullptr;
+    std::string path;
+    int64_t last_pts = -1;
+
+    FFmpegFrameExtractor(const char* p) : path(p) {}
+
+    bool init() {
+        if (avformat_open_input(&fmt_ctx, path.c_str(), nullptr, nullptr) < 0) return false;
+        if (avformat_find_stream_info(fmt_ctx, nullptr) < 0) return false;
+
+        for (int i = 0; i < fmt_ctx->nb_streams; i++) {
+            if (fmt_ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+                video_stream_idx = i;
+                break;
+            }
+        }
+        if (video_stream_idx == -1) return false;
+
+        AVCodecParameters* codecpar = fmt_ctx->streams[video_stream_idx]->codecpar;
+        const AVCodec* codec = avcodec_find_decoder(codecpar->codec_id);
+        if (!codec) return false;
+
+        codec_ctx = avcodec_alloc_context3(codec);
+        avcodec_parameters_to_context(codec_ctx, codecpar);
+        if (avcodec_open2(codec_ctx, codec, nullptr) < 0) return false;
+
+        frame = av_frame_alloc();
+        return true;
+    }
+
+    bool updateTexture(int64_t time_ms, int texture_id, int width, int height) {
+        if (video_stream_idx == -1) return false;
+
+        AVStream* stream = fmt_ctx->streams[video_stream_idx];
+        int64_t target_pts = av_rescale_q(time_ms, {1, 1000}, stream->time_base);
+
+        bool need_seek = (last_pts == -1) || 
+                         (target_pts < last_pts) || 
+                         (target_pts - last_pts > stream->time_base.den / stream->time_base.num);
+
+        if (need_seek) {
+            if (avformat_seek_file(fmt_ctx, video_stream_idx, INT64_MIN, target_pts, target_pts, 0) < 0) {
+                LOGE("Seek failed for %lld ms", (long long)time_ms);
+            }
+            avcodec_flush_buffers(codec_ctx);
+            last_pts = -1;
+        }
+
+        AVPacket pkt;
+        bool found = false;
+        int max_retries = need_seek ? 100 : 20;
+
+        while (max_retries-- > 0 && av_read_frame(fmt_ctx, &pkt) >= 0) {
+            if (pkt.stream_index == video_stream_idx) {
+                if (avcodec_send_packet(codec_ctx, &pkt) == 0) {
+                    while (avcodec_receive_frame(codec_ctx, frame) == 0) {
+                        last_pts = frame->pts;
+                        if (frame->pts >= target_pts) {
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            av_packet_unref(&pkt);
+            if (found) break;
+        }
+
+        if (found) {
+            // Re-allocate buffer if needed
+            int buffer_size = av_image_get_buffer_size(AV_PIX_FMT_RGBA, width, height, 1);
+            if (!buffer) buffer = (uint8_t*)av_malloc(buffer_size);
+
+            sws_ctx = sws_getCachedContext(sws_ctx,
+                frame->width, frame->height, codec_ctx->pix_fmt,
+                width, height, AV_PIX_FMT_RGBA,
+                SWS_FAST_BILINEAR, nullptr, nullptr, nullptr);
+
+            uint8_t* dest[4] = {buffer, nullptr, nullptr, nullptr};
+            int dest_linesize[4] = {width * 4, 0, 0, 0};
+            sws_scale(sws_ctx, frame->data, frame->linesize, 0, frame->height, dest, dest_linesize);
+
+            // Upload directly to texture
+            glBindTexture(GL_TEXTURE_2D, texture_id);
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
+        }
+
+        return found;
+    }
+
+    ~FFmpegFrameExtractor() {
+        if (sws_ctx) sws_freeContext(sws_ctx);
+        if (frame) av_frame_free(&frame);
+        if (codec_ctx) avcodec_free_context(&codec_ctx);
+        if (fmt_ctx) avformat_close_input(&fmt_ctx);
+        if (buffer) av_free(buffer);
+    }
+};
+
+extern "C"
+JNIEXPORT jlong JNICALL
+Java_com_example_typgraphyeditor_VideoFrameDecoder_nativeInit(JNIEnv *env, jobject thiz, jstring path) {
+    const char *p = env->GetStringUTFChars(path, nullptr);
+    auto* extractor = new FFmpegFrameExtractor(p);
+    if (!extractor->init()) {
+        delete extractor;
+        env->ReleaseStringUTFChars(path, p);
+        return 0;
+    }
+    env->ReleaseStringUTFChars(path, p);
+    return reinterpret_cast<jlong>(extractor);
+}
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_example_typgraphyeditor_VideoFrameDecoder_nativeUpdateTexture(JNIEnv *env, jobject thiz, jlong handle, jlong time_ms, jint texture_id, jint width, jint height) {
+    auto* extractor = reinterpret_cast<FFmpegFrameExtractor*>(handle);
+    if (!extractor) return JNI_FALSE;
+    return extractor->updateTexture(time_ms, texture_id, width, height) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_example_typgraphyeditor_VideoFrameDecoder_nativeGetWidth(JNIEnv *env, jobject thiz, jlong handle) {
+    auto* extractor = reinterpret_cast<FFmpegFrameExtractor*>(handle);
+    return extractor && extractor->codec_ctx ? extractor->codec_ctx->width : 0;
+}
+
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_example_typgraphyeditor_VideoFrameDecoder_nativeGetHeight(JNIEnv *env, jobject thiz, jlong handle) {
+    auto* extractor = reinterpret_cast<FFmpegFrameExtractor*>(handle);
+    return extractor && extractor->codec_ctx ? extractor->codec_ctx->height : 0;
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_example_typgraphyeditor_VideoFrameDecoder_nativeRelease(JNIEnv *env, jobject thiz, jlong handle) {
+    auto* extractor = reinterpret_cast<FFmpegFrameExtractor*>(handle);
+    delete extractor;
+}
+
+// Keep the previous muxVideoAudio and extractAudio methods...
 extern "C"
 JNIEXPORT jint JNICALL
 Java_com_example_typgraphyeditor_MainActivity_muxVideoAudio(

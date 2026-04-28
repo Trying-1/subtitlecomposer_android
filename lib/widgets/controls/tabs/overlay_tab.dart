@@ -54,10 +54,18 @@ class _OverlayTabState extends State<OverlayTab> {
     }
   }
 
-  void _pickAssets(BuildContext context, ImageSource source) async {
+  void _pickAssets(BuildContext context, ImageSource source, {bool isVideo = false}) async {
     final picker = ImagePicker();
     final assetProvider = context.read<AssetProvider>();
     
+    if (isVideo) {
+      final XFile? video = await picker.pickVideo(source: source);
+      if (video != null) {
+        assetProvider.addAssets([video.path]);
+      }
+      return;
+    }
+
     if (source == ImageSource.gallery) {
       final List<XFile> images = await picker.pickMultiImage();
       if (images.isNotEmpty) {
@@ -122,11 +130,16 @@ class _OverlayTabState extends State<OverlayTab> {
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: Colors.white.withOpacity(0.1)),
-                        image: DecorationImage(
-                          image: FileImage(File(path)),
-                          fit: BoxFit.cover,
-                        ),
+                        image: path.toLowerCase().endsWith('.mp4') || path.toLowerCase().endsWith('.mov') || path.toLowerCase().endsWith('.mkv') || path.toLowerCase().endsWith('.webm')
+                          ? null
+                          : DecorationImage(
+                              image: FileImage(File(path)),
+                              fit: BoxFit.cover,
+                            ),
                       ),
+                      child: path.toLowerCase().endsWith('.mp4') || path.toLowerCase().endsWith('.mov') || path.toLowerCase().endsWith('.mkv') || path.toLowerCase().endsWith('.webm')
+                        ? Center(child: Icon(Icons.videocam_rounded, color: Colors.deepPurpleAccent.withOpacity(0.5), size: 32))
+                        : null,
                     ),
                   ),
                   Positioned(
@@ -171,11 +184,21 @@ class _OverlayTabState extends State<OverlayTab> {
             const SizedBox(height: 24),
             _buildPickerOption(
               icon: Icons.photo_library_rounded,
-              label: 'Gallery',
+              label: 'Gallery (Photos)',
               subtitle: 'Pick multiple images',
               onTap: () {
                 Navigator.pop(context);
                 _pickAssets(context, ImageSource.gallery);
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildPickerOption(
+              icon: Icons.video_library_rounded,
+              label: 'Gallery (Videos)',
+              subtitle: 'Pick video overlays',
+              onTap: () {
+                Navigator.pop(context);
+                _pickAssets(context, ImageSource.gallery, isVideo: true);
               },
             ),
             const SizedBox(height: 12),

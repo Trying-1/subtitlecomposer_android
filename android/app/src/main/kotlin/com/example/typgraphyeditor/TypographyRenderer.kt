@@ -160,6 +160,7 @@ class TypographyRenderer(
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
 
         backgroundRenderer?.setImage(backgroundImagePath)
+        backgroundRenderer?.updateFrame(currentTimeMs)
         backgroundRenderer?.setTransform(bgScale, bgRotation, bgX, bgY, bgFillMode, currentWidth, currentHeight)
         backgroundRenderer?.draw()
 
@@ -180,7 +181,7 @@ class TypographyRenderer(
             if (clip.isText) {
                 subtitleRenderer?.drawTextClip(clip, animState, assetManager)
             } else {
-                subtitleRenderer?.drawImageClip(clip, animState)
+                subtitleRenderer?.drawImageClip(clip, animState, currentTimeMs)
             }
         }
     }

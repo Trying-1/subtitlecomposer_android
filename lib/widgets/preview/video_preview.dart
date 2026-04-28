@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/editor_provider.dart';
+import '../../models/editor_models.dart';
 import '../../services/native_bridge.dart';
 
 class VideoPreview extends StatefulWidget {
@@ -60,7 +61,7 @@ class _VideoPreviewState extends State<VideoPreview> {
     final provider = context.read<EditorProvider>();
     
     final clip = provider.selectedTimelineClip;
-    if (clip == null) return;
+    if (clip == null || clip is BackgroundClip) return;
 
     // Handle drag (focalPointDelta is the movement since last update)
     final dx = details.focalPointDelta.dx / constraints.maxWidth;

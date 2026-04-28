@@ -71,5 +71,7 @@ target_link_libraries(
     avutil
     swresample
     swscale
+    jnigraphics
+    GLESv2
     ${log-lib}
 )

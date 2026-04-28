@@ -2,6 +2,7 @@ package com.example.typgraphyeditor
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.opengl.GLES11Ext
 import android.opengl.GLES20
 import android.opengl.GLUtils
 import java.io.File
@@ -11,6 +12,8 @@ import java.nio.FloatBuffer
 
 class BackgroundRenderer {
     private var program: Int = 0
+    private var programOES: Int = 0
+    
     private var vPositionLoc: Int = 0
     private var vTexCoordLoc: Int = 0
     private var uMVPMatrixLoc: Int = 0
@@ -44,6 +47,16 @@ class BackgroundRenderer {
         precision mediump float;
         varying vec2 fTexCoord;
         uniform sampler2D sTexture;
+        void main() {
+            gl_FragColor = texture2D(sTexture, fTexCoord);
+        }
+    """.trimIndent()
+
+    private val fragmentShaderOESCode = """
+        #extension GL_OES_EGL_image_external : require
+        precision mediump float;
+        varying vec2 fTexCoord;
+        uniform samplerExternalOES sTexture;
         void main() {
             gl_FragColor = texture2D(sTexture, fTexCoord);
         }
@@ -84,15 +97,47 @@ class BackgroundRenderer {
         GLES20.glAttachShader(program, fragmentShader)
         GLES20.glLinkProgram(program)
 
+        val fragmentShaderOES = loadShader(GLES20.GL_FRAGMENT_SHADER, fragmentShaderOESCode)
+        programOES = GLES20.glCreateProgram()
+        GLES20.glAttachShader(programOES, vertexShader)
+        GLES20.glAttachShader(programOES, fragmentShaderOES)
+        GLES20.glLinkProgram(programOES)
+
         vPositionLoc = GLES20.glGetAttribLocation(program, "vPosition")
         vTexCoordLoc = GLES20.glGetAttribLocation(program, "vTexCoord")
         uMVPMatrixLoc = GLES20.glGetUniformLocation(program, "uMVPMatrix")
         sTextureLoc = GLES20.glGetUniformLocation(program, "sTexture")
+        
+        // Also fetch for OES program to be safe (they are often the same but not guaranteed)
+        // We can use different vars if needed, but since we set them right before draw, 
+        // we'll just fetch them here and use them carefully.
     }
+
+    private fun useProgram(isOES: Boolean) {
+        val p = if (isOES) programOES else program
+        GLES20.glUseProgram(p)
+        vPositionLoc = GLES20.glGetAttribLocation(p, "vPosition")
+        vTexCoordLoc = GLES20.glGetAttribLocation(p, "vTexCoord")
+        uMVPMatrixLoc = GLES20.glGetUniformLocation(p, "uMVPMatrix")
+        sTextureLoc = GLES20.glGetUniformLocation(p, "sTexture")
+    }
+
+    private var movie: android.graphics.Movie? = null
+    private var movieBitmap: Bitmap? = null
+    private var movieCanvas: android.graphics.Canvas? = null
+    private var isGif: Boolean = false
+    private var videoDecoder: HardwareVideoDecoder? = null
+    private var isVideo: Boolean = false
 
     fun setImage(path: String?) {
         if (path == lastImagePath) return
         lastImagePath = path
+
+        movie = null
+        isGif = false
+        isVideo = false
+        videoDecoder?.release()
+        videoDecoder = null
 
         if (textureId != -1) {
             GLES20.glDeleteTextures(1, intArrayOf(textureId), 0)
@@ -104,10 +149,50 @@ class BackgroundRenderer {
         val file = File(path)
         if (!file.exists()) return
 
+        val lowerPath = path.lowercase()
+        if (lowerPath.endsWith(".gif")) {
+            try {
+                movie = android.graphics.Movie.decodeFile(path)
+                if (movie != null) {
+                    isGif = true
+                    imageWidth = movie!!.width()
+                    imageHeight = movie!!.height()
+                    if (imageWidth <= 0) imageWidth = 720
+                    if (imageHeight <= 0) imageHeight = 1280
+                    
+                    movieBitmap = Bitmap.createBitmap(imageWidth, imageHeight, Bitmap.Config.ARGB_8888)
+                    movieCanvas = android.graphics.Canvas(movieBitmap!!)
+                    
+                    setupTexture()
+                    return
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("BackgroundRenderer", "Error loading GIF: ${e.message}")
+            }
+        } else if (lowerPath.endsWith(".mp4") || lowerPath.endsWith(".mov") || lowerPath.endsWith(".mkv") || lowerPath.endsWith(".webm")) {
+            videoDecoder = HardwareVideoDecoder()
+            if (videoDecoder?.init(path) == true) {
+                isVideo = true
+                textureId = videoDecoder!!.getTextureId()
+                imageWidth = videoDecoder!!.getWidth()
+                imageHeight = videoDecoder!!.getHeight()
+                videoDecoder?.updateFrame(0)
+                return
+            } else {
+                videoDecoder = null
+            }
+        }
+
         val bitmap = BitmapFactory.decodeFile(path) ?: return
         imageWidth = bitmap.width
         imageHeight = bitmap.height
         
+        setupTexture()
+        GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bitmap, 0)
+        bitmap.recycle()
+    }
+
+    private fun setupTexture() {
         val textures = IntArray(1)
         GLES20.glGenTextures(1, textures, 0)
         textureId = textures[0]
@@ -117,9 +202,6 @@ class BackgroundRenderer {
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
-
-        GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bitmap, 0)
-        bitmap.recycle()
     }
 
     fun setTransform(scale: Float, rotation: Float, bgX: Float, bgY: Float, fillMode: Int, canvasWidth: Int, canvasHeight: Int) {
@@ -132,10 +214,30 @@ class BackgroundRenderer {
         this.canvasHeight = canvasHeight
     }
 
+    fun updateFrame(currentTimeMs: Long) {
+        if (isGif) {
+            val m = movie ?: return
+            val bmp = movieBitmap ?: return
+            val canvas = movieCanvas ?: return
+            
+            val duration = m.duration()
+            val time = if (duration > 0) (currentTimeMs % duration).toInt() else 0
+            m.setTime(time)
+            
+            bmp.eraseColor(android.graphics.Color.TRANSPARENT)
+            m.draw(canvas, 0f, 0f)
+            
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId)
+            GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bmp, 0)
+        } else if (isVideo) {
+            videoDecoder?.updateFrame(currentTimeMs)
+        }
+    }
+
     fun draw() {
         if (textureId == -1) return
 
-        GLES20.glUseProgram(program)
+        useProgram(isVideo)
 
         val mvpMatrix = FloatArray(16)
         android.opengl.Matrix.setIdentityM(mvpMatrix, 0)
@@ -143,25 +245,18 @@ class BackgroundRenderer {
         if (canvasWidth > 0 && canvasHeight > 0) {
             val aspect = canvasWidth.toFloat() / canvasHeight
             
-            // 1. Create Orthographic Projection (Square-unit coordinate space)
-            // Height is always 2 units (-1 to 1), Width is 2 * aspect units (-aspect to aspect)
             val projection = FloatArray(16)
             android.opengl.Matrix.orthoM(projection, 0, -aspect, aspect, -1f, 1f, -1f, 1f)
             
-            // 2. Build Model Matrix
             val model = FloatArray(16)
             android.opengl.Matrix.setIdentityM(model, 0)
             
-            // A. Translation (Post-multiply model by Translation)
-            // Units are uniform pixels relative to height, so we scale X by aspect to match screen
             android.opengl.Matrix.translateM(model, 0, bgX * aspect, bgY, 0f)
             
-            // B. Rotation (SQUARE ROTATION!)
             if (rotation != 0f) {
                 android.opengl.Matrix.rotateM(model, 0, rotation, 0f, 0f, 1f)
             }
             
-            // C. Base Scale (Fill Mode) and User Scale
             if (imageWidth > 0 && imageHeight > 0) {
                 val imgRatio = imageWidth.toFloat() / imageHeight
                 
@@ -197,7 +292,6 @@ class BackgroundRenderer {
                 android.opengl.Matrix.scaleM(model, 0, scale, scale, 1f)
             }
             
-            // 3. Combine: result = Projection * Model
             android.opengl.Matrix.multiplyMM(mvpMatrix, 0, projection, 0, model, 0)
         }
 
@@ -210,7 +304,7 @@ class BackgroundRenderer {
         GLES20.glVertexAttribPointer(vTexCoordLoc, 2, GLES20.GL_FLOAT, false, 8, texCoordBuffer)
 
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId)
+        GLES20.glBindTexture(if (isVideo) GLES11Ext.GL_TEXTURE_EXTERNAL_OES else GLES20.GL_TEXTURE_2D, textureId)
         GLES20.glUniform1i(sTextureLoc, 0)
 
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)

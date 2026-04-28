@@ -4,6 +4,7 @@ import '../../models/editor_models.dart';
 class TimelineEditor extends StatefulWidget {
   final List<Track> tracks;
   final List<Track> overlayTracks;
+  final List<Track> backgroundTracks;
   final Duration currentTime;
   final Duration totalDuration;
   final Function(Duration) onSeek;
@@ -38,8 +39,10 @@ class TimelineEditor extends StatefulWidget {
   final bool canRedo;
   final bool showTextTracks;
   final bool showOverlayTracks;
+  final bool showBackgroundTracks;
   final VoidCallback onToggleTextTracks;
   final VoidCallback onToggleOverlayTracks;
+  final VoidCallback onToggleBackgroundTracks;
   final VoidCallback? onAddKeyframe;
   final VoidCallback? onClearKeyframes;
 
@@ -47,6 +50,7 @@ class TimelineEditor extends StatefulWidget {
     super.key,
     required this.tracks,
     required this.overlayTracks,
+    required this.backgroundTracks,
     required this.currentTime,
     required this.totalDuration,
     required this.onSeek,
@@ -83,8 +87,10 @@ class TimelineEditor extends StatefulWidget {
     this.isKeyframeAtCurrentTime = false,
     this.showTextTracks = true,
     this.showOverlayTracks = true,
+    this.showBackgroundTracks = true,
     required this.onToggleTextTracks,
     required this.onToggleOverlayTracks,
+    required this.onToggleBackgroundTracks,
   });
 
   @override
@@ -130,15 +136,22 @@ class _TimelineEditorState extends State<TimelineEditor> {
                               children: [
                                 if (widget.showTextTracks) ...[
                                   _buildSectionHeader("TEXT"),
-                                  ...widget.tracks.map((track) => _buildTrackRow(track)).toList(),
+                                  ...widget.tracks.map((track) => _buildTrackRow(track)),
                                   _buildEmptySpaceDragTarget(TrackType.text),
                                 ],
                                 
                                 if (widget.showOverlayTracks) ...[
                                   const SizedBox(height: 16),
                                   _buildSectionHeader("OVERLAYS"),
-                                  ...widget.overlayTracks.map((track) => _buildTrackRow(track)).toList(),
+                                  ...widget.overlayTracks.map((track) => _buildTrackRow(track)),
                                   _buildEmptySpaceDragTarget(TrackType.overlay),
+                                ],
+                                
+                                if (widget.showBackgroundTracks) ...[
+                                  const SizedBox(height: 16),
+                                  _buildSectionHeader("BACKGROUND"),
+                                  ...widget.backgroundTracks.map((track) => _buildTrackRow(track)),
+                                  _buildEmptySpaceDragTarget(TrackType.background),
                                 ],
                                 
                                 const SizedBox(height: 100), // Buffer for scrolling
@@ -233,6 +246,8 @@ class _TimelineEditorState extends State<TimelineEditor> {
                     _buildVerticalToggle("TEXT", widget.showTextTracks, widget.onToggleTextTracks, icon: widget.showTextTracks ? Icons.visibility_rounded : Icons.visibility_off_rounded),
                     const SizedBox(width: 16),
                     _buildVerticalToggle("OVERLAY", widget.showOverlayTracks, widget.onToggleOverlayTracks, icon: widget.showOverlayTracks ? Icons.layers_rounded : Icons.layers_clear_rounded),
+                    const SizedBox(width: 16),
+                    _buildVerticalToggle("BG", widget.showBackgroundTracks, widget.onToggleBackgroundTracks, icon: widget.showBackgroundTracks ? Icons.wallpaper_rounded : Icons.image_not_supported_rounded),
                     const SizedBox(width: 16),
                     _buildVerticalToggle("UNDO", false, widget.onUndo, icon: Icons.undo_rounded, color: widget.canUndo ? Colors.white : Colors.white10),
                     const SizedBox(width: 16),
@@ -420,7 +435,10 @@ class _TimelineEditorState extends State<TimelineEditor> {
       key: trackKey,
       onWillAccept: (data) => true,
       onAcceptWithDetails: (details) {
-        widget.onMoveClip(details.data, track.id, null);
+        final RenderBox box = trackKey.currentContext!.findRenderObject() as RenderBox;
+        final localPos = box.globalToLocal(details.offset);
+        final startTime = Duration(milliseconds: (localPos.dx / _pixelsPerSecond * 1000).toInt());
+        widget.onMoveClip(details.data, track.id, startTime);
       },
       builder: (context, candidateData, rejectedData) {
         return Container(
@@ -432,9 +450,11 @@ class _TimelineEditorState extends State<TimelineEditor> {
           child: Stack(
             children: [
               if (track.type == TrackType.text)
-                ...track.clips.map((clip) => _buildClipWidget(clip)).toList()
+                ...track.clips.map((clip) => _buildClipWidget(clip))
+              else if (track.type == TrackType.overlay)
+                ...track.overlays.map((clip) => _buildClipWidget(clip))
               else
-                ...track.overlays.map((clip) => _buildClipWidget(clip)).toList(),
+                ...track.backgrounds.map((clip) => _buildClipWidget(clip)),
             ],
           ),
         );
@@ -454,7 +474,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
       width: width.clamp(20.0, double.infinity),
       child: LongPressDraggable<Object>(
         data: clip,
-        axis: Axis.vertical,
+        // Removed axis: Axis.vertical to allow horizontal dragging mode:AGENT_MODE_EXECUTION
         feedback: Material(
           color: Colors.transparent,
           child: SizedBox(
@@ -653,7 +673,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
         children: [
           Center(
             child: Text(
-              clip is SubtitleClip ? clip.text : "Overlay",
+              clip is SubtitleClip ? clip.text : (clip is OverlayClip ? "Overlay" : "Background"),
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
               style: TextStyle(
@@ -683,6 +703,22 @@ class _TimelineEditorState extends State<TimelineEditor> {
                 ),
               );
             }).toList(),
+          
+          // Loop Indicator (Dotted Line)
+          if (clip.sourceDurationMs > 0 && clip.duration.inMilliseconds > clip.sourceDurationMs)
+            ...List.generate((clip.duration.inMilliseconds / clip.sourceDurationMs).floor(), (index) {
+              if (index == 0) return const SizedBox.shrink(); // No line at the very start
+              final pos = (index * clip.sourceDurationMs / 1000) * _pixelsPerSecond;
+              return Positioned(
+                left: pos,
+                top: 0,
+                bottom: 0,
+                child: CustomPaint(
+                  size: const Size(1, double.infinity),
+                  painter: DottedLinePainter(),
+                ),
+              );
+            }),
         ],
       ),
     );
@@ -715,7 +751,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
                 TextButton.icon(
                   onPressed: () => widget.onAddTrack(type),
                   icon: const Icon(Icons.add_circle_outline_rounded, size: 14, color: Colors.white24),
-                  label: Text("ADD ${type == TrackType.text ? 'TEXT' : 'OVERLAY'} TRACK", 
+                  label: Text("ADD ${type == TrackType.text ? 'TEXT' : (type == TrackType.overlay ? 'OVERLAY' : 'BACKGROUND')} TRACK", 
                     style: const TextStyle(fontSize: 8, color: Colors.white24, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
                 ),
             ],
@@ -777,4 +813,25 @@ class RulerPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant RulerPainter oldDelegate) => 
     oldDelegate.totalDuration != totalDuration || oldDelegate.pixelsPerSecond != pixelsPerSecond;
+}
+
+class DottedLinePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withOpacity(0.5)
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke;
+
+    const dashHeight = 4;
+    const dashSpace = 4;
+    double startY = 0;
+    while (startY < size.height) {
+      canvas.drawLine(Offset(0, startY), Offset(0, startY + dashHeight), paint);
+      startY += dashHeight + dashSpace;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

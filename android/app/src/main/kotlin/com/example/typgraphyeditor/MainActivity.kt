@@ -208,6 +208,22 @@ class MainActivity : FlutterActivity() {
                     freeWhisper(ptr)
                     result.success(null)
                 }
+                "getVideoDuration" -> {
+                    val path = call.argument<String>("path") ?: ""
+                    if (path.isEmpty()) {
+                        result.success(0)
+                        return@setMethodCallHandler
+                    }
+                    try {
+                        val retriever = android.media.MediaMetadataRetriever()
+                        retriever.setDataSource(path)
+                        val duration = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
+                        retriever.release()
+                        result.success(duration?.toInt() ?: 0)
+                    } catch (e: Exception) {
+                        result.success(0)
+                    }
+                }
                 else -> result.notImplemented()
             }
         }

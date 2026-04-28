@@ -1,0 +1,37 @@
+e: file:///home/trexx/projects/typgraphyeditor/android/app/src/main/kotlin/com/example/typgraphyeditor/BackgroundRenderer.kt:145:44 Unresolved reference 'getFrame'.
+e: file:///home/trexx/projects/typgraphyeditor/android/app/src/main/kotlin/com/example/typgraphyeditor/BackgroundRenderer.kt:147:41 Unresolved reference 'width'.
+e: file:///home/trexx/projects/typgraphyeditor/android/app/src/main/kotlin/com/example/typgraphyeditor/BackgroundRenderer.kt:148:42 Unresolved reference 'height'.
+e: file:///home/trexx/projects/typgraphyeditor/android/app/src/main/kotlin/com/example/typgraphyeditor/BackgroundRenderer.kt:150:61 Argument type mismatch: actual type is 'kotlin.Any', but 'android.graphics.Bitmap!' was expected.
+e: file:///home/trexx/projects/typgraphyeditor/android/app/src/main/kotlin/com/example/typgraphyeditor/SubtitleRenderer.kt:295:71 Return type mismatch: expected 'kotlin.Unit', actual 'kotlin.Int'.
+
+FAILURE: Build completed with 2 failures.
+
+1: Task failed with an exception.
+-----------
+* What went wrong:
+Execution failed for task ':app:buildCMakeRelWithDebInfo[arm64-v8a]'.
+> com.android.ide.common.process.ProcessException: ninja: Entering directory `/home/trexx/projects/typgraphyeditor/build/.cxx/RelWithDebInfo/v1j3p3b3/arm64-v8a'
+  [1/2] Building CXX object CMakeFiles/native-lib.dir/native-lib.cpp.o
+  [2/2] Linking CXX shared library /home/trexx/projects/typgraphyeditor/build/app/intermediates/cxx/RelWithDebInfo/v1j3p3b3/obj/arm64-v8a/libnative-lib.so
+  FAILED: /home/trexx/projects/typgraphyeditor/build/app/intermediates/cxx/RelWithDebInfo/v1j3p3b3/obj/arm64-v8a/libnative-lib.so 
+  : && /home/trexx/Android/Sdk/ndk/27.3.13750724/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android21 --sysroot=/home/trexx/Android/Sdk/ndk/27.3.13750724/toolchains/llvm/prebuilt/linux-x86_64/sysroot -fPIC -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security   -O2 -g -DNDEBUG  -static-libstdc++ -Wl,--build-id=sha1 -Wl,--no-rosegment -Wl,--no-undefined-version -Wl,--fatal-warnings -Wl,--no-undefined -Qunused-arguments  -Wl,--gc-sections -shared -Wl,-soname,libnative-lib.so -o /home/trexx/projects/typgraphyeditor/build/app/intermediates/cxx/RelWithDebInfo/v1j3p3b3/obj/arm64-v8a/libnative-lib.so CMakeFiles/native-lib.dir/native-lib.cpp.o CMakeFiles/native-lib.dir/whisper-lib.cpp.o CMakeFiles/native-lib.dir/whisper-src/src/whisper.cpp.o CMakeFiles/native-lib.dir/whisper-src/ggml/src/ggml.c.o CMakeFiles/native-lib.dir/whisper-src/ggml/src/ggml-alloc.c.o CMakeFiles/native-lib.dir/whisper-src/ggml/src/ggml-backend.cpp.o CMakeFiles/native-lib.dir/whisper-src/ggml/src/ggml-quants.c.o CMakeFiles/native-lib.dir/whisper-src/ggml/src/ggml-threading.cpp.o CMakeFiles/native-lib.dir/whisper-src/ggml/src/ggml-backend-reg.cpp.o CMakeFiles/native-lib.dir/whisper-src/ggml/src/ggml-cpu/ggml-cpu.c.o CMakeFiles/native-lib.dir/whisper-src/ggml/src/ggml-cpu/ggml-cpu.cpp.o CMakeFiles/native-lib.dir/whisper-src/ggml/src/ggml-cpu/ggml-cpu-quants.c.o CMakeFiles/native-lib.dir/whisper-src/ggml/src/ggml-cpu/cpu-feats-x86.cpp.o CMakeFiles/native-lib.dir/whisper-src/ggml/src/ggml-cpu/ggml-cpu-aarch64.cpp.o CMakeFiles/native-lib.dir/whisper-src/ggml/src/ggml-cpu/ggml-cpu-traits.cpp.o  /home/trexx/projects/typgraphyeditor/android/app/src/main/cpp/../jniLibs/arm64-v8a/libavformat.so  /home/trexx/projects/typgraphyeditor/android/app/src/main/cpp/../jniLibs/arm64-v8a/libavcodec.so  /home/trexx/projects/typgraphyeditor/android/app/src/main/cpp/../jniLibs/arm64-v8a/libavutil.so  /home/trexx/projects/typgraphyeditor/android/app/src/main/cpp/../jniLibs/arm64-v8a/libswresample.so  /home/trexx/projects/typgraphyeditor/android/app/src/main/cpp/../jniLibs/arm64-v8a/libswscale.so  -ljnigraphics  /home/trexx/Android/Sdk/ndk/27.3.13750724/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/21/liblog.so  -latomic -lm && :
+  ld.lld: error: undefined symbol: glBindTexture
+  >>> referenced by native-lib.cpp:112 (/home/trexx/projects/typgraphyeditor/android/app/src/main/cpp/native-lib.cpp:112)
+  >>>               CMakeFiles/native-lib.dir/native-lib.cpp.o:(FFmpegFrameExtractor::updateTexture(long, int, int, int))
+
+  ld.lld: error: undefined symbol: glTexSubImage2D
+  >>> referenced by native-lib.cpp:113 (/home/trexx/projects/typgraphyeditor/android/app/src/main/cpp/native-lib.cpp:113)
+  >>>               CMakeFiles/native-lib.dir/native-lib.cpp.o:(FFmpegFrameExtractor::updateTexture(long, int, int, int))
+  clang++: error: linker command failed with exit code 1 (use -v to see invocation)
+  ninja: build stopped: subcommand failed.
+
+  C++ build system [build] failed while executing:
+      /home/trexx/Android/Sdk/cmake/3.22.1/bin/ninja \
+        -C \
+        /home/trexx/projects/typgraphyeditor/build/.cxx/RelWithDebInfo/v1j3p3b3/arm64-v8a \
+        native-lib
+    from /home/trexx/projects/typgraphyeditor/android/app
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log outpu

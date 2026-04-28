@@ -162,4 +162,13 @@ class NativeBridge {
       print("Failed to free whisper: '${e.message}'.");
     }
   }
+
+  Future<int> getVideoDuration(String path) async {
+    try {
+      final int duration = await _channel.invokeMethod('getVideoDuration', {'path': path});
+      return duration;
+    } catch (e) {
+      return 0;
+    }
+  }
 }

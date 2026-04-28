@@ -743,6 +743,7 @@ class _EditorScreenState extends State<EditorScreen> {
                 TimelineEditor(
                 tracks: provider.tracks,
                 overlayTracks: provider.overlayTracks,
+                backgroundTracks: provider.backgroundTracks,
                 currentTime: provider.currentTime,
                 totalDuration: provider.totalDuration,
                 isPlaying: provider.isPlaying,
@@ -779,8 +780,10 @@ class _EditorScreenState extends State<EditorScreen> {
                 isKeyframeAtCurrentTime: provider.isKeyframeAtCurrentTime,
                 showTextTracks: provider.showTextTracks,
                 showOverlayTracks: provider.showOverlayTracks,
+                showBackgroundTracks: provider.showBackgroundTracks,
                 onToggleTextTracks: provider.toggleTextTracks,
                 onToggleOverlayTracks: provider.toggleOverlayTracks,
+                onToggleBackgroundTracks: provider.toggleBackgroundTracks,
               )
             else
               Expanded(
@@ -788,6 +791,7 @@ class _EditorScreenState extends State<EditorScreen> {
                 child: TimelineEditor(
                   tracks: provider.tracks,
                   overlayTracks: provider.overlayTracks,
+                  backgroundTracks: provider.backgroundTracks,
                   currentTime: provider.currentTime,
                   totalDuration: provider.totalDuration,
                   isPlaying: provider.isPlaying,
@@ -824,8 +828,10 @@ class _EditorScreenState extends State<EditorScreen> {
                   isKeyframeAtCurrentTime: provider.isKeyframeAtCurrentTime,
                   showTextTracks: provider.showTextTracks,
                   showOverlayTracks: provider.showOverlayTracks,
+                  showBackgroundTracks: provider.showBackgroundTracks,
                   onToggleTextTracks: provider.toggleTextTracks,
                   onToggleOverlayTracks: provider.toggleOverlayTracks,
+                  onToggleBackgroundTracks: provider.toggleBackgroundTracks,
                 ),
               ),
             if (provider.isTimelineCollapsed)
