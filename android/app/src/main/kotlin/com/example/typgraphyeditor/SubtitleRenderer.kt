@@ -1,0 +1,729 @@
+package com.example.typgraphyeditor
+
+import android.graphics.*
+import android.opengl.*
+import android.graphics.BitmapFactory
+import android.util.Log
+
+class SubtitleRenderer(private var width: Int, private var height: Int) {
+    private val gifCache = mutableMapOf<String, GifData>()
+    private val hwVideoDecoderCache = mutableMapOf<String, HardwareVideoDecoder>()
+    private val textureCache = mutableMapOf<String, Int>()
+    private val dimensionCache = mutableMapOf<String, Pair<Int, Int>>()
+    
+    private val textTextureCache = mutableMapOf<String, CachedTextTexture>()
+    private val prevPositionMap = mutableMapOf<String, PointF>()
+    
+    private val vertexBuffer: java.nio.FloatBuffer
+    
+    init {
+        val vertices = floatArrayOf(
+            -0.5f,  0.5f, 0f, 0f, 0f,
+            -0.5f, -0.5f, 0f, 0f, 1f,
+             0.5f,  0.5f, 0f, 1f, 0f,
+             0.5f, -0.5f, 0f, 1f, 1f
+        )
+        vertexBuffer = java.nio.ByteBuffer.allocateDirect(vertices.size * 4)
+            .order(java.nio.ByteOrder.nativeOrder())
+            .asFloatBuffer()
+            .put(vertices)
+        vertexBuffer.position(0)
+    }
+
+    class GifData(
+        val movie: android.graphics.Movie,
+        val bitmap: Bitmap,
+        val canvas: android.graphics.Canvas
+    )
+
+    class CachedTextTexture(
+        val textureId: Int,
+        val width: Int,
+        val height: Int,
+        var lastUsed: Long
+    )
+
+    fun updateSize(newWidth: Int, newHeight: Int) {
+        width = newWidth
+        height = newHeight
+    }
+    
+    private var program: Int = 0
+    private var programOES: Int = 0
+    
+    private var vPositionLoc: Int = 0
+    private var vTexCoordLoc: Int = 0
+    private var uMVPMatrixLoc: Int = 0
+    private var sTextureLoc: Int = 0
+    private var vColorLoc: Int = 0
+    private var uBlurVectorLoc: Int = 0
+    private var uEffectModeLoc: Int = 0
+    private var uEffectColorLoc: Int = 0
+    private var uTexelSizeLoc: Int = 0
+    private var uStrokeWidthLoc: Int = 0
+    private var uShadowBlurLoc: Int = 0
+    
+    private var vPositionOESLoc: Int = 0
+    private var vTexCoordOESLoc: Int = 0
+    private var uMVPMatrixOESLoc: Int = 0
+    private var sTextureOESLoc: Int = 0
+    private var vColorOESLoc: Int = 0
+    private var uEffectModeOESLoc: Int = 0
+    private var uEffectColorOESLoc: Int = 0
+    private var uTexelSizeOESLoc: Int = 0
+    private var uStrokeWidthOESLoc: Int = 0
+    private var uShadowBlurOESLoc: Int = 0
+    
+    private var uTypewriterProgressLoc: Int = 0
+
+    private val vertexShaderCode = """
+        attribute vec4 vPosition;
+        attribute vec2 vTexCoord;
+        uniform mat4 uMVPMatrix;
+        varying vec2 fTexCoord;
+        varying vec2 fTypewriterCoord;
+        void main() {
+            gl_Position = uMVPMatrix * vPosition;
+            fTexCoord = vTexCoord;
+            fTypewriterCoord = vTexCoord;
+        }
+    """.trimIndent()
+
+    private val fragmentShaderCode = """
+        precision mediump float;
+        varying vec2 fTexCoord;
+        varying vec2 fTypewriterCoord;
+        uniform sampler2D sTexture;
+        uniform vec4 vColor;
+        uniform vec2 uBlurVector;
+        
+        uniform int uEffectMode; 
+        uniform vec4 uEffectColor;
+        uniform vec2 uTexelSize;
+        uniform float uStrokeWidth;
+        uniform float uShadowBlur;
+        uniform float uTypewriterProgress;
+
+        void main() {
+            if (fTypewriterCoord.x > uTypewriterProgress) discard;
+            
+            vec4 texColor;
+            if (length(uBlurVector) < 0.001) {
+                texColor = texture2D(sTexture, fTexCoord);
+            } else {
+                vec4 accum = vec4(0.0);
+                float samples = 5.0;
+                for (float i = 0.0; i < 5.0; i += 1.0) {
+                    float offset = (i / (samples - 1.0)) - 0.5;
+                    accum += texture2D(sTexture, fTexCoord + uBlurVector * offset);
+                }
+                texColor = accum / samples;
+            }
+
+            if (uEffectMode == 1) { // Shadow mode
+                float accumAlpha = 0.0;
+                float totalWeight = 0.0;
+                float blurRadius = uShadowBlur * 0.4; 
+                for (float x = -1.0; x <= 1.0; x += 1.0) {
+                    for (float y = -1.0; y <= 1.0; y += 1.0) {
+                        float weight = 1.0 / (1.0 + x*x + y*y);
+                        vec2 offset = vec2(x, y) * blurRadius * uTexelSize;
+                        accumAlpha += texture2D(sTexture, fTexCoord + offset).a * weight;
+                        totalWeight += weight;
+                    }
+                }
+                float avgAlpha = accumAlpha / totalWeight;
+                if (avgAlpha < 0.01) discard;
+                gl_FragColor = vec4(uEffectColor.rgb, avgAlpha * uEffectColor.a * vColor.a);
+            } else if (uEffectMode == 2) { // Stroke mode
+                if (texColor.a > 0.8) discard; 
+                
+                float maxAlpha = 0.0;
+                // Optimized 8-sample stroke
+                for (int i = 0; i < 8; i++) {
+                    float a = float(i) * 0.78539; // 45 degrees
+                    vec2 offset = vec2(cos(a), sin(a)) * uStrokeWidth * uTexelSize;
+                    maxAlpha = max(maxAlpha, texture2D(sTexture, fTexCoord + offset).a);
+                }
+                
+                if (maxAlpha < 0.01) discard;
+                gl_FragColor = vec4(uEffectColor.rgb, maxAlpha * uEffectColor.a * vColor.a);
+            } else { 
+                if (texColor.a < 0.01) discard;
+                gl_FragColor = texColor * vColor;
+            }
+        }
+    """.trimIndent()
+
+    private val fragmentShaderOESCode = """
+        #extension GL_OES_EGL_image_external : require
+        precision mediump float;
+        varying vec2 fTexCoord;
+        uniform samplerExternalOES sTexture;
+        uniform vec4 vColor;
+        
+        uniform int uEffectMode; 
+        uniform vec4 uEffectColor;
+        uniform vec2 uTexelSize;
+        uniform float uStrokeWidth;
+        uniform float uShadowBlur;
+
+        void main() {
+            vec4 texColor = texture2D(sTexture, fTexCoord);
+            
+            if (uEffectMode == 1) { // Shadow mode
+                float accumAlpha = 0.0;
+                float totalWeight = 0.0;
+                float blurRadius = uShadowBlur * 0.4; 
+                for (float x = -1.0; x <= 1.0; x += 1.0) {
+                    for (float y = -1.0; y <= 1.0; y += 1.0) {
+                        float weight = 1.0 / (1.0 + x*x + y*y);
+                        vec2 offset = vec2(x, y) * blurRadius * uTexelSize;
+                        accumAlpha += texture2D(sTexture, fTexCoord + offset).a * weight;
+                        totalWeight += weight;
+                    }
+                }
+                float avgAlpha = accumAlpha / totalWeight;
+                if (avgAlpha < 0.01) discard;
+                gl_FragColor = vec4(uEffectColor.rgb, avgAlpha * uEffectColor.a * vColor.a);
+            } else if (uEffectMode == 2) { // Stroke mode
+                if (texColor.a > 0.8) discard; 
+                
+                float maxAlpha = 0.0;
+                for (int i = 0; i < 8; i++) {
+                    float a = float(i) * 0.78539;
+                    vec2 offset = vec2(cos(a), sin(a)) * uStrokeWidth * uTexelSize;
+                    maxAlpha = max(maxAlpha, texture2D(sTexture, fTexCoord + offset).a);
+                }
+                
+                if (maxAlpha < 0.01) discard;
+                gl_FragColor = vec4(uEffectColor.rgb, maxAlpha * uEffectColor.a * vColor.a);
+            } else { 
+                if (texColor.a < 0.01) discard;
+                gl_FragColor = texColor * vColor;
+            }
+        }
+    """.trimIndent()
+
+    fun init() {
+        val vertexShader = loadShader(GLES20.GL_VERTEX_SHADER, vertexShaderCode)
+        val fragmentShader = loadShader(GLES20.GL_FRAGMENT_SHADER, fragmentShaderCode)
+        program = GLES20.glCreateProgram()
+        GLES20.glAttachShader(program, vertexShader)
+        GLES20.glAttachShader(program, fragmentShader)
+        GLES20.glLinkProgram(program)
+        
+        val fragmentShaderOES = loadShader(GLES20.GL_FRAGMENT_SHADER, fragmentShaderOESCode)
+        programOES = GLES20.glCreateProgram()
+        GLES20.glAttachShader(programOES, vertexShader)
+        GLES20.glAttachShader(programOES, fragmentShaderOES)
+        GLES20.glLinkProgram(programOES)
+        
+        vPositionLoc = GLES20.glGetAttribLocation(program, "vPosition")
+        vTexCoordLoc = GLES20.glGetAttribLocation(program, "vTexCoord")
+        uMVPMatrixLoc = GLES20.glGetUniformLocation(program, "uMVPMatrix")
+        sTextureLoc = GLES20.glGetUniformLocation(program, "sTexture")
+        vColorLoc = GLES20.glGetUniformLocation(program, "vColor")
+        uBlurVectorLoc = GLES20.glGetUniformLocation(program, "uBlurVector")
+        uEffectModeLoc = GLES20.glGetUniformLocation(program, "uEffectMode")
+        uEffectColorLoc = GLES20.glGetUniformLocation(program, "uEffectColor")
+        uTexelSizeLoc = GLES20.glGetUniformLocation(program, "uTexelSize")
+        uStrokeWidthLoc = GLES20.glGetUniformLocation(program, "uStrokeWidth")
+        uShadowBlurLoc = GLES20.glGetUniformLocation(program, "uShadowBlur")
+        uTypewriterProgressLoc = GLES20.glGetUniformLocation(program, "uTypewriterProgress")
+        
+        vPositionOESLoc = GLES20.glGetAttribLocation(programOES, "vPosition")
+        vTexCoordOESLoc = GLES20.glGetAttribLocation(programOES, "vTexCoord")
+        uMVPMatrixOESLoc = GLES20.glGetUniformLocation(programOES, "uMVPMatrix")
+        sTextureOESLoc = GLES20.glGetUniformLocation(programOES, "sTexture")
+        vColorOESLoc = GLES20.glGetUniformLocation(programOES, "vColor")
+        uEffectModeOESLoc = GLES20.glGetUniformLocation(programOES, "uEffectMode")
+        uEffectColorOESLoc = GLES20.glGetUniformLocation(programOES, "uEffectColor")
+        uTexelSizeOESLoc = GLES20.glGetUniformLocation(programOES, "uTexelSize")
+        uStrokeWidthOESLoc = GLES20.glGetUniformLocation(programOES, "uStrokeWidth")
+        uShadowBlurOESLoc = GLES20.glGetUniformLocation(programOES, "uShadowBlur")
+
+        GLES20.glEnable(GLES20.GL_BLEND)
+        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+    }
+
+    private var currentActiveProgram: Int = -1
+    private fun useProgram(isOES: Boolean) {
+        val p = if (isOES) programOES else program
+        if (p != currentActiveProgram) {
+            GLES20.glUseProgram(p)
+            currentActiveProgram = p
+        }
+    }
+
+    private fun loadShader(type: Int, shaderCode: String): Int {
+        val shader = GLES20.glCreateShader(type)
+        GLES20.glShaderSource(shader, shaderCode)
+        GLES20.glCompileShader(shader)
+        return shader
+    }
+
+    private fun setBlendMode(mode: Int) {
+        GLES20.glBlendEquation(GLES20.GL_FUNC_ADD) // Default
+        when (mode) {
+            0 -> GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA) // Normal
+            1 -> GLES20.glBlendFunc(GLES20.GL_DST_COLOR, GLES20.GL_ONE_MINUS_SRC_ALPHA) // Multiply
+            2 -> GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_COLOR) // Screen
+            // Note: Advanced modes like Overlay/Dodge/Burn require shader-based blending 
+            // which needs frame-buffer access or a more complex multi-pass setup.
+            else -> GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+        }
+    }
+
+    fun drawTextClip(
+        clip: SubtitleClip,
+        animState: AnimatedTextState = AnimatedTextState(),
+        assetManager: android.content.res.AssetManager? = null
+    ) {
+        if (animState.opacity <= 0f) return
+
+        if (clip.text.isEmpty()) return
+
+        // Cache the raw text bitmap, but handle typewriter in shader
+        val cacheKey = "${clip.id}_${clip.text}_${clip.fontSize}_${clip.fontFamily}_${clip.color}"
+        
+        val cached = textTextureCache[cacheKey]
+        val textureId: Int
+        val bmpWidth: Int
+        val bmpHeight: Int
+
+        if (cached != null) {
+            textureId = cached.textureId
+            bmpWidth = cached.width
+            bmpHeight = cached.height
+            cached.lastUsed = System.currentTimeMillis()
+        } else {
+            val paint = Paint().apply {
+                isAntiAlias = true
+                textSize = clip.fontSize
+                color = Color.WHITE
+                textAlign = Paint.Align.CENTER
+                letterSpacing = clip.letterSpacing / clip.fontSize
+                if (assetManager != null) {
+                    typeface = FontManager.getTypeface(assetManager, clip.fontFamily)
+                }
+            }
+
+            val bounds = Rect()
+            paint.getTextBounds(clip.text, 0, clip.text.length, bounds)
+            
+            val hPadding = (clip.shadowBlur + Math.abs(clip.shadowOffsetX) + 30f).coerceAtLeast(30f)
+            val vPadding = (clip.shadowBlur + Math.abs(clip.shadowOffsetY) + 30f).coerceAtLeast(30f)
+
+            bmpWidth = (bounds.width() + hPadding * 2).toInt()
+            bmpHeight = (bounds.height() + vPadding * 2).toInt()
+            
+            if (bmpWidth <= 0 || bmpHeight <= 0) return
+
+            val bitmap = Bitmap.createBitmap(bmpWidth, bmpHeight, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+
+            if (clip.isBackgroundEnabled && Color.alpha(clip.backgroundColor) > 0) {
+                val bgPaint = Paint().apply {
+                    isAntiAlias = true
+                    color = clip.backgroundColor
+                    style = Paint.Style.FILL
+                }
+                val rect = RectF(hPadding - 15f, vPadding - 5f, hPadding + bounds.width() + 15f, vPadding + bounds.height() + 5f)
+                canvas.drawRoundRect(rect, clip.backgroundRadius, clip.backgroundRadius, bgPaint)
+            }
+
+            if (clip.isShadowEnabled && Color.alpha(clip.shadowColor) > 0) {
+                // Android's setShadowLayer requires a radius > 0 to show anything.
+                // We use 0.1f as a minimum for "hard" shadows.
+                val radius = if (clip.shadowBlur <= 0f) 0.1f else clip.shadowBlur
+                paint.setShadowLayer(radius, clip.shadowOffsetX, clip.shadowOffsetY, clip.shadowColor)
+            }
+
+            val textCenterX = bmpWidth / 2f
+            val textBaselineY = (bmpHeight / 2f) - ((bounds.top + bounds.bottom) / 2f)
+
+            if (clip.strokeWidth > 0f) {
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = clip.strokeWidth
+                paint.strokeJoin = Paint.Join.ROUND
+                paint.strokeCap = Paint.Cap.ROUND
+                paint.color = clip.strokeColor
+                canvas.drawText(clip.text, textCenterX, textBaselineY, paint)
+                
+                paint.style = Paint.Style.FILL
+                val fillAlpha = (Color.alpha(clip.color) * clip.textOpacity).toInt()
+                paint.color = Color.argb(fillAlpha, Color.red(clip.color), Color.green(clip.color), Color.blue(clip.color))
+                canvas.drawText(clip.text, textCenterX, textBaselineY, paint)
+            } else {
+                paint.style = Paint.Style.FILL
+                val fillAlpha = (Color.alpha(clip.color) * clip.textOpacity).toInt()
+                paint.color = Color.argb(fillAlpha, Color.red(clip.color), Color.green(clip.color), Color.blue(clip.color))
+                canvas.drawText(clip.text, textCenterX, textBaselineY, paint)
+            }
+
+            val textures = IntArray(1)
+            GLES20.glGenTextures(1, textures, 0)
+            textureId = textures[0]
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
+            GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bitmap, 0)
+            
+            bitmap.recycle()
+            textTextureCache[cacheKey] = CachedTextTexture(textureId, bmpWidth, bmpHeight, System.currentTimeMillis())
+        }
+
+        // Calculate Motion Blur Vector
+        val finalX = (clip.x + animState.offsetX)
+        val finalY = (clip.y + animState.offsetY)
+        val prevPos = prevPositionMap[clip.id]
+        val blurX: Float
+        val blurY: Float
+        
+        if (prevPos != null) {
+            // Intensity of blur based on screen distance
+            val sensitivity = 0.5f 
+            blurX = (finalX - prevPos.x) * sensitivity
+            blurY = (finalY - prevPos.y) * sensitivity
+        } else {
+            blurX = 0f
+            blurY = 0f
+        }
+        prevPositionMap[clip.id] = PointF(finalX, finalY)
+
+        useProgram(false)
+
+        val aspect = width.toFloat() / height.toFloat()
+        val mvpMatrix = FloatArray(16)
+        val projection = FloatArray(16)
+        android.opengl.Matrix.orthoM(projection, 0, -aspect, aspect, -1f, 1f, -1f, 1f)
+        
+        val model = FloatArray(16)
+        android.opengl.Matrix.setIdentityM(model, 0)
+        
+        val glX = (finalX * 2 - 1) * aspect
+        val glY = -(finalY * 2 - 1)
+        android.opengl.Matrix.translateM(model, 0, glX, glY, 0f)
+        
+        val totalRotation = clip.rotation + animState.rotation
+        if (totalRotation != 0f) {
+            android.opengl.Matrix.rotateM(model, 0, totalRotation, 0f, 0f, 1f)
+        }
+        
+        val finalScale = clip.scale * animState.scale
+        val logW = (bmpWidth.toFloat() / height) * 2 * finalScale * animState.scaleX
+        val logH = (bmpHeight.toFloat() / height) * 2 * finalScale * animState.scaleY
+        android.opengl.Matrix.scaleM(model, 0, logW, logH, 1f)
+        
+        android.opengl.Matrix.multiplyMM(mvpMatrix, 0, projection, 0, model, 0)
+        useProgram(false)
+        
+        GLES20.glUniform1f(uTypewriterProgressLoc, animState.typewriterProgress)
+        GLES20.glUniform2f(uTexelSizeLoc, 1f / bmpWidth, 1f / bmpHeight)
+
+        GLES20.glUniformMatrix4fv(uMVPMatrixLoc, 1, false, mvpMatrix, 0)
+        
+        // Pass Motion Blur Vector
+        GLES20.glUniform2f(uBlurVectorLoc, blurX, blurY)
+        
+        setBlendMode(clip.blendMode.ordinal)
+
+        vertexBuffer.position(0)
+        GLES20.glVertexAttribPointer(vPositionLoc, 3, GLES20.GL_FLOAT, false, 5 * 4, vertexBuffer)
+        GLES20.glEnableVertexAttribArray(vPositionLoc)
+        
+        vertexBuffer.position(3)
+        GLES20.glVertexAttribPointer(vTexCoordLoc, 2, GLES20.GL_FLOAT, false, 5 * 4, vertexBuffer)
+        GLES20.glEnableVertexAttribArray(vTexCoordLoc)
+
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId)
+        GLES20.glUniform1i(sTextureLoc, 0)
+
+        // Pass 1: Shadow
+        if (clip.isShadowEnabled && Color.alpha(clip.shadowColor) > 0) {
+            val shadowMVP = FloatArray(16)
+            val shadowModel = FloatArray(16)
+            android.opengl.Matrix.setIdentityM(shadowModel, 0)
+            
+            val shadowGlX = glX + (clip.shadowOffsetX / width) * 2 * aspect
+            val shadowGlY = glY - (clip.shadowOffsetY / height) * 2
+            android.opengl.Matrix.translateM(shadowModel, 0, shadowGlX, shadowGlY, 0f)
+            
+            if (totalRotation != 0f) {
+                android.opengl.Matrix.rotateM(shadowModel, 0, totalRotation, 0f, 0f, 1f)
+            }
+            
+            android.opengl.Matrix.scaleM(shadowModel, 0, logW, logH, 1f)
+            android.opengl.Matrix.multiplyMM(shadowMVP, 0, projection, 0, shadowModel, 0)
+            
+            GLES20.glUniformMatrix4fv(uMVPMatrixLoc, 1, false, shadowMVP, 0)
+            GLES20.glUniform1i(uEffectModeLoc, 1) // Shadow Mode
+            GLES20.glUniform1f(uShadowBlurLoc, clip.shadowBlur)
+            
+            val sc = clip.shadowColor
+            GLES20.glUniform4f(uEffectColorLoc, (sc shr 16 and 0xFF)/255f, (sc shr 8 and 0xFF)/255f, (sc and 0xFF)/255f, (sc shr 24 and 0xFF)/255f)
+            
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+        }
+
+        // Pass 2: Stroke
+        if (clip.isStrokeEnabled && clip.strokeWidth > 0f) {
+            GLES20.glUniformMatrix4fv(uMVPMatrixLoc, 1, false, mvpMatrix, 0)
+            GLES20.glUniform1i(uEffectModeLoc, 2) // Stroke Mode
+            GLES20.glUniform1f(uStrokeWidthLoc, clip.strokeWidth)
+            
+            val sc = clip.strokeColor
+            GLES20.glUniform4f(uEffectColorLoc, (sc shr 16 and 0xFF)/255f, (sc shr 8 and 0xFF)/255f, (sc and 0xFF)/255f, (sc shr 24 and 0xFF)/255f)
+            
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+        }
+
+        // Pass 3: Main Text
+        GLES20.glUniformMatrix4fv(uMVPMatrixLoc, 1, false, mvpMatrix, 0)
+        GLES20.glUniform1i(uEffectModeLoc, 0) // Normal Mode
+        
+        val tc = clip.color
+        val a = ((tc shr 24 and 0xFF) / 255f) * clip.opacity * animState.opacity * clip.textOpacity
+        GLES20.glUniform4f(vColorLoc, (tc shr 16 and 0xFF)/255f, (tc shr 8 and 0xFF)/255f, (tc and 0xFF)/255f, a)
+        
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+        
+        setBlendMode(0) // Reset to Normal
+        
+        // Don't delete texture here, it's cached!
+    }
+
+    fun drawImageClip(
+        clip: SubtitleClip,
+        animState: AnimatedTextState = AnimatedTextState(),
+        currentTimeMs: Long = 0L,
+        timeoutUs: Long = 0
+    ) {
+        val path = clip.imagePath ?: return
+        if (animState.opacity <= 0f) return
+
+        val lowerPath = path.lowercase()
+        var textureId = -1
+        var bmpWidth = 1280
+        var bmpHeight = 720
+        var isCached = false
+        var isOES = false
+
+        if (lowerPath.endsWith(".gif")) {
+            val gif = gifCache.getOrPut(path) {
+                val movie = android.graphics.Movie.decodeFile(path) ?: return
+                val w = if (movie.width() > 0) movie.width() else 512
+                val h = if (movie.height() > 0) movie.height() else 512
+                val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                val canvas = android.graphics.Canvas(bmp)
+                GifData(movie, bmp, canvas)
+            }
+            
+            val duration = gif.movie.duration()
+            val time = if (duration > 0) (currentTimeMs % duration).toInt() else 0
+            
+            // Only update GIF texture if time changed enough
+            val lastGifTime = textureCache["gif_time_${path}"] ?: -1
+            if (time != lastGifTime) {
+                gif.movie.setTime(time)
+                gif.bitmap.eraseColor(Color.TRANSPARENT)
+                gif.movie.draw(gif.canvas, 0f, 0f)
+                
+                var tex = textureCache["gif_tex_${path}"] ?: 0
+                if (tex == 0) {
+                    val t = IntArray(1)
+                    GLES20.glGenTextures(1, t, 0)
+                    tex = t[0]
+                    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, tex)
+                    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
+                    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
+                    textureCache["gif_tex_${path}"] = tex
+                }
+                
+                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, tex)
+                GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, gif.bitmap, 0)
+                textureCache["gif_time_${path}"] = time
+                textureId = tex
+            } else {
+                textureId = textureCache["gif_tex_${path}"] ?: 0
+            }
+            
+            bmpWidth = gif.bitmap.width
+            bmpHeight = gif.bitmap.height
+            isCached = true // Now it's cached!
+        } else if (lowerPath.endsWith(".mp4") || lowerPath.endsWith(".mov") || lowerPath.endsWith(".mkv") || lowerPath.endsWith(".webm")) {
+            val cacheKey = "${clip.id}_$path"
+            val decoder = hwVideoDecoderCache.getOrPut(cacheKey) {
+                HardwareVideoDecoder().apply { init(path) }
+            }
+            
+            val rawTime = (currentTimeMs - clip.startTime).coerceAtLeast(0)
+            val duration = decoder.getDurationMs()
+            val clipTime = if (duration > 0) rawTime % duration else rawTime
+            decoder.updateFrame(clipTime, timeoutUs)
+            
+            textureId = decoder.getTextureId()
+            bmpWidth = decoder.getWidth()
+            bmpHeight = decoder.getHeight()
+            isCached = true
+            isOES = true
+        } else {
+            textureId = textureCache.getOrPut(path) {
+                val bitmap = BitmapFactory.decodeFile(path) ?: return@getOrPut 0
+                val tex = IntArray(1)
+                GLES20.glGenTextures(1, tex, 0)
+                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, tex[0])
+                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
+                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
+                GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bitmap, 0)
+                dimensionCache[path] = Pair(bitmap.width, bitmap.height)
+                bitmap.recycle()
+                tex[0]
+            }
+            val dims = dimensionCache[path] ?: Pair(1280, 720)
+            bmpWidth = dims.first
+            bmpHeight = dims.second
+            isCached = true
+            isOES = false
+        }
+
+        useProgram(isOES)
+        
+        val uMVP = if (isOES) uMVPMatrixOESLoc else uMVPMatrixLoc
+        val sTex = if (isOES) sTextureOESLoc else sTextureLoc
+        val vCol = if (isOES) vColorOESLoc else vColorLoc
+        val uMode = if (isOES) uEffectModeOESLoc else uEffectModeLoc
+        val uECol = if (isOES) uEffectColorOESLoc else uEffectColorLoc
+        val uTSize = if (isOES) uTexelSizeOESLoc else uTexelSizeLoc
+        val uSWidth = if (isOES) uStrokeWidthOESLoc else uStrokeWidthLoc
+        val uSBlur = if (isOES) uShadowBlurOESLoc else uShadowBlurLoc
+        val vPos = if (isOES) vPositionOESLoc else vPositionLoc
+        val vTex = if (isOES) vTexCoordOESLoc else vTexCoordLoc
+
+        GLES20.glUniform2f(uTSize, 1f / bmpWidth, 1f / bmpHeight)
+        
+        if (!isOES) {
+            GLES20.glUniform2f(uBlurVectorLoc, 0f, 0f) 
+        }
+
+        val aspect = width.toFloat() / height.toFloat()
+        val mvpMatrix = FloatArray(16)
+        val projection = FloatArray(16)
+        android.opengl.Matrix.orthoM(projection, 0, -aspect, aspect, -1f, 1f, -1f, 1f)
+        
+        val model = FloatArray(16)
+        android.opengl.Matrix.setIdentityM(model, 0)
+        
+        val glX = ((clip.x + animState.offsetX) * 2 - 1) * aspect
+        val glY = -((clip.y + animState.offsetY) * 2 - 1)
+        android.opengl.Matrix.translateM(model, 0, glX, glY, 0f)
+        
+        val totalRotation = clip.rotation + animState.rotation
+        if (totalRotation != 0f) {
+            android.opengl.Matrix.rotateM(model, 0, totalRotation, 0f, 0f, 1f)
+        }
+        
+        val finalScale = clip.scale * animState.scale
+        val imgAspect = bmpWidth.toFloat() / bmpHeight.toFloat().coerceAtLeast(1f)
+        
+        val logW = (2f * imgAspect) * finalScale * animState.scaleX
+        val logH = 2f * finalScale * animState.scaleY
+        
+        val a = clip.opacity * animState.opacity
+        GLES20.glUniform4f(vCol, 1f, 1f, 1f, a)
+
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+        GLES20.glBindTexture(if (isOES) android.opengl.GLES11Ext.GL_TEXTURE_EXTERNAL_OES else GLES20.GL_TEXTURE_2D, textureId)
+        GLES20.glUniform1i(sTex, 0)
+
+        vertexBuffer.position(0)
+        GLES20.glVertexAttribPointer(vPos, 3, GLES20.GL_FLOAT, false, 5 * 4, vertexBuffer)
+        GLES20.glEnableVertexAttribArray(vPos)
+        vertexBuffer.position(3)
+        GLES20.glVertexAttribPointer(vTex, 2, GLES20.GL_FLOAT, false, 5 * 4, vertexBuffer)
+        GLES20.glEnableVertexAttribArray(vTex)
+
+        // Pass 1: Shadow
+        if (clip.isShadowEnabled && Color.alpha(clip.shadowColor) > 0) {
+            val shadowModel = FloatArray(16)
+            android.opengl.Matrix.setIdentityM(shadowModel, 0)
+            
+            val shadowGlX = glX + (clip.shadowOffsetX / width) * 2 * aspect
+            val shadowGlY = glY - (clip.shadowOffsetY / height) * 2
+            android.opengl.Matrix.translateM(shadowModel, 0, shadowGlX, shadowGlY, 0f)
+            
+            if (totalRotation != 0f) {
+                android.opengl.Matrix.rotateM(shadowModel, 0, totalRotation, 0f, 0f, 1f)
+            }
+            
+            android.opengl.Matrix.scaleM(shadowModel, 0, logW, logH, 1f)
+            
+            val shadowMVP = FloatArray(16)
+            android.opengl.Matrix.multiplyMM(shadowMVP, 0, projection, 0, shadowModel, 0)
+            
+            GLES20.glUniformMatrix4fv(uMVP, 1, false, shadowMVP, 0)
+            GLES20.glUniform1i(uMode, 1) // Shadow Mode
+            GLES20.glUniform1f(uSBlur, clip.shadowBlur)
+            
+            val sc = clip.shadowColor
+            GLES20.glUniform4f(uECol, (sc shr 16 and 0xFF)/255f, (sc shr 8 and 0xFF)/255f, (sc and 0xFF)/255f, (sc shr 24 and 0xFF)/255f)
+            
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+        }
+
+        // Pass 2: Stroke
+        if (clip.isStrokeEnabled && clip.strokeWidth > 0f) {
+            val strokeMVP = FloatArray(16)
+            val strokeModel = FloatArray(16)
+            android.opengl.Matrix.setIdentityM(strokeModel, 0)
+            android.opengl.Matrix.translateM(strokeModel, 0, glX, glY, 0f)
+            if (totalRotation != 0f) {
+                android.opengl.Matrix.rotateM(strokeModel, 0, totalRotation, 0f, 0f, 1f)
+            }
+            android.opengl.Matrix.scaleM(strokeModel, 0, logW, logH, 1f)
+            android.opengl.Matrix.multiplyMM(strokeMVP, 0, projection, 0, strokeModel, 0)
+            
+            GLES20.glUniformMatrix4fv(uMVP, 1, false, strokeMVP, 0)
+            GLES20.glUniform1i(uMode, 2) // Stroke Mode
+            GLES20.glUniform1f(uSWidth, clip.strokeWidth)
+            
+            val sc = clip.strokeColor
+            GLES20.glUniform4f(uECol, (sc shr 16 and 0xFF)/255f, (sc shr 8 and 0xFF)/255f, (sc and 0xFF)/255f, (sc shr 24 and 0xFF)/255f)
+            
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+        }
+
+        // Pass 3: Main image
+        android.opengl.Matrix.scaleM(model, 0, logW, logH, 1f)
+        android.opengl.Matrix.multiplyMM(mvpMatrix, 0, projection, 0, model, 0)
+        GLES20.glUniformMatrix4fv(uMVP, 1, false, mvpMatrix, 0)
+        GLES20.glUniform1i(uMode, 0) // Normal Mode
+        
+        if (clip is SubtitleClip) {
+            setBlendMode(clip.blendMode.ordinal)
+        }
+        
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+        
+        if (clip is SubtitleClip) {
+            setBlendMode(0) // Reset
+        }
+        if (!isCached) {
+            GLES20.glDeleteTextures(1, intArrayOf(textureId), 0)
+        }
+    }
+
+    fun clearCache() {
+        gifCache.forEach { (_, gif) -> gif.bitmap.recycle() }
+        gifCache.clear()
+        hwVideoDecoderCache.forEach { (_, decoder) -> decoder.release() }
+        hwVideoDecoderCache.clear()
+        textureCache.forEach { (_, id) -> GLES20.glDeleteTextures(1, intArrayOf(id), 0) }
+        textureCache.clear()
+        textTextureCache.forEach { (_, cached) -> GLES20.glDeleteTextures(1, intArrayOf(cached.textureId), 0) }
+        textTextureCache.clear()
+    }
+}
