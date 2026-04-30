@@ -491,6 +491,8 @@ class _TimelineEditorState extends State<TimelineEditor> {
     final seconds = dx / _pixelsPerSecond;
     final duration = Duration(milliseconds: (seconds * 1000).toInt());
     if (duration >= Duration.zero && duration <= widget.totalDuration) {
+      // Manually update the notifier for instant UI feedback
+      widget.playbackTime?.value = duration;
       widget.onSeek(duration);
     }
   }

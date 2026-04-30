@@ -171,3 +171,8 @@ got it]
 [deepcheck again if there still some bottleneck or optimization for smooth preview]
 [now the background video is missing from the output]
 [good but man, the videob background is not at all showing up in the preview, it complete black background showing. what the reason. how do capcut handle this, or other profession editor handle this video background or multilayer timeline based  nested videos layer running so smooth]
+[Would you like me to refactor our engine into this "Background Buffer" architecture? It is a bigger change, but it's the secret to why professional editors feel so fast even with 4K video.
+yes, if that more smooth and professional level then offcourse we  need that
+]
+[cool, now another issue is that playhead is not updating in real timetime, like when I tab in the ruler, the playhead indicator doesnt showp there, though when played, the played jump to there, so kind of a bugs]
+======version9===========
