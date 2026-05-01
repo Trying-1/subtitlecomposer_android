@@ -92,6 +92,26 @@ class AnimationLibrary {
       label: 'Elastic Drop',
       icon: Icons.south_rounded,
     ),
+    AnimationMetadata(
+      type: AnimationType.gradientWipe,
+      label: 'Grad Wipe',
+      icon: Icons.wb_twilight_rounded,
+    ),
+    AnimationMetadata(
+      type: AnimationType.radialWipe,
+      label: 'Radial',
+      icon: Icons.track_changes_rounded,
+    ),
+    AnimationMetadata(
+      type: AnimationType.throwback,
+      label: 'Throwback',
+      icon: Icons.rocket_launch_rounded,
+    ),
+    AnimationMetadata(
+      type: AnimationType.wavyBend,
+      label: 'Wavy Bend',
+      icon: Icons.waves_rounded,
+    ),
   ];
 
   static const List<AnimationMetadata> exitAnimations = [
@@ -160,6 +180,26 @@ class AnimationLibrary {
       label: 'Elastic Drop',
       icon: Icons.south_rounded,
     ),
+    AnimationMetadata(
+      type: AnimationType.gradientWipe,
+      label: 'Grad Wipe',
+      icon: Icons.wb_twilight_rounded,
+    ),
+    AnimationMetadata(
+      type: AnimationType.radialWipe,
+      label: 'Radial',
+      icon: Icons.track_changes_rounded,
+    ),
+    AnimationMetadata(
+      type: AnimationType.throwback,
+      label: 'Throwback',
+      icon: Icons.rocket_launch_rounded,
+    ),
+    AnimationMetadata(
+      type: AnimationType.wavyBend,
+      label: 'Wavy Bend',
+      icon: Icons.waves_rounded,
+    ),
   ];
 
   static const List<AnimationMetadata> loopAnimations = [
@@ -207,6 +247,11 @@ class AnimationLibrary {
       type: AnimationType.jello,
       label: 'Jello',
       icon: Icons.animation_rounded,
+    ),
+    AnimationMetadata(
+      type: AnimationType.wavyBend,
+      label: 'Wavy Bend',
+      icon: Icons.waves_rounded,
     ),
   ];
 }

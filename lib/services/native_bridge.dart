@@ -59,6 +59,7 @@ class NativeBridge {
     double? bgX,
     double? bgY,
     int? bgFillMode,
+    double? aspectRatio,
   }) async {
     return await _channel.invokeMethod<String>('exportVideo', {
       'width': width,
@@ -74,6 +75,7 @@ class NativeBridge {
       'bgX': bgX,
       'bgY': bgY,
       'bgFillMode': bgFillMode,
+      'aspectRatio': aspectRatio,
     });
   }
 

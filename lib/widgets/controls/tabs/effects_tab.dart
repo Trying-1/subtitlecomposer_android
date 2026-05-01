@@ -88,11 +88,17 @@ class _EffectsTabState extends State<EffectsTab> {
         if (isEnabled) ...[
           CommonControls.buildColorPicker(context, 'Shadow Color', color, (c) => widget.onUpdate(shadowColor: c)),
           const SizedBox(height: 12),
-          CommonControls.buildSlider(context, 'Shadow Blur', blur, 0, 50, (v) => widget.onUpdate(shadowBlur: v), onReset: () => widget.onUpdate(shadowBlur: 10)),
+          CommonControls.buildSlider(context, 'Shadow Opacity', ((color >> 24) & 0xFF) / 255.0, 0, 1, (v) {
+            final int alpha = (v * 255).round().clamp(0, 255);
+            final int newColor = (alpha << 24) | (color & 0x00FFFFFF);
+            widget.onUpdate(shadowColor: newColor);
+          }),
           const SizedBox(height: 12),
-          CommonControls.buildSlider(context, 'Shadow Offset X', dx, -50, 50, (v) => widget.onUpdate(shadowOffsetX: v), onReset: () => widget.onUpdate(shadowOffsetX: 5)),
+          CommonControls.buildSlider(context, 'Shadow Blur', blur, 0, 50, (v) => widget.onUpdate(shadowBlur: v), onReset: () => widget.onUpdate(shadowBlur: 6)),
           const SizedBox(height: 12),
-          CommonControls.buildSlider(context, 'Shadow Offset Y', dy, -50, 50, (v) => widget.onUpdate(shadowOffsetY: v), onReset: () => widget.onUpdate(shadowOffsetY: 5)),
+          CommonControls.buildSlider(context, 'Shadow Offset X', dx, -50, 50, (v) => widget.onUpdate(shadowOffsetX: v), onReset: () => widget.onUpdate(shadowOffsetX: 8)),
+          const SizedBox(height: 12),
+          CommonControls.buildSlider(context, 'Shadow Offset Y', dy, -50, 50, (v) => widget.onUpdate(shadowOffsetY: v), onReset: () => widget.onUpdate(shadowOffsetY: 8)),
         ] else
           Center(
             child: Padding(

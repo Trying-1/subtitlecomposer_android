@@ -23,6 +23,30 @@ class AnimationPresets {
       exit: ClipAnimation(type: AnimationType.none),
     ),
     AnimationPreset(
+      name: 'Throwback',
+      icon: '🚀',
+      entrance: ClipAnimation(type: AnimationType.throwback, durationMs: 600, easing: EasingType.easeOut),
+      exit: ClipAnimation(type: AnimationType.throwback, durationMs: 400, easing: EasingType.easeIn),
+    ),
+    AnimationPreset(
+      name: 'Wavy',
+      icon: '🌊',
+      entrance: ClipAnimation(type: AnimationType.wavyBend, durationMs: 800, easing: EasingType.easeOut),
+      exit: ClipAnimation(type: AnimationType.wavyBend, durationMs: 500, easing: EasingType.easeIn),
+    ),
+    AnimationPreset(
+      name: 'Grad Wipe',
+      icon: '🌓',
+      entrance: ClipAnimation(type: AnimationType.gradientWipe, durationMs: 700, easing: EasingType.easeInOut),
+      exit: ClipAnimation(type: AnimationType.gradientWipe, durationMs: 500, easing: EasingType.easeIn),
+    ),
+    AnimationPreset(
+      name: 'Radial',
+      icon: '⭕',
+      entrance: ClipAnimation(type: AnimationType.radialWipe, durationMs: 600, easing: EasingType.easeOut),
+      exit: ClipAnimation(type: AnimationType.radialWipe, durationMs: 400, easing: EasingType.easeIn),
+    ),
+    AnimationPreset(
       name: 'Fade',
       icon: '◐',
       entrance: ClipAnimation(type: AnimationType.fadeIn, durationMs: 400, easing: EasingType.easeOut),
@@ -76,6 +100,18 @@ class AnimationPresets {
       entrance: ClipAnimation(type: AnimationType.scaleUp, durationMs: 600, easing: EasingType.elasticOut),
       exit: ClipAnimation(type: AnimationType.scaleDown, durationMs: 300, easing: EasingType.easeIn),
     ),
+    AnimationPreset(
+      name: 'Grad Wipe',
+      icon: '🌓',
+      entrance: ClipAnimation(type: AnimationType.gradientWipe, durationMs: 700, easing: EasingType.easeInOut),
+      exit: ClipAnimation(type: AnimationType.gradientWipe, durationMs: 500, easing: EasingType.easeIn),
+    ),
+    AnimationPreset(
+      name: 'Radial',
+      icon: '⭕',
+      entrance: ClipAnimation(type: AnimationType.radialWipe, durationMs: 600, easing: EasingType.easeOut),
+      exit: ClipAnimation(type: AnimationType.radialWipe, durationMs: 400, easing: EasingType.easeIn),
+    ),
   ];
 
   static String animationTypeName(AnimationType type) {
@@ -105,6 +141,10 @@ class AnimationPresets {
       case AnimationType.elasticDrop: return 'Elastic Drop';
       case AnimationType.heartbeat: return 'Heartbeat';
       case AnimationType.jello: return 'Jello';
+      case AnimationType.gradientWipe: return 'Gradient Wipe';
+      case AnimationType.radialWipe: return 'Radial Wipe';
+      case AnimationType.throwback: return 'Throwback';
+      case AnimationType.wavyBend: return 'Wavy Bend';
     }
   }
 

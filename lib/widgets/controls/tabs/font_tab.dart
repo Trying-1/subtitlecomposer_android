@@ -37,11 +37,9 @@ class _FontTabState extends State<FontTab> {
     
     final defaultFonts = [
       'Poppins', 'Bellota', 'BhuTukaExpandedOne', 'Bokor', 'BungeeHairline',
-      'Caramel', 'Centralwell', 'Chalk Board', 'Eternal', 'Explora',
-      'GrandifloraOne', 'KleeOne', 'Lacquer', 'LibreBarcode39Text',
-      'LuckiestGuy', 'MajorMonoDisplay', 'Metrophobic', 'Michroma',
-      'Milker', 'NCLNeovibes', 'NewRocker', 'NewTegomin', 'ProtestRevolution',
-      'RELIGATH', 'akony', 'modernline', 'modernline bold'
+      'Caramel', 'Explora', 'GrandifloraOne', 'KleeOne', 'Lacquer', 
+      'LibreBarcode39Text', 'LuckiestGuy', 'MajorMonoDisplay', 'Metrophobic', 
+      'Michroma', 'NewRocker', 'NewTegomin', 'ProtestRevolution'
     ];
 
     return SingleChildScrollView(

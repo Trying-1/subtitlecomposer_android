@@ -36,6 +36,7 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        flutterEngine.plugins.add(com.example.typgraphyeditor.videoplayer.SimpleVideoPlayerPlugin())
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -118,7 +119,8 @@ class MainActivity : FlutterActivity() {
                                 val bgX = (call.argument<Number>("bgX"))?.toFloat() ?: 0f
                                 val bgY = (call.argument<Number>("bgY"))?.toFloat() ?: 0f
                                 val bgFillMode = (call.argument<Number>("bgFillMode"))?.toInt() ?: 0
-                                val exporter = VideoExporter(tempSilentFile.absolutePath, width, height, clips = clips, durationMs = durationMs, assetManager = assets, backgroundColor = bgColor, backgroundImagePath = imagePath, bgScale = bgScale, bgRotation = bgRotation, bgX = bgX, bgY = bgY, bgFillMode = bgFillMode)
+                                val aspectRatio = (call.argument<Number>("aspectRatio"))?.toDouble() ?: (16.0 / 9.0)
+                                val exporter = VideoExporter(tempSilentFile.absolutePath, width, height, clips = clips, durationMs = durationMs, assetManager = assets, backgroundColor = bgColor, backgroundImagePath = imagePath, bgScale = bgScale, bgRotation = bgRotation, bgX = bgX, bgY = bgY, bgFillMode = bgFillMode, aspectRatio = aspectRatio)
                                 
                                 exporter.export { progress ->
                                     // Optional: Send progress back
@@ -316,8 +318,9 @@ class MainActivity : FlutterActivity() {
                 scale = (it["scale"] as? Number)?.toFloat() ?: 1f,
                 opacity = (it["opacity"] as? Number)?.toFloat() ?: 1f,
                 textOpacity = (it["textOpacity"] as? Number)?.toFloat() ?: 1f,
-                isShadowEnabled = it["isShadowEnabled"] as? Boolean ?: true,
-                isBackgroundEnabled = it["isBackgroundEnabled"] as? Boolean ?: true,
+                isShadowEnabled = it["isShadowEnabled"] as? Boolean ?: false,
+                isBackgroundEnabled = it["isBackgroundEnabled"] as? Boolean ?: false,
+                isStrokeEnabled = it["isStrokeEnabled"] as? Boolean ?: false,
                 fontFamily = it["fontFamily"] as? String ?: "Poppins",
                 entranceAnimation = ClipAnimation.fromMap(it["entranceAnimation"] as? Map<String, Any>),
                 exitAnimation = ClipAnimation.fromMap(it["exitAnimation"] as? Map<String, Any>),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../config/app_config.dart';
 import '../../models/editor_models.dart';
 
 class TimelineEditor extends StatefulWidget {
@@ -54,6 +55,8 @@ class TimelineEditor extends StatefulWidget {
   final VoidCallback onClearMarkers;
   final bool isCollisionAdjustEnabled;
   final VoidCallback onToggleCollisionAdjust;
+  final bool isPlayheadLocked;
+  final VoidCallback onTogglePlayheadLock;
   final VoidCallback onAddText;
 
   const TimelineEditor({
@@ -110,6 +113,8 @@ class TimelineEditor extends StatefulWidget {
     required this.onClearMarkers,
     required this.isCollisionAdjustEnabled,
     required this.onToggleCollisionAdjust,
+    required this.isPlayheadLocked,
+    required this.onTogglePlayheadLock,
     required this.onAddText,
   });
 
@@ -294,73 +299,128 @@ class _TimelineEditorState extends State<TimelineEditor> {
                 child: Row(
                   children: [
                     // Visibility Toggles
-                    _buildVerticalToggle("TEXT", widget.showTextTracks, widget.onToggleTextTracks, icon: widget.showTextTracks ? Icons.visibility_rounded : Icons.visibility_off_rounded),
-                    const SizedBox(width: 16),
-                    _buildVerticalToggle("OVERLAY", widget.showOverlayTracks, widget.onToggleOverlayTracks, icon: widget.showOverlayTracks ? Icons.layers_rounded : Icons.layers_clear_rounded),
-                    const SizedBox(width: 16),
-                    _buildVerticalToggle("BG", widget.showBackgroundTracks, widget.onToggleBackgroundTracks, icon: widget.showBackgroundTracks ? Icons.wallpaper_rounded : Icons.image_not_supported_rounded),
-                    const SizedBox(width: 16),
-                    _buildVerticalToggle("AUDIO", widget.showAudioTracks, widget.onToggleAudioTracks, icon: widget.showAudioTracks ? Icons.audiotrack_rounded : Icons.music_off_rounded),
-                    const SizedBox(width: 16),
-                    _buildVerticalToggle("UNDO", false, widget.onUndo, icon: Icons.undo_rounded, color: widget.canUndo ? Colors.white : Colors.white10),
-                    const SizedBox(width: 16),
-                    _buildVerticalToggle("REDO", false, widget.onRedo, icon: Icons.redo_rounded, color: widget.canRedo ? Colors.white : Colors.white10),
-                    const SizedBox(width: 16),
-                    _buildVerticalToggle("MARK", false, widget.onAddMarker, icon: Icons.bookmark_add_rounded, color: Colors.amberAccent),
-                    const SizedBox(width: 16),
-                    _buildVerticalToggle("CLR MK", false, widget.onClearMarkers, icon: Icons.bookmark_remove_outlined),
-                    const SizedBox(width: 16),
-                    Container(width: 1, height: 16, color: Colors.white10),
+                    if (AppConfig.showTimelineVisibilityToggles) ...[
+                      _buildVerticalToggle("TEXT", widget.showTextTracks, widget.onToggleTextTracks, icon: widget.showTextTracks ? Icons.visibility_rounded : Icons.visibility_off_rounded),
+                      const SizedBox(width: 16),
+                      _buildVerticalToggle("OVERLAY", widget.showOverlayTracks, widget.onToggleOverlayTracks, icon: widget.showOverlayTracks ? Icons.layers_rounded : Icons.layers_clear_rounded),
+                      const SizedBox(width: 16),
+                      _buildVerticalToggle("BG", widget.showBackgroundTracks, widget.onToggleBackgroundTracks, icon: widget.showBackgroundTracks ? Icons.wallpaper_rounded : Icons.image_not_supported_rounded),
+                      const SizedBox(width: 16),
+                      _buildVerticalToggle("AUDIO", widget.showAudioTracks, widget.onToggleAudioTracks, icon: widget.showAudioTracks ? Icons.audiotrack_rounded : Icons.music_off_rounded),
+                      const SizedBox(width: 16),
+                    ],
+
+                    if (AppConfig.showTimelineUndo) ...[
+                      _buildVerticalToggle("UNDO", false, widget.onUndo, icon: Icons.undo_rounded, color: widget.canUndo ? Colors.white : Colors.white10),
+                      const SizedBox(width: 16),
+                    ],
+                    
+                    if (AppConfig.showTimelineRedo) ...[
+                      _buildVerticalToggle("REDO", false, widget.onRedo, icon: Icons.redo_rounded, color: widget.canRedo ? Colors.white : Colors.white10),
+                      const SizedBox(width: 16),
+                    ],
+
+                    if (AppConfig.showTimelineMarkers) ...[
+                      _buildVerticalToggle("MARK", false, widget.onAddMarker, icon: Icons.bookmark_add_rounded, color: Colors.amberAccent),
+                      const SizedBox(width: 16),
+                      _buildVerticalToggle("CLR MK", false, widget.onClearMarkers, icon: Icons.bookmark_remove_outlined),
+                      const SizedBox(width: 16),
+                    ],
+
+                    if (AppConfig.showTimelineUndo || AppConfig.showTimelineRedo || AppConfig.showTimelineMarkers)
+                      Container(width: 1, height: 16, color: Colors.white10),
                     const SizedBox(width: 16),
                     
-                    _buildVerticalToggle("SPLIT", false, widget.onSplit, icon: Icons.content_cut_rounded),
-                    const SizedBox(width: 16),
-                    _buildVerticalToggle(
-                      "MERGE", 
-                      false, 
-                      widget.onMerge, 
-                      icon: Icons.link_rounded, 
-                      color: widget.selectedClipIds.length >= 2 ? Colors.white : Colors.white10
-                    ),
-                    const SizedBox(width: 16),
-                    _buildVerticalToggle(
-                      "DIVIDE", 
-                      false, 
-                      widget.onSplitToWords, 
-                      icon: Icons.format_list_bulleted_rounded,
-                      color: widget.selectedClipIds.length == 1 ? Colors.white : Colors.white10
-                    ),
-                    const SizedBox(width: 16),
-                    _buildVerticalToggle("DEL", false, widget.onDelete, icon: Icons.delete_outline_rounded),
-                    const SizedBox(width: 16),
-                    Container(width: 1, height: 16, color: Colors.white10),
-                    const SizedBox(width: 16),
-                    _buildVerticalToggle("ADD TXT", false, widget.onAddText, icon: Icons.text_fields_rounded, color: Colors.deepPurpleAccent),
-                    const SizedBox(width: 16),
-                    
-                    if (widget.onAddKeyframe != null) ...[
+                    if (AppConfig.showTimelineSplit) ...[
+                      _buildVerticalToggle("SPLIT", false, widget.onSplit, icon: Icons.content_cut_rounded),
+                      const SizedBox(width: 16),
+                    ],
+
+                    if (AppConfig.showTimelineMerge) ...[
                       _buildVerticalToggle(
-                        widget.isKeyframeAtCurrentTime ? "REMOVE" : "KEYFRAME", 
-                        widget.isKeyframeAtCurrentTime, 
-                        widget.onAddKeyframe!, 
-                        icon: widget.isKeyframeAtCurrentTime ? Icons.diamond_outlined : Icons.diamond_rounded
+                        "MERGE", 
+                        false, 
+                        widget.onMerge, 
+                        icon: Icons.link_rounded, 
+                        color: widget.selectedClipIds.length >= 2 ? Colors.white : Colors.white10
                       ),
                       const SizedBox(width: 16),
                     ],
-                    if (widget.onClearKeyframes != null) ...[
-                      _buildVerticalToggle("CLR CLIP", false, widget.onClearKeyframes!, icon: Icons.layers_clear_rounded),
+
+                    if (AppConfig.showTimelineDivide) ...[
+                      _buildVerticalToggle(
+                        "DIVIDE", 
+                        false, 
+                        widget.onSplitToWords, 
+                        icon: Icons.format_list_bulleted_rounded,
+                        color: widget.selectedClipIds.length == 1 ? Colors.white : Colors.white10
+                      ),
                       const SizedBox(width: 16),
                     ],
+
+                    if (AppConfig.showTimelineDelete) ...[
+                      _buildVerticalToggle("DEL", false, widget.onDelete, icon: Icons.delete_outline_rounded),
+                      const SizedBox(width: 16),
+                    ],
+
+                    if (AppConfig.showTimelineSplit || AppConfig.showTimelineMerge || AppConfig.showTimelineDivide || AppConfig.showTimelineDelete)
+                      Container(width: 1, height: 16, color: Colors.white10),
+                    const SizedBox(width: 16),
+                    
+                    if (AppConfig.showTimelineAddText) ...[
+                      _buildVerticalToggle("ADD TXT", false, widget.onAddText, icon: Icons.text_fields_rounded, color: Colors.deepPurpleAccent),
+                      const SizedBox(width: 16),
+                    ],
+                    
+                    if (AppConfig.showTimelineKeyframes) ...[
+                      if (widget.onAddKeyframe != null) ...[
+                        _buildVerticalToggle(
+                          widget.isKeyframeAtCurrentTime ? "REMOVE" : "KEYFRAME", 
+                          widget.isKeyframeAtCurrentTime, 
+                          widget.onAddKeyframe!, 
+                          icon: widget.isKeyframeAtCurrentTime ? Icons.diamond_outlined : Icons.diamond_rounded
+                        ),
+                        const SizedBox(width: 16),
+                      ],
+                      if (widget.onClearKeyframes != null) ...[
+                        _buildVerticalToggle("CLR CLIP", false, widget.onClearKeyframes!, icon: Icons.layers_clear_rounded),
+                        const SizedBox(width: 16),
+                      ],
+                    ],
+
                     const SizedBox(width: 40), // Spacing before multi-select tools
                     _buildVerticalToggle("ALL", widget.isAllSelected, widget.onToggleSelectAll),
                     const SizedBox(width: 16),
-                    _buildVerticalToggle("RESET", false, widget.onResetSelected, icon: Icons.history_rounded),
-                    const SizedBox(width: 16),
-                    _buildVerticalToggle("STACK", false, widget.onStackSelected, icon: Icons.layers_outlined),
-                    const SizedBox(width: 16),
-                    _buildVerticalToggle("PUSH", widget.isCollisionAdjustEnabled, widget.onToggleCollisionAdjust),
-                    const SizedBox(width: 16),
-                    _buildVerticalToggle("MULTI", widget.isMultiSelectMode, widget.onToggleMultiSelect),
+                    
+                    if (AppConfig.showTimelineReset) ...[
+                      _buildVerticalToggle("RESET", false, widget.onResetSelected, icon: Icons.history_rounded),
+                      const SizedBox(width: 16),
+                    ],
+
+                    if (AppConfig.showTimelineStack) ...[
+                      _buildVerticalToggle("STACK", false, widget.onStackSelected, icon: Icons.layers_outlined),
+                      const SizedBox(width: 16),
+                    ],
+
+                    if (AppConfig.showTimelinePush) ...[
+                      _buildVerticalToggle("PUSH", widget.isCollisionAdjustEnabled, widget.onToggleCollisionAdjust),
+                      const SizedBox(width: 16),
+                    ],
+
+                    if (AppConfig.showTimelineLock) ...[
+                      _buildVerticalToggle(
+                        "LOCK", 
+                        widget.isPlayheadLocked, 
+                        widget.onTogglePlayheadLock, 
+                        icon: Icons.lock_clock_rounded,
+                        color: widget.isPlayheadLocked ? Colors.redAccent : null,
+                      ),
+                      const SizedBox(width: 16),
+                    ],
+
+                    if (AppConfig.showTimelineMultiSelect) ...[
+                      _buildVerticalToggle("MULTI", widget.isMultiSelectMode, widget.onToggleMultiSelect),
+                    ],
                   ],
                 ),
               ),
@@ -404,7 +464,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
               width: 32,
               child: Center(
                 child: icon != null 
-                  ? Icon(icon, size: 16, color: color ?? Colors.white70)
+                  ? Icon(icon, size: 16, color: color ?? (value ? Colors.deepPurpleAccent : Colors.white70))
                   : FittedBox(
                       fit: BoxFit.contain,
                       child: Switch(
@@ -422,10 +482,10 @@ class _TimelineEditorState extends State<TimelineEditor> {
             const SizedBox(height: 1),
             Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 6.5,
                 fontWeight: FontWeight.w900,
-                color: Colors.white38,
+                color: color ?? (value ? Colors.deepPurpleAccent : Colors.white38),
                 letterSpacing: 0.5,
               ),
             ),
@@ -488,6 +548,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
   }
 
   void _handleSeek(double dx) {
+    if (widget.isPlayheadLocked) return;
     final seconds = dx / _pixelsPerSecond;
     final duration = Duration(milliseconds: (seconds * 1000).toInt());
     if (duration >= Duration.zero && duration <= widget.totalDuration) {

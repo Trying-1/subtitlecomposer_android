@@ -91,6 +91,7 @@ class AnimationTab extends StatelessWidget {
       {'type': AnimationType.none, 'label': 'None', 'icon': Icons.not_interested},
       {'type': AnimationType.shake, 'label': 'Shake', 'icon': Icons.vibration},
       {'type': AnimationType.wobble, 'label': 'Wobble', 'icon': Icons.waves},
+      {'type': AnimationType.wavyBend, 'label': 'Wavy', 'icon': Icons.water},
     ];
 
     return Row(

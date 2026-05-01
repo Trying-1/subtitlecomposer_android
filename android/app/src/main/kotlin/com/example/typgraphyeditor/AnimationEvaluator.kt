@@ -153,6 +153,14 @@ object AnimationEvaluator {
             AnimationType.SCALE_UP -> AnimatedTextState(scale = t, opacity = t)
             AnimationType.SCALE_DOWN -> AnimatedTextState(scale = 2f - t, opacity = t)
             AnimationType.TYPEWRITER -> AnimatedTextState(typewriterProgress = t)
+            AnimationType.GRADIENT_WIPE -> AnimatedTextState(typewriterProgress = t)
+            AnimationType.RADIAL_WIPE -> AnimatedTextState(typewriterProgress = t)
+            AnimationType.WAVY_BEND -> AnimatedTextState(typewriterProgress = t)
+            AnimationType.THROWBACK -> {
+                val s = 4.0f - 3.0f * t
+                val o = if (t < 0.3f) t / 0.3f else 1.0f
+                AnimatedTextState(scale = s, opacity = o)
+            }
             AnimationType.BOUNCE_IN -> AnimatedTextState(scale = t, offsetY = 0.2f * (1f - t))
             AnimationType.ROTATE_IN -> AnimatedTextState(rotation = 360f * (1f - t), opacity = t, scale = t)
             AnimationType.ZOOM_IN -> AnimatedTextState(scale = t * t, opacity = t)
@@ -170,8 +178,15 @@ object AnimationEvaluator {
  
     private fun evaluateExit(type: AnimationType, t: Float): AnimatedTextState {
         return when (type) {
-            AnimationType.FADE_OUT -> AnimatedTextState(opacity = t)
+            AnimationType.FADE_OUT -> AnimatedTextState(opacity = 1f - t)
             AnimationType.FADE_IN -> AnimatedTextState(opacity = t)
+            AnimationType.GRADIENT_WIPE -> AnimatedTextState(typewriterProgress = 1f - t)
+            AnimationType.RADIAL_WIPE -> AnimatedTextState(typewriterProgress = 1f - t)
+            AnimationType.WAVY_BEND -> AnimatedTextState(typewriterProgress = 1f - t)
+            AnimationType.THROWBACK -> {
+                val s = 1.0f + 3.0f * (1f - t)
+                AnimatedTextState(scale = s, opacity = t)
+            }
             AnimationType.SLIDE_UP -> AnimatedTextState(offsetY = -0.3f * (1f - t))
             AnimationType.SLIDE_DOWN -> AnimatedTextState(offsetY = 0.3f * (1f - t))
             AnimationType.SLIDE_LEFT -> AnimatedTextState(offsetX = -0.5f * (1f - t))
@@ -254,6 +269,11 @@ object AnimationEvaluator {
                     scaleX = 1f + s * intensity,
                     scaleY = 1f - s * intensity
                 )
+            }
+            AnimationType.WAVY_BEND -> {
+                // Continuously advance the wave phase using time
+                val phase = (timeMs % 2000) / 2000f  // 2-second cycle
+                AnimatedTextState(typewriterProgress = phase)
             }
             else -> AnimatedTextState()
         }

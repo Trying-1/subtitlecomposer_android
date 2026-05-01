@@ -23,7 +23,8 @@ class VideoExporter(
     private val bgRotation: Float = 0f,
     private val bgX: Float = 0f,
     private val bgY: Float = 0f,
-    private val bgFillMode: Int = 0
+    private val bgFillMode: Int = 0,
+    private val aspectRatio: Double = 16.0 / 9.0
 ) {
     private var encoder: MediaCodec? = null
     private var inputSurface: Surface? = null
@@ -174,7 +175,36 @@ class VideoExporter(
     }
 
     private fun drawFrame(currentTimeMs: Long) {
+        // Calculate aspect-ratio corrected viewport (Letterboxing)
+        val surfaceAspect = width.toFloat() / height.toFloat()
+        val targetAspect = aspectRatio.toFloat()
+        
+        val viewportWidth: Int
+        val viewportHeight: Int
+        val viewportX: Int
+        val viewportY: Int
+        
+        if (surfaceAspect > targetAspect) {
+            // Surface is wider than target (Pillarbox)
+            viewportHeight = height
+            viewportWidth = (height * targetAspect).toInt()
+            viewportX = (width - viewportWidth) / 2
+            viewportY = 0
+        } else {
+            // Surface is taller than target (Letterbox)
+            viewportWidth = width
+            viewportHeight = (width / targetAspect).toInt()
+            viewportX = 0
+            viewportY = (height - viewportHeight) / 2
+        }
+
+        // 1. Clear the WHOLE frame with black (or bg color)
         GLES20.glViewport(0, 0, width, height)
+        GLES20.glClearColor(0f, 0f, 0f, 1f) 
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+
+        // 2. Setup the logical viewport for content
+        GLES20.glViewport(viewportX, viewportY, viewportWidth, viewportHeight)
         
         val r = (backgroundColor shr 16 and 0xFF) / 255f
         val g = (backgroundColor shr 8 and 0xFF) / 255f
@@ -184,9 +214,11 @@ class VideoExporter(
         GLES20.glClearColor(r, g, b, a)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
         
-        backgroundRenderer?.updateFrame(currentTimeMs, 10000L) // 10ms timeout for export
-        backgroundRenderer?.setTransform(bgScale, bgRotation, bgX, bgY, bgFillMode, width, height)
+        backgroundRenderer?.updateFrame(currentTimeMs, 10000L)
+        backgroundRenderer?.setTransform(bgScale, bgRotation, bgX, bgY, bgFillMode, viewportWidth, viewportHeight)
         backgroundRenderer?.draw()
+        
+        subtitleRenderer?.updateSize(viewportWidth, viewportHeight)
         
         val activeClips = clips.filter { it.startTime <= currentTimeMs && it.endTime >= currentTimeMs }
         for (clip in activeClips) {
@@ -194,7 +226,7 @@ class VideoExporter(
             if (clip.isText) {
                 subtitleRenderer?.drawTextClip(clip, animState, assetManager)
             } else {
-                subtitleRenderer?.drawImageClip(clip, animState, currentTimeMs, 10000L) // 10ms timeout for export
+                subtitleRenderer?.drawImageClip(clip, animState, currentTimeMs, 10000L)
             }
         }
     }

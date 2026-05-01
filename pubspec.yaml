@@ -54,6 +54,12 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: false
+  image_path: "assets/images/app_icon.png"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -67,9 +73,11 @@ flutter:
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+  assets:
+    - assets/images/app_icon.png
+    - assets/images/onboarding/animate.png
+    - assets/images/onboarding/precision.png
+    - assets/images/onboarding/export.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
@@ -98,15 +106,6 @@ flutter:
     - family: Caramel
       fonts:
         - asset: assets/fonts/Caramel-Regular.ttf
-    - family: Centralwell
-      fonts:
-        - asset: assets/fonts/Centralwell.ttf
-    - family: Chalk Board
-      fonts:
-        - asset: assets/fonts/Chalk Board.ttf
-    - family: Eternal
-      fonts:
-        - asset: assets/fonts/Eternal.ttf
     - family: Explora
       fonts:
         - asset: assets/fonts/Explora-Regular.ttf
@@ -134,12 +133,6 @@ flutter:
     - family: Michroma
       fonts:
         - asset: assets/fonts/Michroma-Regular.ttf
-    - family: Milker
-      fonts:
-        - asset: assets/fonts/Milker.otf
-    - family: NCLNeovibes
-      fonts:
-        - asset: assets/fonts/NCLNeovibes-Demo.otf
     - family: NewRocker
       fonts:
         - asset: assets/fonts/NewRocker-Regular.ttf
@@ -163,15 +156,3 @@ flutter:
     - family: ProtestRevolution
       fonts:
         - asset: assets/fonts/ProtestRevolution-Regular.ttf
-    - family: RELIGATH
-      fonts:
-        - asset: assets/fonts/RELIGATH-Demo.otf
-    - family: akony
-      fonts:
-        - asset: assets/fonts/akony.otf
-    - family: modernline
-      fonts:
-        - asset: assets/fonts/modernline.otf
-    - family: modernline bold
-      fonts:
-        - asset: assets/fonts/modernline bold.otf

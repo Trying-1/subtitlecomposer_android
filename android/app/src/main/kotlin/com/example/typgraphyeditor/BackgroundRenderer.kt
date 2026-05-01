@@ -295,8 +295,9 @@ class BackgroundRenderer {
                         }
                     }
                     2 -> { // Center
-                        baseScaleX = imageWidth.toFloat() / canvasHeight
-                        baseScaleY = imageHeight.toFloat() / canvasHeight
+                        val baselineHeight = 1080f
+                        baseScaleX = imageWidth.toFloat() / baselineHeight
+                        baseScaleY = imageHeight.toFloat() / baselineHeight
                     }
                 }
                 android.opengl.Matrix.scaleM(model, 0, baseScaleX * scale, baseScaleY * scale, 1f)

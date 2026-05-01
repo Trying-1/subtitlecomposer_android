@@ -25,7 +25,11 @@ enum class AnimationType {
     SPIN,
     ELASTIC_DROP,
     HEARTBEAT,
-    JELLO;
+    JELLO,
+    GRADIENT_WIPE,
+    RADIAL_WIPE,
+    THROWBACK,
+    WAVY_BEND;
 
     companion object {
         fun fromIndex(index: Int): AnimationType = entries.getOrElse(index) { NONE }
@@ -129,10 +133,10 @@ data class SubtitleClip(
     val color: Int,
     val strokeColor: Int = 0xFF000000.toInt(),
     val strokeWidth: Float = 0f,
-    val shadowColor: Int = 0x00000000,
-    val shadowBlur: Float = 0f,
-    val shadowOffsetX: Float = 0f,
-    val shadowOffsetY: Float = 0f,
+    val shadowColor: Int = 0xFF000000.toInt(),
+    val shadowBlur: Float = 6f,
+    val shadowOffsetX: Float = 8f,
+    val shadowOffsetY: Float = 8f,
     val backgroundColor: Int = 0x00000000,
     val backgroundRadius: Float = 0f,
     val letterSpacing: Float = 0f,
@@ -140,8 +144,8 @@ data class SubtitleClip(
     val scale: Float = 1f,
     val opacity: Float = 1f,
     val textOpacity: Float = 1f,
-    val isShadowEnabled: Boolean = true,
-    val isBackgroundEnabled: Boolean = true,
+    val isShadowEnabled: Boolean = false,
+    val isBackgroundEnabled: Boolean = false,
     val isStrokeEnabled: Boolean = false,
     val fontFamily: String = "Poppins",
     val entranceAnimation: ClipAnimation = ClipAnimation(),

@@ -896,6 +896,8 @@ class _EditorScreenState extends State<EditorScreen> {
                 onClearMarkers: () => provider.clearMarkers(),
                 isCollisionAdjustEnabled: provider.isCollisionAdjustEnabled,
                 onToggleCollisionAdjust: provider.toggleCollisionAdjust,
+                isPlayheadLocked: provider.isPlayheadLocked,
+                onTogglePlayheadLock: provider.togglePlayheadLock,
                 onAddText: () => _showAddTextDialog(context, provider),
               )
             else
@@ -954,6 +956,8 @@ class _EditorScreenState extends State<EditorScreen> {
                   onClearMarkers: () => provider.clearMarkers(),
                   isCollisionAdjustEnabled: provider.isCollisionAdjustEnabled,
                   onToggleCollisionAdjust: provider.toggleCollisionAdjust,
+                  isPlayheadLocked: provider.isPlayheadLocked,
+                  onTogglePlayheadLock: provider.togglePlayheadLock,
                   onAddText: () => _showAddTextDialog(context, provider),
                 ),
               ),

@@ -51,7 +51,7 @@ class _VideoPreviewState extends State<VideoPreview> {
     // Direct Selection: Find clip at touch point
     final tapX = details.localFocalPoint.dx / constraints.maxWidth;
     final tapY = details.localFocalPoint.dy / constraints.maxHeight;
-    provider.selectClipAt(tapX, tapY, deselectIfEmpty: false);
+    provider.selectClipAt(tapX, tapY, deselectIfEmpty: false, toggle: false);
 
     // Now that selection is updated (if any), capture base scale
     _baseScale = provider.selectedTimelineClip?.scale ?? 1.0;
@@ -67,15 +67,19 @@ class _VideoPreviewState extends State<VideoPreview> {
     final dx = details.focalPointDelta.dx / constraints.maxWidth;
     final dy = details.focalPointDelta.dy / constraints.maxHeight;
 
-    // Handle scale (details.scale is the total scale since start of gesture)
-    final newScale = (_baseScale * details.scale).clamp(0.1, 5.0);
-
-    provider.updateClip(
-      clip.id,
-      x: (clip.x + dx).clamp(0.0, 1.0),
-      y: (clip.y + dy).clamp(0.0, 1.0),
-      scale: newScale,
-    );
+    if (provider.selectedClipIds.length > 1) {
+      // Move all selected clips equally
+      provider.moveClips(provider.selectedClipIds, dx, dy);
+    } else {
+      // Move single clip and handle scaling
+      final newScale = (_baseScale * details.scale).clamp(0.1, 5.0);
+      provider.updateClip(
+        clip.id,
+        x: (clip.x + dx).clamp(-0.5, 1.5),
+        y: (clip.y + dy).clamp(-0.5, 1.5),
+        scale: newScale,
+      );
+    }
   }
 
   void _handleFocusSeekStart(ScaleStartDetails details) {

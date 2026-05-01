@@ -183,28 +183,57 @@ class TypographyRenderer(
         isDirty = false
         if (sizeChanged) {
             surfaceTexture.setDefaultBufferSize(currentWidth, currentHeight)
-            subtitleRenderer?.updateSize(currentWidth, currentHeight)
-            // Force a viewport reset to full surface for the clear
-            GLES20.glViewport(0, 0, currentWidth, currentHeight)
             sizeChanged = false
         }
 
+        // Calculate aspect-ratio corrected viewport (Letterboxing)
+        val surfaceAspect = currentWidth.toFloat() / currentHeight.toFloat()
+        val targetAspect = aspectRatio.toFloat()
+        
+        val viewportWidth: Int
+        val viewportHeight: Int
+        val viewportX: Int
+        val viewportY: Int
+        
+        if (surfaceAspect > targetAspect) {
+            // Surface is wider than target (Pillarbox)
+            viewportHeight = currentHeight
+            viewportWidth = (currentHeight * targetAspect).toInt()
+            viewportX = (currentWidth - viewportWidth) / 2
+            viewportY = 0
+        } else {
+            // Surface is taller than target (Letterbox)
+            viewportWidth = currentWidth
+            viewportHeight = (currentWidth / targetAspect).toInt()
+            viewportX = 0
+            viewportY = (currentHeight - viewportHeight) / 2
+        }
+
+        // 1. Clear the WHOLE surface with black (or bg color)
+        GLES20.glViewport(0, 0, currentWidth, currentHeight)
+        GLES20.glClearColor(0f, 0f, 0f, 1f) // Black bars
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
+
+        // 2. Setup the logical viewport for content
+        GLES20.glViewport(viewportX, viewportY, viewportWidth, viewportHeight)
+        
         val r = (bgColor shr 16 and 0xFF) / 255f
         val g = (bgColor shr 8 and 0xFF) / 255f
         val b = (bgColor and 0xFF) / 255f
         val a = (bgColor shr 24 and 0xFF) / 255f
-        
-        android.util.Log.d("TypographyRenderer", "Clearing with: $r, $g, $b, $a at ${currentWidth}x${currentHeight}")
 
+        // Fill background color within viewport
         GLES20.glClearColor(r, g, b, a)
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
 
         backgroundRenderer?.setImage(backgroundImagePath)
         backgroundRenderer?.updateFrame(currentTimeMs)
-        backgroundRenderer?.setTransform(bgScale, bgRotation, bgX, bgY, bgFillMode, currentWidth, currentHeight)
+        // Background renderer should use viewport dimensions for its transform logic
+        backgroundRenderer?.setTransform(bgScale, bgRotation, bgX, bgY, bgFillMode, viewportWidth, viewportHeight)
         backgroundRenderer?.draw()
 
-        GLES20.glViewport(0, 0, currentWidth, currentHeight)
+        // Ensure subtitleRenderer knows the correct dimensions for its ortho projection
+        subtitleRenderer?.updateSize(viewportWidth, viewportHeight)
 
         renderSubtitles()
 

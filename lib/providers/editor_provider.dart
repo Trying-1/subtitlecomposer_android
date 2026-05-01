@@ -130,6 +130,7 @@ class EditorProvider extends ChangeNotifier {
   bool _isImportingModel = false;
   final List<Duration> _markers = [];
   bool _isCollisionAdjustEnabled = false;
+  bool _isPlayheadLocked = false;
   
   final ValueNotifier<Duration> playbackTime = ValueNotifier(Duration.zero);
 
@@ -199,7 +200,16 @@ class EditorProvider extends ChangeNotifier {
   Set<String> get selectedClipIds => _selectedClipIds;
   bool get isMultiSelectMode => _isMultiSelectMode;
   String? get whisperModelPath => _whisperModelPath;
+  bool get isPlayheadLocked => _isPlayheadLocked;
   bool get isImportingModel => _isImportingModel;
+  
+  void togglePlayheadLock() {
+    _isPlayheadLocked = !_isPlayheadLocked;
+    if (_isPlayheadLocked && _isPlaying) {
+      togglePlay();
+    }
+    notifyListeners();
+  }
   bool get isAllSelected {
     final allIds = _tracks.expand((t) => t.clips).map((c) => c.id).toSet();
     final allOverlayIds = _overlayTracks.expand((t) => t.overlays).map((c) => c.id).toSet();
@@ -483,16 +493,18 @@ class EditorProvider extends ChangeNotifier {
     return clip is BackgroundClip ? clip : null;
   }
 
-  void selectClip(String? id) {
+  void selectClip(String? id, {bool toggle = true}) {
     if (id == null) {
       _selectedClipIds = {};
     } else {
-      if (_isMultiSelectMode) {
+      if (_isMultiSelectMode && toggle) {
         toggleClipSelection(id);
       } else {
-        _selectedClipIds = {id};
+        if (!_isMultiSelectMode || !_selectedClipIds.contains(id)) {
+          _selectedClipIds = _isMultiSelectMode ? (Set.from(_selectedClipIds)..add(id)) : {id};
+        }
         final clip = selectedTimelineClip;
-        if (clip != null) {
+        if (clip != null && !_isPlayheadLocked) {
           final center = Duration(
             milliseconds: (clip.startTime.inMilliseconds + clip.endTime.inMilliseconds) ~/ 2,
           );
@@ -535,7 +547,7 @@ class EditorProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void selectClipAt(double x, double y, {bool deselectIfEmpty = true}) {
+  void selectClipAt(double x, double y, {bool deselectIfEmpty = true, bool toggle = true}) {
     TimelineClip? bestMatch;
     int highestTrack = -1;
     double closestDistSq = 1.0;
@@ -596,7 +608,7 @@ class EditorProvider extends ChangeNotifier {
     */
 
     if (bestMatch != null) {
-      selectClip(bestMatch.id);
+      selectClip(bestMatch.id, toggle: toggle);
     } else if (deselectIfEmpty) {
       selectClip(null);
     }
@@ -683,6 +695,40 @@ class EditorProvider extends ChangeNotifier {
         return text;
     }
   }
+  void moveClips(Iterable<String> ids, double dx, double dy) {
+    if (ids.isEmpty) return;
+    final idSet = ids.toSet();
+
+    // Text tracks
+    for (var track in _tracks) {
+      for (int i = 0; i < track.clips.length; i++) {
+        final clip = track.clips[i];
+        if (idSet.contains(clip.id)) {
+          track.clips[i] = clip.copyWith(
+            x: (clip.x + dx).clamp(-0.5, 1.5),
+            y: (clip.y + dy).clamp(-0.5, 1.5),
+          );
+        }
+      }
+    }
+
+    // Overlay tracks
+    for (var track in _overlayTracks) {
+      for (int i = 0; i < track.overlays.length; i++) {
+        final clip = track.overlays[i];
+        if (idSet.contains(clip.id)) {
+          track.overlays[i] = clip.copyWith(
+            x: (clip.x + dx).clamp(-0.5, 1.5),
+            y: (clip.y + dy).clamp(-0.5, 1.5),
+          );
+        }
+      }
+    }
+
+    _syncToNative();
+    notifyListeners();
+  }
+
 
   void updateClips(Iterable<String> ids, {
     String? text,
@@ -1781,7 +1827,7 @@ class EditorProvider extends ChangeNotifier {
         track.clips.removeWhere((c) => _selectedClipIds.contains(c.id));
     }
 
-    const double gap = 0.08;
+    const double gap = 0.12; // Increased for better readability
     final double totalHeight = (selectedClips.length - 1) * gap;
     final double startY = (1.0 - totalHeight) / 2;
 
@@ -1791,6 +1837,7 @@ class EditorProvider extends ChangeNotifier {
           endTime: maxEndTime,
           x: 0.5,
           y: startY + (i * gap),
+          keyframes: [], // Clear keyframes to ensure new position is respected
         );
         
         int targetTrackIdx = baseTrackIndex + (selectedClips.length - 1 - i);
@@ -1844,25 +1891,51 @@ class EditorProvider extends ChangeNotifier {
     }
 
     for (var clip in clipsToReset) {
-      final startTime = clip.originalStartTime ?? clip.startTime;
-      final duration = clip.endTime - clip.startTime;
-      final endTime = startTime + duration;
+      final startTime = clip.originalStartTime;
+      final endTime = clip.originalEndTime;
 
       final dynamic resetClip;
       if (clip is SubtitleClip) {
-        resetClip = clip.copyWith(startTime: startTime, endTime: endTime);
+        resetClip = clip.copyWith(
+          startTime: startTime, 
+          endTime: endTime,
+          x: 0.5,
+          y: 0.5,
+          scale: 1.0,
+          rotation: 0.0,
+          keyframes: [],
+        );
       } else if (clip is OverlayClip) {
-        resetClip = clip.copyWith(startTime: startTime, endTime: endTime);
+        resetClip = clip.copyWith(
+          startTime: startTime, 
+          endTime: endTime,
+          x: 0.5,
+          y: 0.5,
+          scale: 1.0,
+          rotation: 0.0,
+          keyframes: [],
+        );
       } else if (clip is BackgroundClip) {
-        resetClip = clip.copyWith(startTime: startTime, endTime: endTime);
+        resetClip = clip.copyWith(
+          startTime: startTime, 
+          endTime: endTime,
+          x: 0.5,
+          y: 0.5,
+          scale: 1.0,
+          rotation: 0.0,
+          keyframes: [],
+        );
       } else {
         resetClip = clip;
       }
 
-      final String targetTrackId = clip.originalTrackId ?? (clip is SubtitleClip ? 'main' : (clip is OverlayClip ? 'overlay_main' : 'bg_main'));
+      final String? targetTrackId = clip.originalTrackId;
       
       final trackList = clip is SubtitleClip ? _tracks : (clip is OverlayClip ? _overlayTracks : _backgroundTracks);
-      int trackIdx = trackList.indexWhere((t) => t.id == targetTrackId);
+      int trackIdx = -1;
+      if (targetTrackId != null) {
+        trackIdx = trackList.indexWhere((t) => t.id == targetTrackId);
+      }
       if (trackIdx == -1) trackIdx = 0;
 
       _resolveCollisions(resetClip, trackIdx);
@@ -2096,6 +2169,7 @@ class EditorProvider extends ChangeNotifier {
   }
 
   void seek(Duration pos) {
+    if (_isPlayheadLocked) return;
     _currentTime = pos;
     if (_audioPath != null) {
       _audioPlayer.seek(pos);
@@ -2212,6 +2286,7 @@ class EditorProvider extends ChangeNotifier {
         bgX: _backgroundX,
         bgY: _backgroundY,
         bgFillMode: _backgroundFillMode,
+        aspectRatio: _aspectRatio,
       );
       
       return result;

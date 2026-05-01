@@ -74,7 +74,11 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
     private var uStrokeWidthOESLoc: Int = 0
     private var uShadowBlurOESLoc: Int = 0
     
-    private var uTypewriterProgressLoc: Int = 0
+    private var uWipeProgressLoc: Int = 0
+    private var uWipeTypeLoc: Int = 0
+    
+    private var uWipeProgressOESLoc: Int = 0
+    private var uWipeTypeOESLoc: Int = 0
 
     private val vertexShaderCode = """
         attribute vec4 vPosition;
@@ -102,20 +106,40 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         uniform vec2 uTexelSize;
         uniform float uStrokeWidth;
         uniform float uShadowBlur;
-        uniform float uTypewriterProgress;
+        uniform float uWipeProgress;
+        uniform int uWipeType; // 0: typewriter, 1: linearR, 2: radial
 
         void main() {
-            if (fTypewriterCoord.x > uTypewriterProgress) discard;
+            vec2 uv = fTexCoord;
+            float alphaMod = 1.0;
+            if (uWipeType == 0) { // Typewriter
+                if (uv.x > uWipeProgress) discard;
+            } else if (uWipeType == 1) { // Linear Wipe Right
+                float softness = 0.15;
+                alphaMod = 1.0 - smoothstep(uWipeProgress - softness, uWipeProgress, uv.x);
+            } else if (uWipeType == 2) { // Radial Wipe
+                float softness = 0.2;
+                float dist = distance(uv, vec2(0.5, 0.5)) * 2.0; 
+                alphaMod = 1.0 - smoothstep(uWipeProgress - softness, uWipeProgress, dist);
+            } else if (uWipeType == 3) { // Wavy Bend
+                float waveFreq = 8.0;
+                float waveAmp = 0.04 * uWipeProgress;
+                float phase = uWipeProgress * 6.2832;
+                uv.y += sin(uv.x * waveFreq + phase) * waveAmp;
+                uv.x += cos(uv.y * waveFreq * 0.7 + phase * 1.3) * waveAmp * 0.5;
+            }
+            
+            if (alphaMod <= 0.0) discard;
             
             vec4 texColor;
             if (length(uBlurVector) < 0.001) {
-                texColor = texture2D(sTexture, fTexCoord);
+                texColor = texture2D(sTexture, uv);
             } else {
                 vec4 accum = vec4(0.0);
                 float samples = 5.0;
                 for (float i = 0.0; i < 5.0; i += 1.0) {
                     float offset = (i / (samples - 1.0)) - 0.5;
-                    accum += texture2D(sTexture, fTexCoord + uBlurVector * offset);
+                    accum += texture2D(sTexture, uv + uBlurVector * offset);
                 }
                 texColor = accum / samples;
             }
@@ -128,13 +152,13 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                     for (float y = -1.0; y <= 1.0; y += 1.0) {
                         float weight = 1.0 / (1.0 + x*x + y*y);
                         vec2 offset = vec2(x, y) * blurRadius * uTexelSize;
-                        accumAlpha += texture2D(sTexture, fTexCoord + offset).a * weight;
+                        accumAlpha += texture2D(sTexture, uv + offset).a * weight;
                         totalWeight += weight;
                     }
                 }
                 float avgAlpha = accumAlpha / totalWeight;
                 if (avgAlpha < 0.01) discard;
-                gl_FragColor = vec4(uEffectColor.rgb, avgAlpha * uEffectColor.a * vColor.a);
+                gl_FragColor = vec4(uEffectColor.rgb, avgAlpha * uEffectColor.a * vColor.a * alphaMod);
             } else if (uEffectMode == 2) { // Stroke mode
                 if (texColor.a > 0.8) discard; 
                 
@@ -143,14 +167,14 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                 for (int i = 0; i < 8; i++) {
                     float a = float(i) * 0.78539; // 45 degrees
                     vec2 offset = vec2(cos(a), sin(a)) * uStrokeWidth * uTexelSize;
-                    maxAlpha = max(maxAlpha, texture2D(sTexture, fTexCoord + offset).a);
+                    maxAlpha = max(maxAlpha, texture2D(sTexture, uv + offset).a);
                 }
                 
                 if (maxAlpha < 0.01) discard;
-                gl_FragColor = vec4(uEffectColor.rgb, maxAlpha * uEffectColor.a * vColor.a);
+                gl_FragColor = vec4(uEffectColor.rgb, maxAlpha * uEffectColor.a * vColor.a * alphaMod);
             } else { 
                 if (texColor.a < 0.01) discard;
-                gl_FragColor = texColor * vColor;
+                gl_FragColor = texColor * vColor * alphaMod;
             }
         }
     """.trimIndent()
@@ -167,9 +191,32 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         uniform vec2 uTexelSize;
         uniform float uStrokeWidth;
         uniform float uShadowBlur;
+        uniform float uWipeProgress;
+        uniform int uWipeType;
 
         void main() {
-            vec4 texColor = texture2D(sTexture, fTexCoord);
+            vec2 uv = fTexCoord;
+            float alphaMod = 1.0;
+            if (uWipeType == 0) {
+                if (uv.x > uWipeProgress) discard;
+            } else if (uWipeType == 1) {
+                float softness = 0.15;
+                alphaMod = 1.0 - smoothstep(uWipeProgress - softness, uWipeProgress, uv.x);
+            } else if (uWipeType == 2) {
+                float softness = 0.2;
+                float dist = distance(uv, vec2(0.5, 0.5)) * 2.0;
+                alphaMod = 1.0 - smoothstep(uWipeProgress - softness, uWipeProgress, dist);
+            } else if (uWipeType == 3) { // Wavy Bend
+                float waveFreq = 8.0;
+                float waveAmp = 0.04 * uWipeProgress;
+                float phase = uWipeProgress * 6.2832;
+                uv.y += sin(uv.x * waveFreq + phase) * waveAmp;
+                uv.x += cos(uv.y * waveFreq * 0.7 + phase * 1.3) * waveAmp * 0.5;
+            }
+
+            if (alphaMod <= 0.0) discard;
+
+            vec4 texColor = texture2D(sTexture, uv);
             
             if (uEffectMode == 1) { // Shadow mode
                 float accumAlpha = 0.0;
@@ -179,13 +226,13 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                     for (float y = -1.0; y <= 1.0; y += 1.0) {
                         float weight = 1.0 / (1.0 + x*x + y*y);
                         vec2 offset = vec2(x, y) * blurRadius * uTexelSize;
-                        accumAlpha += texture2D(sTexture, fTexCoord + offset).a * weight;
+                        accumAlpha += texture2D(sTexture, uv + offset).a * weight;
                         totalWeight += weight;
                     }
                 }
                 float avgAlpha = accumAlpha / totalWeight;
                 if (avgAlpha < 0.01) discard;
-                gl_FragColor = vec4(uEffectColor.rgb, avgAlpha * uEffectColor.a * vColor.a);
+                gl_FragColor = vec4(uEffectColor.rgb, avgAlpha * uEffectColor.a * vColor.a * alphaMod);
             } else if (uEffectMode == 2) { // Stroke mode
                 if (texColor.a > 0.8) discard; 
                 
@@ -193,14 +240,14 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                 for (int i = 0; i < 8; i++) {
                     float a = float(i) * 0.78539;
                     vec2 offset = vec2(cos(a), sin(a)) * uStrokeWidth * uTexelSize;
-                    maxAlpha = max(maxAlpha, texture2D(sTexture, fTexCoord + offset).a);
+                    maxAlpha = max(maxAlpha, texture2D(sTexture, uv + offset).a);
                 }
                 
                 if (maxAlpha < 0.01) discard;
-                gl_FragColor = vec4(uEffectColor.rgb, maxAlpha * uEffectColor.a * vColor.a);
+                gl_FragColor = vec4(uEffectColor.rgb, maxAlpha * uEffectColor.a * vColor.a * alphaMod);
             } else { 
                 if (texColor.a < 0.01) discard;
-                gl_FragColor = texColor * vColor;
+                gl_FragColor = texColor * vColor * alphaMod;
             }
         }
     """.trimIndent()
@@ -230,11 +277,21 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         uTexelSizeLoc = GLES20.glGetUniformLocation(program, "uTexelSize")
         uStrokeWidthLoc = GLES20.glGetUniformLocation(program, "uStrokeWidth")
         uShadowBlurLoc = GLES20.glGetUniformLocation(program, "uShadowBlur")
-        uTypewriterProgressLoc = GLES20.glGetUniformLocation(program, "uTypewriterProgress")
+        uWipeProgressLoc = GLES20.glGetUniformLocation(program, "uWipeProgress")
+        uWipeTypeLoc = GLES20.glGetUniformLocation(program, "uWipeType")
         
         vPositionOESLoc = GLES20.glGetAttribLocation(programOES, "vPosition")
         vTexCoordOESLoc = GLES20.glGetAttribLocation(programOES, "vTexCoord")
         uMVPMatrixOESLoc = GLES20.glGetUniformLocation(programOES, "uMVPMatrix")
+        sTextureOESLoc = GLES20.glGetUniformLocation(programOES, "sTexture")
+        vColorOESLoc = GLES20.glGetUniformLocation(programOES, "vColor")
+        uEffectModeOESLoc = GLES20.glGetUniformLocation(programOES, "uEffectMode")
+        uEffectColorOESLoc = GLES20.glGetUniformLocation(programOES, "uEffectColor")
+        uTexelSizeOESLoc = GLES20.glGetUniformLocation(programOES, "uTexelSize")
+        uStrokeWidthOESLoc = GLES20.glGetUniformLocation(programOES, "uStrokeWidth")
+        uShadowBlurOESLoc = GLES20.glGetUniformLocation(programOES, "uShadowBlur")
+        uWipeProgressOESLoc = GLES20.glGetUniformLocation(programOES, "uWipeProgress")
+        uWipeTypeOESLoc = GLES20.glGetUniformLocation(programOES, "uWipeType")
         sTextureOESLoc = GLES20.glGetUniformLocation(programOES, "sTexture")
         vColorOESLoc = GLES20.glGetUniformLocation(programOES, "vColor")
         uEffectModeOESLoc = GLES20.glGetUniformLocation(programOES, "uEffectMode")
@@ -284,8 +341,12 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
 
         if (clip.text.isEmpty()) return
 
-        // Cache the raw text bitmap, but handle typewriter in shader
-        val cacheKey = "${clip.id}_${clip.text}_${clip.fontSize}_${clip.fontFamily}_${clip.color}"
+        // Cache the raw text bitmap, but handle typewriter/wavy in shader
+        val cacheKey = "${clip.id}_${clip.text}_${clip.fontSize}_${clip.fontFamily}_${clip.color}_" +
+                       "${clip.isShadowEnabled}_${clip.shadowColor}_${clip.shadowBlur}_${clip.shadowOffsetX}_${clip.shadowOffsetY}_" +
+                       "${clip.isStrokeEnabled}_${clip.strokeColor}_${clip.strokeWidth}_" +
+                       "${clip.isBackgroundEnabled}_${clip.backgroundColor}_${clip.backgroundRadius}_" +
+                       "${clip.letterSpacing}_${clip.textOpacity}"
         
         val cached = textTextureCache[cacheKey]
         val textureId: Int
@@ -298,9 +359,12 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
             bmpHeight = cached.height
             cached.lastUsed = System.currentTimeMillis()
         } else {
+            val baselineHeight = 1080f
+            val effectiveFontSize = clip.fontSize // Design is based on 1080p baseline
+
             val paint = Paint().apply {
                 isAntiAlias = true
-                textSize = clip.fontSize
+                textSize = effectiveFontSize
                 color = Color.WHITE
                 textAlign = Paint.Align.CENTER
                 letterSpacing = clip.letterSpacing / clip.fontSize
@@ -330,13 +394,16 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                     color = clip.backgroundColor
                     style = Paint.Style.FILL
                 }
-                val rect = RectF(hPadding - 15f, vPadding - 5f, hPadding + bounds.width() + 15f, vPadding + bounds.height() + 5f)
+                val rect = RectF(
+                    hPadding - 15f, 
+                    vPadding - 5f, 
+                    hPadding + bounds.width() + 15f, 
+                    vPadding + bounds.height() + 5f
+                )
                 canvas.drawRoundRect(rect, clip.backgroundRadius, clip.backgroundRadius, bgPaint)
             }
 
             if (clip.isShadowEnabled && Color.alpha(clip.shadowColor) > 0) {
-                // Android's setShadowLayer requires a radius > 0 to show anything.
-                // We use 0.1f as a minimum for "hard" shadows.
                 val radius = if (clip.shadowBlur <= 0f) 0.1f else clip.shadowBlur
                 paint.setShadowLayer(radius, clip.shadowOffsetX, clip.shadowOffsetY, clip.shadowColor)
             }
@@ -344,24 +411,19 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
             val textCenterX = bmpWidth / 2f
             val textBaselineY = (bmpHeight / 2f) - ((bounds.top + bounds.bottom) / 2f)
 
-            if (clip.strokeWidth > 0f) {
+            if (clip.isStrokeEnabled && clip.strokeWidth > 0f) {
                 paint.style = Paint.Style.STROKE
                 paint.strokeWidth = clip.strokeWidth
                 paint.strokeJoin = Paint.Join.ROUND
                 paint.strokeCap = Paint.Cap.ROUND
                 paint.color = clip.strokeColor
                 canvas.drawText(clip.text, textCenterX, textBaselineY, paint)
-                
-                paint.style = Paint.Style.FILL
-                val fillAlpha = (Color.alpha(clip.color) * clip.textOpacity).toInt()
-                paint.color = Color.argb(fillAlpha, Color.red(clip.color), Color.green(clip.color), Color.blue(clip.color))
-                canvas.drawText(clip.text, textCenterX, textBaselineY, paint)
-            } else {
-                paint.style = Paint.Style.FILL
-                val fillAlpha = (Color.alpha(clip.color) * clip.textOpacity).toInt()
-                paint.color = Color.argb(fillAlpha, Color.red(clip.color), Color.green(clip.color), Color.blue(clip.color))
-                canvas.drawText(clip.text, textCenterX, textBaselineY, paint)
             }
+
+            paint.style = Paint.Style.FILL
+            val fillAlpha = (Color.alpha(clip.color) * clip.textOpacity).toInt()
+            paint.color = Color.argb(fillAlpha, Color.red(clip.color), Color.green(clip.color), Color.blue(clip.color))
+            canvas.drawText(clip.text, textCenterX, textBaselineY, paint)
 
             val textures = IntArray(1)
             GLES20.glGenTextures(1, textures, 0)
@@ -383,7 +445,6 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         val blurY: Float
         
         if (prevPos != null) {
-            // Intensity of blur based on screen distance
             val sensitivity = 0.5f 
             blurX = (finalX - prevPos.x) * sensitivity
             blurY = (finalY - prevPos.y) * sensitivity
@@ -413,14 +474,27 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         }
         
         val finalScale = clip.scale * animState.scale
-        val logW = (bmpWidth.toFloat() / height) * 2 * finalScale * animState.scaleX
-        val logH = (bmpHeight.toFloat() / height) * 2 * finalScale * animState.scaleY
+        val baselineHeight = 1080f
+        val logW = (bmpWidth.toFloat() / baselineHeight) * 2 * finalScale * animState.scaleX
+        val logH = (bmpHeight.toFloat() / baselineHeight) * 2 * finalScale * animState.scaleY
         android.opengl.Matrix.scaleM(model, 0, logW, logH, 1f)
         
         android.opengl.Matrix.multiplyMM(mvpMatrix, 0, projection, 0, model, 0)
         useProgram(false)
         
-        GLES20.glUniform1f(uTypewriterProgressLoc, animState.typewriterProgress)
+        // Handle Wipe Animations
+        var wipeType = 0 // Default typewriter
+        when (clip.entranceAnimation.type) {
+            AnimationType.GRADIENT_WIPE -> wipeType = 1
+            AnimationType.RADIAL_WIPE -> wipeType = 2
+            AnimationType.WAVY_BEND -> wipeType = 3
+            else -> {}
+        }
+        // Loop animation can also drive the wave
+        if (clip.loopAnimation.type == AnimationType.WAVY_BEND) wipeType = 3
+        
+        GLES20.glUniform1i(uWipeTypeLoc, wipeType)
+        GLES20.glUniform1f(uWipeProgressLoc, animState.typewriterProgress)
         GLES20.glUniform2f(uTexelSizeLoc, 1f / bmpWidth, 1f / bmpHeight)
 
         GLES20.glUniformMatrix4fv(uMVPMatrixLoc, 1, false, mvpMatrix, 0)
@@ -442,52 +516,67 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId)
         GLES20.glUniform1i(sTextureLoc, 0)
 
-        // Pass 1: Shadow
-        if (clip.isShadowEnabled && Color.alpha(clip.shadowColor) > 0) {
-            val shadowMVP = FloatArray(16)
-            val shadowModel = FloatArray(16)
-            android.opengl.Matrix.setIdentityM(shadowModel, 0)
-            
-            val shadowGlX = glX + (clip.shadowOffsetX / width) * 2 * aspect
-            val shadowGlY = glY - (clip.shadowOffsetY / height) * 2
-            android.opengl.Matrix.translateM(shadowModel, 0, shadowGlX, shadowGlY, 0f)
-            
-            if (totalRotation != 0f) {
-                android.opengl.Matrix.rotateM(shadowModel, 0, totalRotation, 0f, 0f, 1f)
+        // Skip redundant GPU passes for text clips (they are baked into the bitmap)
+        // Only do GPU shadow/stroke for image overlays
+        if (!clip.isText) {
+            // Pass 1: Shadow
+            if (clip.isShadowEnabled && Color.alpha(clip.shadowColor) > 0) {
+                val shadowMVP = FloatArray(16)
+                val shadowModel = FloatArray(16)
+                android.opengl.Matrix.setIdentityM(shadowModel, 0)
+                
+                val shadowGlX = glX + (clip.shadowOffsetX / width) * 2 * aspect
+                val shadowGlY = glY - (clip.shadowOffsetY / height) * 2
+                android.opengl.Matrix.translateM(shadowModel, 0, shadowGlX, shadowGlY, 0f)
+                
+                if (totalRotation != 0f) {
+                    android.opengl.Matrix.rotateM(shadowModel, 0, totalRotation, 0f, 0f, 1f)
+                }
+                
+                android.opengl.Matrix.scaleM(shadowModel, 0, logW, logH, 1f)
+                android.opengl.Matrix.multiplyMM(shadowMVP, 0, projection, 0, shadowModel, 0)
+                
+                GLES20.glUniformMatrix4fv(uMVPMatrixLoc, 1, false, shadowMVP, 0)
+                GLES20.glUniform1i(uEffectModeLoc, 1) // Shadow Mode
+                GLES20.glUniform1f(uShadowBlurLoc, clip.shadowBlur)
+                
+                val sc = clip.shadowColor
+                GLES20.glUniform4f(uEffectColorLoc, (sc shr 16 and 0xFF)/255f, (sc shr 8 and 0xFF)/255f, (sc and 0xFF)/255f, (sc shr 24 and 0xFF)/255f)
+                
+                GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
             }
-            
-            android.opengl.Matrix.scaleM(shadowModel, 0, logW, logH, 1f)
-            android.opengl.Matrix.multiplyMM(shadowMVP, 0, projection, 0, shadowModel, 0)
-            
-            GLES20.glUniformMatrix4fv(uMVPMatrixLoc, 1, false, shadowMVP, 0)
-            GLES20.glUniform1i(uEffectModeLoc, 1) // Shadow Mode
-            GLES20.glUniform1f(uShadowBlurLoc, clip.shadowBlur)
-            
-            val sc = clip.shadowColor
-            GLES20.glUniform4f(uEffectColorLoc, (sc shr 16 and 0xFF)/255f, (sc shr 8 and 0xFF)/255f, (sc and 0xFF)/255f, (sc shr 24 and 0xFF)/255f)
-            
-            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
-        }
 
-        // Pass 2: Stroke
-        if (clip.isStrokeEnabled && clip.strokeWidth > 0f) {
-            GLES20.glUniformMatrix4fv(uMVPMatrixLoc, 1, false, mvpMatrix, 0)
-            GLES20.glUniform1i(uEffectModeLoc, 2) // Stroke Mode
-            GLES20.glUniform1f(uStrokeWidthLoc, clip.strokeWidth)
-            
-            val sc = clip.strokeColor
-            GLES20.glUniform4f(uEffectColorLoc, (sc shr 16 and 0xFF)/255f, (sc shr 8 and 0xFF)/255f, (sc and 0xFF)/255f, (sc shr 24 and 0xFF)/255f)
-            
-            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+            // Pass 2: Stroke
+            if (clip.isStrokeEnabled && clip.strokeWidth > 0f) {
+                GLES20.glUniformMatrix4fv(uMVPMatrixLoc, 1, false, mvpMatrix, 0)
+                GLES20.glUniform1i(uEffectModeLoc, 2) // Stroke Mode
+                GLES20.glUniform1f(uStrokeWidthLoc, clip.strokeWidth)
+                
+                val sc = clip.strokeColor
+                GLES20.glUniform4f(uEffectColorLoc, (sc shr 16 and 0xFF)/255f, (sc shr 8 and 0xFF)/255f, (sc and 0xFF)/255f, (sc shr 24 and 0xFF)/255f)
+                
+                GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+            }
         }
 
         // Pass 3: Main Text
         GLES20.glUniformMatrix4fv(uMVPMatrixLoc, 1, false, mvpMatrix, 0)
         GLES20.glUniform1i(uEffectModeLoc, 0) // Normal Mode
         
-        val tc = clip.color
-        val a = ((tc shr 24 and 0xFF) / 255f) * clip.opacity * animState.opacity * clip.textOpacity
-        GLES20.glUniform4f(vColorLoc, (tc shr 16 and 0xFF)/255f, (tc shr 8 and 0xFF)/255f, (tc and 0xFF)/255f, a)
+        val a = if (clip.isText) {
+            // Text color is already baked into the bitmap, so we only apply global and animation opacities
+            clip.opacity * animState.opacity
+        } else {
+            val tc = clip.color
+            ((tc shr 24 and 0xFF) / 255f) * clip.opacity * animState.opacity * clip.textOpacity
+        }
+
+        if (clip.isText) {
+            GLES20.glUniform4f(vColorLoc, 1f, 1f, 1f, a)
+        } else {
+            val tc = clip.color
+            GLES20.glUniform4f(vColorLoc, (tc shr 16 and 0xFF)/255f, (tc shr 8 and 0xFF)/255f, (tc and 0xFF)/255f, a)
+        }
         
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
         
@@ -603,7 +692,24 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         val vPos = if (isOES) vPositionOESLoc else vPositionLoc
         val vTex = if (isOES) vTexCoordOESLoc else vTexCoordLoc
 
+        val uWipeP = if (isOES) uWipeProgressOESLoc else uWipeProgressLoc
+        val uWipeT = if (isOES) uWipeTypeOESLoc else uWipeTypeLoc
+
         GLES20.glUniform2f(uTSize, 1f / bmpWidth, 1f / bmpHeight)
+        
+        // Image/Overlay Wipe
+        var wipeType = 0
+        when (clip.entranceAnimation.type) {
+            AnimationType.GRADIENT_WIPE -> wipeType = 1
+            AnimationType.RADIAL_WIPE -> wipeType = 2
+            AnimationType.WAVY_BEND -> wipeType = 3
+            else -> {}
+        }
+        // Loop animation can also drive the wave
+        if (clip.loopAnimation.type == AnimationType.WAVY_BEND) wipeType = 3
+        
+        GLES20.glUniform1i(uWipeT, wipeType)
+        GLES20.glUniform1f(uWipeP, animState.typewriterProgress)
         
         if (!isOES) {
             GLES20.glUniform2f(uBlurVectorLoc, 0f, 0f) 
