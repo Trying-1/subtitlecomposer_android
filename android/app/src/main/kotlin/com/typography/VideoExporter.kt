@@ -1,4 +1,4 @@
-package com.example.typgraphyeditor
+package com.typography
 
 import android.media.*
 import android.opengl.*

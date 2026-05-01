@@ -1,4 +1,4 @@
-package com.example.typgraphyeditor
+package com.typography
 
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -7,7 +7,7 @@ import io.flutter.view.TextureRegistry
 import java.io.File
 
 class MainActivity : FlutterActivity() {
-    private val CHANNEL = "com.example.typgraphyeditor/bridge"
+    private val CHANNEL = "com.typography/bridge"
     private var renderer: TypographyRenderer? = null
     private var textureEntry: TextureRegistry.SurfaceTextureEntry? = null
 
@@ -36,7 +36,7 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        flutterEngine.plugins.add(com.example.typgraphyeditor.videoplayer.SimpleVideoPlayerPlugin())
+        flutterEngine.plugins.add(com.typography.videoplayer.SimpleVideoPlayerPlugin())
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {

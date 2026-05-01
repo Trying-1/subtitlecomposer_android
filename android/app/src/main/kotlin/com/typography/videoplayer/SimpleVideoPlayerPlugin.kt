@@ -1,11 +1,11 @@
-package com.example.typgraphyeditor.videoplayer
+package com.typography.videoplayer
 
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 
 class SimpleVideoPlayerPlugin : FlutterPlugin {
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         binding.platformViewRegistry.registerViewFactory(
-            "com.example.typgraphyeditor/native_video_player",
+            "com.typography/native_video_player",
             SimpleVideoPlayerFactory(binding.binaryMessenger)
         )
     }

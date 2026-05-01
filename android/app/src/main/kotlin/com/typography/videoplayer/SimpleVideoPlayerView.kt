@@ -1,4 +1,4 @@
-package com.example.typgraphyeditor.videoplayer
+package com.typography.videoplayer
 
 import android.content.Context
 import android.graphics.Color
@@ -21,7 +21,7 @@ class SimpleVideoPlayerView(
 
     private val container = FrameLayout(context)
     private val videoView = VideoView(context)
-    private val channel = MethodChannel(messenger, "com.example.typgraphyeditor/video_player_$viewId")
+    private val channel = MethodChannel(messenger, "com.typography/video_player_$viewId")
     private var isMuted = false
     private var mediaPlayer: MediaPlayer? = null
 

@@ -137,7 +137,7 @@ static std::string escape_json(const std::string &s) {
 
 extern "C"
 JNIEXPORT jlong JNICALL
-Java_com_example_typgraphyeditor_MainActivity_initWhisper(JNIEnv *env, jobject thiz, jstring model_path) {
+Java_com_typography_MainActivity_initWhisper(JNIEnv *env, jobject thiz, jstring model_path) {
     const char *path = env->GetStringUTFChars(model_path, nullptr);
     struct whisper_context_params cparams = whisper_context_default_params();
     cparams.use_gpu = false; 
@@ -148,7 +148,7 @@ Java_com_example_typgraphyeditor_MainActivity_initWhisper(JNIEnv *env, jobject t
 
 extern "C"
 JNIEXPORT jstring JNICALL
-Java_com_example_typgraphyeditor_MainActivity_transcribeWhisper(
+Java_com_typography_MainActivity_transcribeWhisper(
         JNIEnv *env, jobject thiz, jlong context_ptr, jstring audio_path, jstring initial_prompt, jstring language) {
     
     struct whisper_context * ctx = reinterpret_cast<struct whisper_context *>(context_ptr);
@@ -213,7 +213,7 @@ Java_com_example_typgraphyeditor_MainActivity_transcribeWhisper(
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_example_typgraphyeditor_MainActivity_freeWhisper(JNIEnv *env, jobject thiz, jlong context_ptr) {
+Java_com_typography_MainActivity_freeWhisper(JNIEnv *env, jobject thiz, jlong context_ptr) {
     struct whisper_context * ctx = reinterpret_cast<struct whisper_context *>(context_ptr);
     if (ctx) whisper_free(ctx);
 }

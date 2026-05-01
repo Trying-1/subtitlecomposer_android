@@ -1,4 +1,4 @@
-package com.example.typgraphyeditor
+package com.typography
 
 import ai.onnxruntime.*
 import android.content.res.AssetManager

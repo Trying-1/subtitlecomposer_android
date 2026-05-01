@@ -1,4 +1,4 @@
-package com.example.typgraphyeditor.videoplayer
+package com.typography.videoplayer
 
 import android.content.Context
 import io.flutter.plugin.common.BinaryMessenger

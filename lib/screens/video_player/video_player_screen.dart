@@ -83,7 +83,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                     child: Container(
                       color: Colors.black,
                       child: AndroidView(
-                        viewType: 'com.example.typgraphyeditor/native_video_player',
+                        viewType: 'com.typography/native_video_player',
                         onPlatformViewCreated: _onViewCreated,
                       ),
                     ),

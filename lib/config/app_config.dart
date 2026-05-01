@@ -9,9 +9,9 @@ class AppConfig {
   static const bool showVoiceButton = false;
   static const bool showJsonButton = false;
   static const bool showEditButton = true;
-  static const bool showForceAlignButton = true;
-  static const bool showAddMusicButton = true;
-  static const bool showAddSFXButton = true;
+  static const bool showForceAlignButton = false;
+  static const bool showAddMusicButton = false;
+  static const bool showAddSFXButton = false;
   static const bool showModelButton = false;
   static const bool showAddTextButton = true;
   static const bool showExportButton = true;

@@ -131,7 +131,7 @@ public:
 
 extern "C"
 JNIEXPORT jlong JNICALL
-Java_com_example_typgraphyeditor_VideoFrameDecoder_nativeInit(JNIEnv *env, jobject thiz, jstring path) {
+Java_com_typography_VideoFrameDecoder_nativeInit(JNIEnv *env, jobject thiz, jstring path) {
     const char *p = env->GetStringUTFChars(path, nullptr);
     auto* extractor = new FFmpegFrameExtractor(p);
     if (!extractor->init()) {
@@ -145,7 +145,7 @@ Java_com_example_typgraphyeditor_VideoFrameDecoder_nativeInit(JNIEnv *env, jobje
 
 extern "C"
 JNIEXPORT jboolean JNICALL
-Java_com_example_typgraphyeditor_VideoFrameDecoder_nativeUpdateTexture(JNIEnv *env, jobject thiz, jlong handle, jlong time_ms, jint texture_id, jint width, jint height) {
+Java_com_typography_VideoFrameDecoder_nativeUpdateTexture(JNIEnv *env, jobject thiz, jlong handle, jlong time_ms, jint texture_id, jint width, jint height) {
     auto* extractor = reinterpret_cast<FFmpegFrameExtractor*>(handle);
     if (!extractor) return JNI_FALSE;
     return extractor->updateTexture(time_ms, texture_id, width, height) ? JNI_TRUE : JNI_FALSE;
@@ -153,21 +153,21 @@ Java_com_example_typgraphyeditor_VideoFrameDecoder_nativeUpdateTexture(JNIEnv *e
 
 extern "C"
 JNIEXPORT jint JNICALL
-Java_com_example_typgraphyeditor_VideoFrameDecoder_nativeGetWidth(JNIEnv *env, jobject thiz, jlong handle) {
+Java_com_typography_VideoFrameDecoder_nativeGetWidth(JNIEnv *env, jobject thiz, jlong handle) {
     auto* extractor = reinterpret_cast<FFmpegFrameExtractor*>(handle);
     return extractor && extractor->codec_ctx ? extractor->codec_ctx->width : 0;
 }
 
 extern "C"
 JNIEXPORT jint JNICALL
-Java_com_example_typgraphyeditor_VideoFrameDecoder_nativeGetHeight(JNIEnv *env, jobject thiz, jlong handle) {
+Java_com_typography_VideoFrameDecoder_nativeGetHeight(JNIEnv *env, jobject thiz, jlong handle) {
     auto* extractor = reinterpret_cast<FFmpegFrameExtractor*>(handle);
     return extractor && extractor->codec_ctx ? extractor->codec_ctx->height : 0;
 }
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_example_typgraphyeditor_VideoFrameDecoder_nativeRelease(JNIEnv *env, jobject thiz, jlong handle) {
+Java_com_typography_VideoFrameDecoder_nativeRelease(JNIEnv *env, jobject thiz, jlong handle) {
     auto* extractor = reinterpret_cast<FFmpegFrameExtractor*>(handle);
     delete extractor;
 }
@@ -246,7 +246,7 @@ std::vector<float> decodeAudioFile(const char* path, int targetSampleRate = 4410
 
 extern "C"
 JNIEXPORT jint JNICALL
-Java_com_example_typgraphyeditor_MainActivity_muxVideoAudio(
+Java_com_typography_MainActivity_muxVideoAudio(
         JNIEnv *env,
         jobject thiz,
         jstring video_path,
@@ -416,7 +416,7 @@ Java_com_example_typgraphyeditor_MainActivity_muxVideoAudio(
 
 extern "C"
 JNIEXPORT jint JNICALL
-Java_com_example_typgraphyeditor_MainActivity_extractAudio(
+Java_com_typography_MainActivity_extractAudio(
         JNIEnv *env,
         jobject thiz,
         jstring video_path,
@@ -529,7 +529,7 @@ end:
 
 extern "C"
 JNIEXPORT jfloatArray JNICALL
-Java_com_example_typgraphyeditor_MainActivity_decodeAudioToPcm(JNIEnv *env, jobject thiz, jstring audio_path) {
+Java_com_typography_MainActivity_decodeAudioToPcm(JNIEnv *env, jobject thiz, jstring audio_path) {
     const char *path = env->GetStringUTFChars(audio_path, nullptr);
     AVFormatContext *fmt_ctx = nullptr;
     if (avformat_open_input(&fmt_ctx, path, nullptr, nullptr) < 0) {

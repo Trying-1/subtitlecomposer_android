@@ -1,7 +1,7 @@
 import 'package:flutter/services.dart';
 
 class NativeBridge {
-  static const MethodChannel _channel = MethodChannel('com.example.typgraphyeditor/bridge');
+  static const MethodChannel _channel = MethodChannel('com.typography/bridge');
 
   Future<int?> initRenderer(int width, int height) async {
     return await _channel.invokeMethod<int>('initRenderer', {'width': width, 'height': height});

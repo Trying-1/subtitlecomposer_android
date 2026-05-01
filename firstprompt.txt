@@ -200,3 +200,9 @@ yes, if that more smooth and professional level then offcourse we  need that
 [lets add config to show this native, profile, tutorial and New project in the home screen]
 [make the onboarding minimalistic as well]
 [change the app label name to Typo Edit]
+
+============version10==========
+[alright next lets change the package name to com.typography]
+[now lets sign it, for publish the app in play store we need to sign the release]
+[do one final check the app is ready to publish right? also update the gitignore for key properties]
+[update the apk artifact naming so that we get proper apk naming with app name and version instead of default app-release.apk got it]

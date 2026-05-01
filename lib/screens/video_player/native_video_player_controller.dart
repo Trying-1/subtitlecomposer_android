@@ -12,7 +12,7 @@ class NativeVideoPlayerController {
   Stream<void> get onCompletion => _completionController.stream;
 
   NativeVideoPlayerController(this.viewId) {
-    _channel = MethodChannel('com.example.typgraphyeditor/video_player_$viewId');
+    _channel = MethodChannel('com.typography/video_player_$viewId');
     _channel.setMethodCallHandler(_handleMethod);
   }
 
