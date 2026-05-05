@@ -626,3 +626,92 @@ Java_com_typography_MainActivity_decodeAudioToPcm(JNIEnv *env, jobject thiz, jst
     env->SetFloatArrayRegion(result, 0, pcm_data.size(), pcm_data.data());
     return result;
 }
+#include "audio_engine.h"
+
+static AudioEngine* gAudioEngine = nullptr;
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_typography_MainActivity_initAudioEngine(JNIEnv *env, jobject thiz) {
+    if (!gAudioEngine) {
+        gAudioEngine = new AudioEngine();
+        gAudioEngine->init();
+    }
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_typography_MainActivity_releaseAudioEngine(JNIEnv *env, jobject thiz) {
+    if (gAudioEngine) {
+        gAudioEngine->release();
+        delete gAudioEngine;
+        gAudioEngine = nullptr;
+    }
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_typography_MainActivity_startAudioEngine(JNIEnv *env, jobject thiz) {
+    if (gAudioEngine) gAudioEngine->start();
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_typography_MainActivity_stopAudioEngine(JNIEnv *env, jobject thiz) {
+    if (gAudioEngine) gAudioEngine->stop();
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_typography_MainActivity_seekAudioEngine(JNIEnv *env, jobject thiz, jlong timeMs) {
+    if (gAudioEngine) gAudioEngine->seek((long)timeMs);
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_typography_MainActivity_setMainAudio(JNIEnv *env, jobject thiz, jstring path) {
+    if (gAudioEngine) {
+        const char* p = env->GetStringUTFChars(path, nullptr);
+        gAudioEngine->setMainAudio(p);
+        env->ReleaseStringUTFChars(path, p);
+    }
+}
+
+extern "C"
+JNIEXPORT jlong JNICALL
+Java_com_typography_MainActivity_getAudioPosition(JNIEnv *env, jobject thiz) {
+    return gAudioEngine ? (jlong)gAudioEngine->getCurrentPositionMs() : 0;
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_typography_MainActivity_setAudioClips(JNIEnv *env, jobject thiz, jobjectArray paths, jlongArray starts, jlongArray ends, jfloatArray vols) {
+    if (!gAudioEngine) return;
+
+    int count = env->GetArrayLength(paths);
+    jlong* s = env->GetLongArrayElements(starts, nullptr);
+    jlong* e = env->GetLongArrayElements(ends, nullptr);
+    jfloat* v = env->GetFloatArrayElements(vols, nullptr);
+
+    std::vector<PreviewAudioClip> clips;
+    for (int i = 0; i < count; i++) {
+        jstring path_str = (jstring)env->GetObjectArrayElement(paths, i);
+        const char* p = env->GetStringUTFChars(path_str, nullptr);
+        
+        PreviewAudioClip clip;
+        clip.id = std::to_string(i);
+        clip.path = p;
+        clip.startTime = (long)s[i];
+        clip.endTime = (long)e[i];
+        clip.volume = v[i];
+        clips.push_back(clip);
+
+        env->ReleaseStringUTFChars(path_str, p);
+    }
+
+    gAudioEngine->setClips(clips);
+
+    env->ReleaseLongArrayElements(starts, s, JNI_ABORT);
+    env->ReleaseLongArrayElements(ends, e, JNI_ABORT);
+    env->ReleaseFloatArrayElements(vols, v, JNI_ABORT);
+}

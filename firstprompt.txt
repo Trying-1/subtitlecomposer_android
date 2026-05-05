@@ -206,3 +206,60 @@ yes, if that more smooth and professional level then offcourse we  need that
 [now lets sign it, for publish the app in play store we need to sign the release]
 [do one final check the app is ready to publish right? also update the gitignore for key properties]
 [update the apk artifact naming so that we get proper apk naming with app name and version instead of default app-release.apk got it]
+
+======version11==============
+[i got some reports that app is not compatible in some devices]
+[we don't need camera permissions]
+[in the postion tab. lets add new postion control, like a trackpad type of control from where we can control the postion of the selected element, understood, like sometimes when thing get too clutter in the preview draging element there can accidently move others, understood, what I am planning]
+[good but the preview is kind of glitchy during thsi drag its not smooth, and also lets put this separate sub tab inside the postion understood]
+[make the quick align button simple and minimal and compact.  not text just grid box, got it]
+[alright next feature is big, lets save the project. so that we can store multiple projects, and can comeback and continue, we do have the dummy projects button in the homescreen,understood, design proper architecture for that, understood. shoud we use isar or hive or app storage or shared preference]
+[good but theres bug that when I open the project the preview shows white, the text doen't showup in preview untill I do some changes in the background tab, ]
+[allow project rename, delete, and duplicate]
+[and in the recent project its automatically creating new projects, like I only started 2 projects but the recent project shows 5 projects. ]
+[there's still bug that when I reopen the project the text isn't visible until I do some color shanges either in the background or the in the text color, look into this]
+[okay next can we make the preview window adjustable, like we can drag the timeline control panel to adjust the height of preivew window, this was we can have control over how much the preview and the timeline track area takes. understood]
+[cool but theres bug, the full view mode is shifting the the bottom control tabs from bottom to top. like I want them to be fixed at bottom understood]
+[still no,  man the they should be fixed at the bottom of the screen always, right now the full view mode is lifting them up from the the bottom of the screen. understood what I mean]
+[letss add glow , bending, reflection text effects. understood, what I  mean]
+[bending isn't showing any effects on text]
+[okay, next for the refelection when offset is 0, make them connected like undertsood]
+[next theres issue that there  layer that is hiding the timeline behind it below, i think its the control tab min height area, can we remove that when no tab are open, understood what I am talking about]
+[man something is causing a lot of audio breaking in the preview. whats the root cause, the same codebase was working fine then what could be the issue is it the device or what. look deep what might be the cause]
+[so right now the preview audio is handled from flutter? will it improve more if we use native master clock?]
+[do you want to look into migrating towards a Native Audio Master to get that professional-grade stability?: native audio master]
+[working well so far, next make the timeline auto scroll when playing, like to follow the playhead, understood]i noticed how capcut does this, it keeps the play head at center and scroll the timeline, it looks smooth, understood]
+[also another uX improvement when we play, and then I manually scroll the timeline, the pause automatically instead of playing again, get it,]
+[good, theres some audio quality mismatch in the preview and ouput, sometimes glicth sound]
+[in the audio assets library allow to play the preview, so that we can listen before adding it to timeline, got it]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

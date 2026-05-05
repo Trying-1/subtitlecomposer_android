@@ -826,6 +826,8 @@ class _EditorScreenState extends State<EditorScreen> {
     );
   }
 
+  double? _previewHeight;
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<EditorProvider>();
@@ -833,279 +835,348 @@ class _EditorScreenState extends State<EditorScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0F0F13),
       body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              flex: provider.isTimelineCollapsed ? 1 : 6,
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-                child: VideoPreview(),
+        bottom: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            _previewHeight ??= constraints.maxHeight * 0.55;
+            
+            return SizedBox(
+              height: constraints.maxHeight,
+              child: Stack(
+                children: [
+                  Column(
+                    children: [
+                      SizedBox(
+                        height: provider.isTimelineCollapsed ? 120 : _previewHeight,
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                          child: VideoPreview(),
+                        ),
+                      ),
+                      
+                      if (!provider.isTimelineCollapsed)
+                        GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onVerticalDragUpdate: (details) {
+                            setState(() {
+                              _previewHeight = (_previewHeight! + details.delta.dy)
+                                  .clamp(150.0, constraints.maxHeight - 250.0);
+                            });
+                          },
+                          child: Container(
+                            width: double.infinity,
+                            height: 16,
+                            color: Colors.transparent,
+                            child: Center(
+                              child: Container(
+                                width: 40,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color: Colors.white10,
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+
+                      if (provider.isTimelineCollapsed)
+                        TimelineEditor(
+                          tracks: provider.tracks,
+                          overlayTracks: provider.overlayTracks,
+                          backgroundTracks: provider.backgroundTracks,
+                          audioTracks: provider.audioTracks,
+                          currentTime: provider.currentTime,
+                          playbackTime: provider.playbackTime,
+                          totalDuration: provider.totalDuration,
+                          isPlaying: provider.isPlaying,
+                          onTogglePlay: provider.togglePlay,
+                          isCollapsed: true,
+                          onToggleCollapse: provider.toggleTimelineCollapse,
+                          onSeek: (dur) => provider.seek(dur),
+                          selectedClipIds: provider.selectedClipIds,
+                          isMultiSelectMode: provider.isMultiSelectMode,
+                          onToggleMultiSelect: provider.toggleMultiSelectMode,
+                          isAllSelected: provider.isAllSelected,
+                          onToggleSelectAll: () => provider.toggleSelectAll(),
+                          zoomLevel: provider.zoomLevel,
+                          onSelect: (id) => provider.selectClip(id),
+                          onToggleSelect: (id) => provider.toggleClipSelection(id),
+                          onZoomChanged: (v) => provider.setZoomLevel(v),
+                          onMoveClip: (clip, trackId, startTime) => provider.moveClip(clip, trackId, startTime),
+                          onAddTrack: (type) => provider.addNewTrack(type),
+                          onUpdateClipTiming: (clip, start, end, resolve) => provider.updateClipTiming(clip, start, end, resolveCollisions: resolve),
+                          onResolveCollisions: (id) => provider.forceResolveCollisions(id),
+                          onStackSelected: () => provider.stackSelectedClips(),
+                          onResetSelected: () => provider.resetSelectedClips(),
+                          onSplit: () => provider.selectedClipIds.isNotEmpty ? provider.splitClip(provider.selectedClipIds.first) : null,
+                          onMerge: () => provider.mergeSelectedClips(),
+                          onSplitToWords: () => provider.splitSelectedClipToWords(),
+                          onDelete: () => provider.deleteSelectedClips(),
+                          onActionStart: () => provider.saveState(),
+                          onUndo: () => provider.undo(),
+                          onRedo: () => provider.redo(),
+                          canUndo: provider.canUndo,
+                          canRedo: provider.canRedo,
+                          onAddKeyframe: () => provider.addKeyframeAtCurrentTime(),
+                          onClearKeyframes: () => provider.clearKeyframes(),
+                          isKeyframeAtCurrentTime: provider.isKeyframeAtCurrentTime,
+                          showTextTracks: provider.showTextTracks,
+                          showOverlayTracks: provider.showOverlayTracks,
+                          showBackgroundTracks: provider.showBackgroundTracks,
+                          showAudioTracks: provider.showAudioTracks,
+                          onToggleTextTracks: provider.toggleTextTracks,
+                          onToggleOverlayTracks: provider.toggleOverlayTracks,
+                          onToggleBackgroundTracks: provider.toggleBackgroundTracks,
+                          onToggleAudioTracks: provider.toggleAudioTracks,
+                          markers: provider.markers,
+                          onAddMarker: () => provider.addMarker(),
+                          onClearMarkers: () => provider.clearMarkers(),
+                          isCollisionAdjustEnabled: provider.isCollisionAdjustEnabled,
+                          onToggleCollisionAdjust: provider.toggleCollisionAdjust,
+                          isPlayheadLocked: provider.isPlayheadLocked,
+                          onTogglePlayheadLock: provider.togglePlayheadLock,
+                          onAddText: () => _showAddTextDialog(context, provider),
+                        )
+                      else
+                        Expanded(
+                          child: TimelineEditor(
+                            tracks: provider.tracks,
+                            overlayTracks: provider.overlayTracks,
+                            backgroundTracks: provider.backgroundTracks,
+                            audioTracks: provider.audioTracks,
+                            currentTime: provider.currentTime,
+                            playbackTime: provider.playbackTime,
+                            totalDuration: provider.totalDuration,
+                            isPlaying: provider.isPlaying,
+                            onTogglePlay: provider.togglePlay,
+                            isCollapsed: false,
+                            onToggleCollapse: provider.toggleTimelineCollapse,
+                            onSeek: (dur) => provider.seek(dur),
+                            selectedClipIds: provider.selectedClipIds,
+                            isMultiSelectMode: provider.isMultiSelectMode,
+                            onToggleMultiSelect: provider.toggleMultiSelectMode,
+                            isAllSelected: provider.isAllSelected,
+                            onToggleSelectAll: () => provider.toggleSelectAll(),
+                            zoomLevel: provider.zoomLevel,
+                            onSelect: (id) => provider.selectClip(id),
+                            onToggleSelect: (id) => provider.toggleClipSelection(id),
+                            onZoomChanged: (v) => provider.setZoomLevel(v),
+                            onMoveClip: (clip, trackId, startTime) => provider.moveClip(clip, trackId, startTime),
+                            onAddTrack: (type) => provider.addNewTrack(type),
+                            onUpdateClipTiming: (clip, start, end, resolve) => provider.updateClipTiming(clip, start, end, resolveCollisions: resolve),
+                            onResolveCollisions: (id) => provider.forceResolveCollisions(id),
+                            onStackSelected: () => provider.stackSelectedClips(),
+                            onResetSelected: () => provider.resetSelectedClips(),
+                            onSplit: () => provider.selectedClipIds.isNotEmpty ? provider.splitClip(provider.selectedClipIds.first) : null,
+                            onMerge: () => provider.mergeSelectedClips(),
+                            onSplitToWords: () => provider.splitSelectedClipToWords(),
+                            onDelete: () => provider.deleteSelectedClips(),
+                            onActionStart: () => provider.saveState(),
+                            onUndo: () => provider.undo(),
+                            onRedo: () => provider.redo(),
+                            canUndo: provider.canUndo,
+                            canRedo: provider.canRedo,
+                            onAddKeyframe: () => provider.addKeyframeAtCurrentTime(),
+                            onClearKeyframes: () => provider.clearKeyframes(),
+                            isKeyframeAtCurrentTime: provider.isKeyframeAtCurrentTime,
+                            showTextTracks: provider.showTextTracks,
+                            showOverlayTracks: provider.showOverlayTracks,
+                            showBackgroundTracks: provider.showBackgroundTracks,
+                            showAudioTracks: provider.showAudioTracks,
+                            onToggleTextTracks: provider.toggleTextTracks,
+                            onToggleOverlayTracks: provider.toggleOverlayTracks,
+                            onToggleBackgroundTracks: provider.toggleBackgroundTracks,
+                            onToggleAudioTracks: provider.toggleAudioTracks,
+                            markers: provider.markers,
+                            onAddMarker: () => provider.addMarker(),
+                            onClearMarkers: () => provider.clearMarkers(),
+                            isCollisionAdjustEnabled: provider.isCollisionAdjustEnabled,
+                            onToggleCollisionAdjust: provider.toggleCollisionAdjust,
+                            isPlayheadLocked: provider.isPlayheadLocked,
+                            onTogglePlayheadLock: provider.togglePlayheadLock,
+                            onAddText: () => _showAddTextDialog(context, provider),
+                          ),
+                        ),
+                                            SizedBox(height: provider.isControlPanelCollapsed ? 52 : 240 + 16),
+                    ],
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (provider.isTimelineCollapsed)
+                          LinearProgressIndicator(
+                            value: provider.totalDuration.inMilliseconds > 0 
+                                ? provider.currentTime.inMilliseconds / provider.totalDuration.inMilliseconds 
+                                : 0.0,
+                            backgroundColor: Colors.white.withOpacity(0.05),
+                            color: Colors.deepPurpleAccent,
+                            minHeight: 2,
+                          ),
+                        if (provider.isExporting)
+                          const LinearProgressIndicator(color: Colors.deepPurpleAccent, backgroundColor: Colors.white10),
+                        const Divider(height: 1, color: Colors.white10),
+                        BottomControlPanel(
+                          clip: provider.selectedTimelineClip,
+                          selectedOverlay: provider.selectedOverlay,
+                          selectedAudio: provider.selectedAudio,
+                          selectedClipIds: provider.selectedClipIds,
+                          currentTime: provider.currentTime,
+                          onImportAudio: () => _pickAudio(context, provider),
+                          onExtractAudio: () => _extractAudioFromVideo(context, provider),
+                          onImportSubtitles: () => _pickSubtitles(context, provider),
+                          onImportPlainText: () => _pickPlainText(context, provider),
+                          onPasteSubtitles: () => _showPasteSubtitlesDialog(context, provider),
+                          onExport: () => _handleExport(context, provider),
+                          onAddClip: () => _showAddTextDialog(context, provider),
+                          onNewProject: () => _handleNewProject(context, provider),
+                          onTranscribe: () => _showTranscribeDialog(context, provider),
+                          onForceAlign: () => _showForceAlignDialog(context, provider),
+                          onAddMusic: () => _handleImportAudioClip(context, provider),
+                          onAddSFX: () => _handleImportAudioClip(context, provider),
+                          onBulkEditJson: () {
+                            if (provider.tracks.isEmpty || provider.tracks.every((t) => t.clips.isEmpty)) {
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No subtitles to edit yet!')));
+                              return;
+                            }
+                            final List<Map<String, dynamic>> currentSegments = [];
+                            for (var t in provider.tracks) {
+                              for (var c in t.clips) {
+                                currentSegments.add({'start': c.startTime.inMilliseconds, 'end': c.endTime.inMilliseconds, 'text': c.text});
+                              }
+                            }
+                            currentSegments.sort((a,b) => (a['start'] as int).compareTo(b['start'] as int));
+                            _showReviewTranscriptionDialog(context, provider, currentSegments, isJson: true);
+                          },
+                          onBulkEditText: () {
+                            if (provider.tracks.isEmpty || provider.tracks.every((t) => t.clips.isEmpty)) {
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No subtitles to edit yet!')));
+                              return;
+                            }
+                            final List<Map<String, dynamic>> currentSegments = [];
+                            for (var t in provider.tracks) {
+                              for (var c in t.clips) {
+                                currentSegments.add({'start': c.startTime.inMilliseconds, 'end': c.endTime.inMilliseconds, 'text': c.text});
+                              }
+                            }
+                            currentSegments.sort((a,b) => (a['start'] as int).compareTo(b['start'] as int));
+                            _showReviewTranscriptionDialog(context, provider, currentSegments, isJson: false);
+                          },
+                          onImportModel: () async {
+                            final path = await _pickModelFile();
+                            if (path != null) {
+                              try {
+                                await provider.importModel(path);
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Import failed: $e')));
+                                }
+                              }
+                            }
+                          },
+                          isModelReady: provider.whisperModelPath != null,
+                          isImportingModel: provider.isImportingModel,
+                          onAddOverlay: (path) => provider.addOverlay(path),
+                          onAddAudioClip: (path) => provider.addAudioClip(path),
+                          onUpdate: ({
+                            String? text,
+                            double? fontSize,
+                            double? x,
+                            double? y,
+                            double? letterSpacing,
+                            double? rotation,
+                            double? scale,
+                            double? opacity,
+                            bool? isShadowEnabled,
+                            bool? isBackgroundEnabled,
+                            bool? isStrokeEnabled,
+                            int? color,
+                            int? strokeColor,
+                            double? strokeWidth,
+                            int? shadowColor,
+                            double? shadowBlur,
+                            double? shadowOffsetX,
+                            double? shadowOffsetY,
+                            int? backgroundColor,
+                            double? backgroundRadius,
+                            String? fontFamily,
+                            ClipAnimation? entranceAnimation,
+                            ClipAnimation? exitAnimation,
+                            ClipAnimation? loopAnimation,
+                            double? textOpacity,
+                            List<Keyframe>? keyframes,
+                            TextCase? textCase,
+                            double? volume,
+                            CustomBlendMode? blendMode,
+                            bool? isGlowEnabled,
+                            bool? isBendingEnabled,
+                            bool? isReflectionEnabled,
+                            int? glowColor,
+                            double? glowSize,
+                            double? bendingAmount,
+                            double? reflectionOffset,
+                            double? reflectionOpacity,
+                            int? reflectionColor,
+                          }) {
+                            provider.updateClips(
+                              provider.selectedClipIds,
+                              text: text,
+                              fontSize: fontSize,
+                              x: x,
+                              y: y,
+                              color: color,
+                              strokeColor: strokeColor,
+                              strokeWidth: strokeWidth,
+                              shadowColor: shadowColor,
+                              shadowBlur: shadowBlur,
+                              shadowOffsetX: shadowOffsetX,
+                              shadowOffsetY: shadowOffsetY,
+                              backgroundColor: backgroundColor,
+                              backgroundRadius: backgroundRadius,
+                              letterSpacing: letterSpacing,
+                              rotation: rotation,
+                              scale: scale,
+                              opacity: opacity,
+                              textOpacity: textOpacity,
+                              isShadowEnabled: isShadowEnabled,
+                              isBackgroundEnabled: isBackgroundEnabled,
+                              isStrokeEnabled: isStrokeEnabled,
+                              fontFamily: fontFamily,
+                              entranceAnimation: entranceAnimation,
+                              exitAnimation: exitAnimation,
+                              loopAnimation: loopAnimation,
+                              keyframes: keyframes,
+                              textCase: textCase,
+                              volume: volume,
+                              blendMode: blendMode,
+                              isGlowEnabled: isGlowEnabled,
+                              isBendingEnabled: isBendingEnabled,
+                              isReflectionEnabled: isReflectionEnabled,
+                              glowColor: glowColor,
+                              glowSize: glowSize,
+                              bendingAmount: bendingAmount,
+                              reflectionOffset: reflectionOffset,
+                              reflectionOpacity: reflectionOpacity,
+                              reflectionColor: reflectionColor,
+                            );
+                          },
+                          onApplyPreset: (preset) {
+                            for (var id in provider.selectedClipIds) {
+                              provider.applyPreset(id, preset);
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ),
-            if (provider.isTimelineCollapsed)
-                TimelineEditor(
-                tracks: provider.tracks,
-                overlayTracks: provider.overlayTracks,
-                backgroundTracks: provider.backgroundTracks,
-                audioTracks: provider.audioTracks,
-                currentTime: provider.currentTime,
-                playbackTime: provider.playbackTime,
-                totalDuration: provider.totalDuration,
-                isPlaying: provider.isPlaying,
-                onTogglePlay: provider.togglePlay,
-                isCollapsed: true,
-                onToggleCollapse: provider.toggleTimelineCollapse,
-                onSeek: (dur) => provider.seek(dur),
-                selectedClipIds: provider.selectedClipIds,
-                isMultiSelectMode: provider.isMultiSelectMode,
-                onToggleMultiSelect: provider.toggleMultiSelectMode,
-                isAllSelected: provider.isAllSelected,
-                onToggleSelectAll: () => provider.toggleSelectAll(),
-                zoomLevel: provider.zoomLevel,
-                onSelect: (id) => provider.selectClip(id),
-                onToggleSelect: (id) => provider.toggleClipSelection(id),
-                onZoomChanged: (v) => provider.setZoomLevel(v),
-                onMoveClip: (clip, trackId, startTime) => provider.moveClip(clip, trackId, startTime),
-                onAddTrack: (type) => provider.addNewTrack(type),
-                onUpdateClipTiming: (clip, start, end, resolve) => provider.updateClipTiming(clip, start, end, resolveCollisions: resolve),
-                onResolveCollisions: (id) => provider.forceResolveCollisions(id),
-                onStackSelected: () => provider.stackSelectedClips(),
-                onResetSelected: () => provider.resetSelectedClips(),
-                onSplit: () => provider.selectedClipIds.isNotEmpty ? provider.splitClip(provider.selectedClipIds.first) : null,
-                onMerge: () => provider.mergeSelectedClips(),
-                onSplitToWords: () => provider.splitSelectedClipToWords(),
-                onDelete: () => provider.deleteSelectedClips(),
-                onActionStart: () => provider.saveState(),
-                onUndo: () => provider.undo(),
-                onRedo: () => provider.redo(),
-                canUndo: provider.canUndo,
-                canRedo: provider.canRedo,
-                onAddKeyframe: () => provider.addKeyframeAtCurrentTime(),
-                onClearKeyframes: () => provider.clearKeyframes(),
-                isKeyframeAtCurrentTime: provider.isKeyframeAtCurrentTime,
-                showTextTracks: provider.showTextTracks,
-                showOverlayTracks: provider.showOverlayTracks,
-                showBackgroundTracks: provider.showBackgroundTracks,
-                showAudioTracks: provider.showAudioTracks,
-                onToggleTextTracks: provider.toggleTextTracks,
-                onToggleOverlayTracks: provider.toggleOverlayTracks,
-                onToggleBackgroundTracks: provider.toggleBackgroundTracks,
-                onToggleAudioTracks: provider.toggleAudioTracks,
-                markers: provider.markers,
-                onAddMarker: () => provider.addMarker(),
-                onClearMarkers: () => provider.clearMarkers(),
-                isCollisionAdjustEnabled: provider.isCollisionAdjustEnabled,
-                onToggleCollisionAdjust: provider.toggleCollisionAdjust,
-                isPlayheadLocked: provider.isPlayheadLocked,
-                onTogglePlayheadLock: provider.togglePlayheadLock,
-                onAddText: () => _showAddTextDialog(context, provider),
-              )
-            else
-              Expanded(
-                flex: 3,
-                child: TimelineEditor(
-                  tracks: provider.tracks,
-                  overlayTracks: provider.overlayTracks,
-                  backgroundTracks: provider.backgroundTracks,
-                  audioTracks: provider.audioTracks,
-                  currentTime: provider.currentTime,
-                  playbackTime: provider.playbackTime,
-                  totalDuration: provider.totalDuration,
-                  isPlaying: provider.isPlaying,
-                  onTogglePlay: provider.togglePlay,
-                  isCollapsed: false,
-                  onToggleCollapse: provider.toggleTimelineCollapse,
-                  onSeek: (dur) => provider.seek(dur),
-                  selectedClipIds: provider.selectedClipIds,
-                  isMultiSelectMode: provider.isMultiSelectMode,
-                  onToggleMultiSelect: provider.toggleMultiSelectMode,
-                  isAllSelected: provider.isAllSelected,
-                  onToggleSelectAll: () => provider.toggleSelectAll(),
-                  zoomLevel: provider.zoomLevel,
-                  onSelect: (id) => provider.selectClip(id),
-                  onToggleSelect: (id) => provider.toggleClipSelection(id),
-                  onZoomChanged: (v) => provider.setZoomLevel(v),
-                  onMoveClip: (clip, trackId, startTime) => provider.moveClip(clip, trackId, startTime),
-                  onAddTrack: (type) => provider.addNewTrack(type),
-                  onUpdateClipTiming: (clip, start, end, resolve) => provider.updateClipTiming(clip, start, end, resolveCollisions: resolve),
-                  onResolveCollisions: (id) => provider.forceResolveCollisions(id),
-                  onStackSelected: () => provider.stackSelectedClips(),
-                  onResetSelected: () => provider.resetSelectedClips(),
-                  onSplit: () => provider.selectedClipIds.isNotEmpty ? provider.splitClip(provider.selectedClipIds.first) : null,
-                  onMerge: () => provider.mergeSelectedClips(),
-                  onSplitToWords: () => provider.splitSelectedClipToWords(),
-                  onDelete: () => provider.deleteSelectedClips(),
-                  onActionStart: () => provider.saveState(),
-                  onUndo: () => provider.undo(),
-                  onRedo: () => provider.redo(),
-                  canUndo: provider.canUndo,
-                  canRedo: provider.canRedo,
-                  onAddKeyframe: () => provider.addKeyframeAtCurrentTime(),
-                  onClearKeyframes: () => provider.clearKeyframes(),
-                  isKeyframeAtCurrentTime: provider.isKeyframeAtCurrentTime,
-                  showTextTracks: provider.showTextTracks,
-                  showOverlayTracks: provider.showOverlayTracks,
-                  showBackgroundTracks: provider.showBackgroundTracks,
-                  showAudioTracks: provider.showAudioTracks,
-                  onToggleTextTracks: provider.toggleTextTracks,
-                  onToggleOverlayTracks: provider.toggleOverlayTracks,
-                  onToggleBackgroundTracks: provider.toggleBackgroundTracks,
-                  onToggleAudioTracks: provider.toggleAudioTracks,
-                  markers: provider.markers,
-                  onAddMarker: () => provider.addMarker(),
-                  onClearMarkers: () => provider.clearMarkers(),
-                  isCollisionAdjustEnabled: provider.isCollisionAdjustEnabled,
-                  onToggleCollisionAdjust: provider.toggleCollisionAdjust,
-                  isPlayheadLocked: provider.isPlayheadLocked,
-                  onTogglePlayheadLock: provider.togglePlayheadLock,
-                  onAddText: () => _showAddTextDialog(context, provider),
-                ),
-              ),
-            if (provider.isTimelineCollapsed)
-              LinearProgressIndicator(
-                value: provider.totalDuration.inMilliseconds > 0 
-                    ? provider.currentTime.inMilliseconds / provider.totalDuration.inMilliseconds 
-                    : 0.0,
-                backgroundColor: Colors.white.withOpacity(0.05),
-                color: Colors.deepPurpleAccent,
-                minHeight: 2,
-              ),
-            if (provider.isExporting)
-              const LinearProgressIndicator(color: Colors.deepPurpleAccent, backgroundColor: Colors.white10),
-            const Divider(height: 1, color: Colors.white10),
-            BottomControlPanel(
-              clip: provider.selectedTimelineClip,
-              selectedOverlay: provider.selectedOverlay,
-              selectedAudio: provider.selectedAudio,
-              selectedClipIds: provider.selectedClipIds,
-              currentTime: provider.currentTime,
-              onImportAudio: () => _pickAudio(context, provider),
-              onExtractAudio: () => _extractAudioFromVideo(context, provider),
-              onImportSubtitles: () => _pickSubtitles(context, provider),
-              onImportPlainText: () => _pickPlainText(context, provider),
-              onPasteSubtitles: () => _showPasteSubtitlesDialog(context, provider),
-              onExport: () => _handleExport(context, provider),
-              onAddClip: () => _showAddTextDialog(context, provider),
-              onNewProject: () => _handleNewProject(context, provider),
-              onTranscribe: () => _showTranscribeDialog(context, provider),
-              onForceAlign: () => _showForceAlignDialog(context, provider),
-              onAddMusic: () => _handleImportAudioClip(context, provider),
-              onAddSFX: () => _handleImportAudioClip(context, provider),
-              onBulkEditJson: () {
-                if (provider.tracks.isEmpty || provider.tracks.every((t) => t.clips.isEmpty)) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No subtitles to edit yet!')));
-                  return;
-                }
-                final List<Map<String, dynamic>> currentSegments = [];
-                for (var t in provider.tracks) {
-                  for (var c in t.clips) {
-                    currentSegments.add({'start': c.startTime.inMilliseconds, 'end': c.endTime.inMilliseconds, 'text': c.text});
-                  }
-                }
-                currentSegments.sort((a,b) => (a['start'] as int).compareTo(b['start'] as int));
-                _showReviewTranscriptionDialog(context, provider, currentSegments, isJson: true);
-              },
-              onBulkEditText: () {
-                if (provider.tracks.isEmpty || provider.tracks.every((t) => t.clips.isEmpty)) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No subtitles to edit yet!')));
-                  return;
-                }
-                final List<Map<String, dynamic>> currentSegments = [];
-                for (var t in provider.tracks) {
-                  for (var c in t.clips) {
-                    currentSegments.add({'start': c.startTime.inMilliseconds, 'end': c.endTime.inMilliseconds, 'text': c.text});
-                  }
-                }
-                currentSegments.sort((a,b) => (a['start'] as int).compareTo(b['start'] as int));
-                _showReviewTranscriptionDialog(context, provider, currentSegments, isJson: false);
-              },
-              onImportModel: () async {
-                final path = await _pickModelFile();
-                if (path != null) {
-                  try {
-                    await provider.importModel(path);
-                  } catch (e) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Import failed: $e')));
-                    }
-                  }
-                }
-              },
-              isModelReady: provider.whisperModelPath != null,
-              isImportingModel: provider.isImportingModel,
-              onAddOverlay: (path) => provider.addOverlay(path),
-              onAddAudioClip: (path) => provider.addAudioClip(path),
-              onUpdate: ({
-                String? text,
-                double? fontSize,
-                double? x,
-                double? y,
-                double? letterSpacing,
-                double? rotation,
-                double? scale,
-                double? opacity,
-                bool? isShadowEnabled,
-                bool? isBackgroundEnabled,
-                bool? isStrokeEnabled,
-                int? color,
-                int? strokeColor,
-                double? strokeWidth,
-                int? shadowColor,
-                double? shadowBlur,
-                double? shadowOffsetX,
-                double? shadowOffsetY,
-                int? backgroundColor,
-                double? backgroundRadius,
-                String? fontFamily,
-                ClipAnimation? entranceAnimation,
-                ClipAnimation? exitAnimation,
-                ClipAnimation? loopAnimation,
-                double? textOpacity,
-                List<Keyframe>? keyframes,
-                TextCase? textCase,
-                double? volume,
-                CustomBlendMode? blendMode,
-              }) {
-                provider.updateClips(
-                  provider.selectedClipIds,
-                  text: text,
-                  fontSize: fontSize,
-                  x: x,
-                  y: y,
-                  color: color,
-                  strokeColor: strokeColor,
-                  strokeWidth: strokeWidth,
-                  shadowColor: shadowColor,
-                  shadowBlur: shadowBlur,
-                  shadowOffsetX: shadowOffsetX,
-                  shadowOffsetY: shadowOffsetY,
-                  backgroundColor: backgroundColor,
-                  backgroundRadius: backgroundRadius,
-                  letterSpacing: letterSpacing,
-                  rotation: rotation,
-                  scale: scale,
-                  opacity: opacity,
-                  textOpacity: textOpacity,
-                  isShadowEnabled: isShadowEnabled,
-                  isBackgroundEnabled: isBackgroundEnabled,
-                  isStrokeEnabled: isStrokeEnabled,
-                  fontFamily: fontFamily,
-                  entranceAnimation: entranceAnimation,
-                  exitAnimation: exitAnimation,
-                  loopAnimation: loopAnimation,
-                  keyframes: keyframes,
-                  textCase: textCase,
-                  volume: volume,
-                  blendMode: blendMode,
-                );
-              },
-              onApplyPreset: (preset) {
-                for (var id in provider.selectedClipIds) {
-                  provider.applyPreset(id, preset);
-                }
-              },
-            ),
-          ],
+            );
+          },
         ),
       ),
     );

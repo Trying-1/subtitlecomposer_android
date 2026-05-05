@@ -186,19 +186,24 @@ class CommonControls {
   static Widget buildSubTabBar(List<String> labels, int current, ValueChanged<int> onChanged) {
     return Container(
       width: double.infinity,
-      height: 28,
+      height: 30,
       padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.04),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Row(
-        children: List.generate(labels.length, (index) {
-          final isSelected = current == index;
-          return Expanded(
-            child: GestureDetector(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(labels.length, (index) {
+            final isSelected = current == index;
+            return GestureDetector(
               onTap: () => onChanged(index),
-              child: Container(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                margin: const EdgeInsets.only(right: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: isSelected ? Colors.deepPurpleAccent : Colors.transparent,
@@ -207,16 +212,16 @@ class CommonControls {
                 child: Text(
                   labels[index],
                   style: TextStyle(
-                    fontSize: 8.5,
+                    fontSize: 8,
                     fontWeight: FontWeight.w900,
                     color: isSelected ? Colors.white : Colors.white38,
-                    letterSpacing: 1.0,
+                    letterSpacing: 0.8,
                   ),
                 ),
               ),
-            ),
-          );
-        }),
+            );
+          }),
+        ),
       ),
     );
   }

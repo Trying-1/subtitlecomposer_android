@@ -26,6 +26,8 @@ class _VideoPreviewState extends State<VideoPreview> {
   Future<void> _initPreview() async {
     final textureId = await _bridge.initRenderer(1280, 720);
     if (mounted) {
+      final provider = context.read<EditorProvider>();
+      provider.syncToNative(); // Trigger full sync after native engine is ready
       setState(() {
         _textureId = textureId;
         _isInitialized = true;

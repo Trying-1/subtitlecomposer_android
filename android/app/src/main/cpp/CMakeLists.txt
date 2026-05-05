@@ -44,6 +44,7 @@ set_target_properties(swscale PROPERTIES IMPORTED_LOCATION ${FFMPEG_LIBS_DIR}/li
 # Add our native library
 add_library(native-lib SHARED 
     native-lib.cpp 
+    audio_engine.cpp
     whisper-lib.cpp
     whisper-src/src/whisper.cpp
     whisper-src/ggml/src/ggml.c
@@ -75,7 +76,9 @@ target_link_libraries(
     avutil
     swresample
     swscale
+    swscale
     jnigraphics
     GLESv2
+    OpenSLES
     ${log-lib}
 )

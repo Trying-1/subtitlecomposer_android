@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/editor_provider.dart';
 import '../../models/editor_models.dart';
 import '../../utils/animation_presets.dart';
 import 'tabs/text_tab.dart';
@@ -69,6 +71,15 @@ class BottomControlPanel extends StatefulWidget {
     List<Keyframe>? keyframes,
     TextCase? textCase,
     double? volume,
+    bool? isGlowEnabled,
+    int? glowColor,
+    double? glowSize,
+    bool? isBendingEnabled,
+    double? bendingAmount,
+    bool? isReflectionEnabled,
+    double? reflectionOffset,
+    double? reflectionOpacity,
+    int? reflectionColor,
   }) onUpdate;
   final Function(String path) onAddAudioClip;
   final Function(AnimationPreset) onApplyPreset;
@@ -109,7 +120,6 @@ class BottomControlPanel extends StatefulWidget {
 
 class _BottomControlPanelState extends State<BottomControlPanel> {
   int _activeTabIndex = 0;
-  bool _isCollapsed = false;
 
   final List<Map<String, dynamic>> _tabs = [
     {'name': 'Text', 'icon': Icons.text_fields_rounded},
@@ -129,17 +139,20 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<EditorProvider>();
+    final isCollapsed = provider.isControlPanelCollapsed;
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       curve: Curves.easeInOut,
-      height: _isCollapsed ? 52 : 240, 
+      height: isCollapsed ? 52 : 240, 
       decoration: const BoxDecoration(
         color: Color(0xFF16161E),
         border: Border(top: BorderSide(color: Colors.white10)),
       ),
       child: Column(
         children: [
-          if (!_isCollapsed)
+          if (!isCollapsed)
             Expanded(
               child: _buildActiveTabContentWrapper(),
             ),
@@ -226,15 +239,18 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
   }
 
   Widget _buildTabBarItem(int index, IconData icon, String label) {
+    final provider = context.read<EditorProvider>();
+    final isCollapsed = provider.isControlPanelCollapsed;
     final isSelected = _activeTabIndex == index;
+
     return InkWell(
       onTap: () {
         setState(() {
           if (_activeTabIndex == index) {
-            _isCollapsed = !_isCollapsed;
+            provider.toggleControlPanelCollapse();
           } else {
             _activeTabIndex = index;
-            _isCollapsed = false;
+            provider.setControlPanelCollapsed(false);
           }
         });
       },
@@ -244,7 +260,7 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(
-              color: (isSelected && !_isCollapsed) ? Colors.deepPurpleAccent : Colors.transparent,
+              color: (isSelected && !isCollapsed) ? Colors.deepPurpleAccent : Colors.transparent,
               width: 2,
             ),
           ),
@@ -283,7 +299,7 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
         if (clip is SubtitleClip) return StyleTab(clip: clip, onUpdate: ({color, textOpacity, entranceAnimation, exitAnimation, loopAnimation}) => widget.onUpdate(color: color, textOpacity: textOpacity, entranceAnimation: entranceAnimation, exitAnimation: exitAnimation, loopAnimation: loopAnimation));
         return _buildWrongClipTypeMessage("STYLE");
       case 3: 
-        if (clip is SubtitleClip || clip is OverlayClip) return EffectsTab(clip: clip, onUpdate: ({isShadowEnabled, shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY, isBackgroundEnabled, backgroundColor, backgroundRadius, isStrokeEnabled, strokeColor, strokeWidth}) => widget.onUpdate(isShadowEnabled: isShadowEnabled, shadowColor: shadowColor, shadowBlur: shadowBlur, shadowOffsetX: shadowOffsetX, shadowOffsetY: shadowOffsetY, isBackgroundEnabled: isBackgroundEnabled, backgroundColor: backgroundColor, backgroundRadius: backgroundRadius, isStrokeEnabled: isStrokeEnabled, strokeColor: strokeColor, strokeWidth: strokeWidth));
+        if (clip is SubtitleClip || clip is OverlayClip) return EffectsTab(clip: clip, onUpdate: ({isShadowEnabled, shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY, isBackgroundEnabled, backgroundColor, backgroundRadius, isStrokeEnabled, strokeColor, strokeWidth, isGlowEnabled, glowColor, glowSize, isBendingEnabled, bendingAmount, isReflectionEnabled, reflectionOffset, reflectionOpacity, reflectionColor}) => widget.onUpdate(isShadowEnabled: isShadowEnabled, shadowColor: shadowColor, shadowBlur: shadowBlur, shadowOffsetX: shadowOffsetX, shadowOffsetY: shadowOffsetY, isBackgroundEnabled: isBackgroundEnabled, backgroundColor: backgroundColor, backgroundRadius: backgroundRadius, isStrokeEnabled: isStrokeEnabled, strokeColor: strokeColor, strokeWidth: strokeWidth, isGlowEnabled: isGlowEnabled, glowColor: glowColor, glowSize: glowSize, isBendingEnabled: isBendingEnabled, bendingAmount: bendingAmount, isReflectionEnabled: isReflectionEnabled, reflectionOffset: reflectionOffset, reflectionOpacity: reflectionOpacity, reflectionColor: reflectionColor));
         return _buildWrongClipTypeMessage("EFFECTS");
       case 4: 
         if (clip is SubtitleClip) return AnimationTab(clip: clip, onUpdate: widget.onUpdate, onApplyPreset: widget.onApplyPreset);

@@ -15,6 +15,8 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
     private val prevPositionMap = mutableMapOf<String, PointF>()
     
     private val vertexBuffer: java.nio.FloatBuffer
+    private val bendingVertexBuffer: java.nio.FloatBuffer
+    private val bendingVertexCount: Int
     
     init {
         val vertices = floatArrayOf(
@@ -28,6 +30,35 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
             .asFloatBuffer()
             .put(vertices)
         vertexBuffer.position(0)
+
+        // Bending grid: 30 segments along X
+        val segments = 30
+        bendingVertexCount = (segments + 1) * 2
+        val bVertices = FloatArray(bendingVertexCount * 5)
+        var bIdx = 0
+        for (i in 0..segments) {
+            val u = i.toFloat() / segments
+            val x = u - 0.5f
+            
+            // Top vertex (v=0)
+            bVertices[bIdx++] = x
+            bVertices[bIdx++] = 0.5f
+            bVertices[bIdx++] = 0f
+            bVertices[bIdx++] = u
+            bVertices[bIdx++] = 0f
+            
+            // Bottom vertex (v=1)
+            bVertices[bIdx++] = x
+            bVertices[bIdx++] = -0.5f
+            bVertices[bIdx++] = 0f
+            bVertices[bIdx++] = u
+            bVertices[bIdx++] = 1f
+        }
+        bendingVertexBuffer = java.nio.ByteBuffer.allocateDirect(bVertices.size * 4)
+            .order(java.nio.ByteOrder.nativeOrder())
+            .asFloatBuffer()
+            .put(bVertices)
+        bendingVertexBuffer.position(0)
     }
 
     class GifData(
@@ -62,6 +93,11 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
     private var uTexelSizeLoc: Int = 0
     private var uStrokeWidthLoc: Int = 0
     private var uShadowBlurLoc: Int = 0
+    private var uGlowSizeLoc: Int = 0
+    private var uBendingAmountLoc: Int = 0
+    private var uReflectionOffsetLoc: Int = 0
+    private var uReflectionOpacityLoc: Int = 0
+    private var uReflectionColorLoc: Int = 0
     
     private var vPositionOESLoc: Int = 0
     private var vTexCoordOESLoc: Int = 0
@@ -73,6 +109,11 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
     private var uTexelSizeOESLoc: Int = 0
     private var uStrokeWidthOESLoc: Int = 0
     private var uShadowBlurOESLoc: Int = 0
+    private var uGlowSizeOESLoc: Int = 0
+    private var uBendingAmountOESLoc: Int = 0
+    private var uReflectionOffsetOESLoc: Int = 0
+    private var uReflectionOpacityOESLoc: Int = 0
+    private var uReflectionColorOESLoc: Int = 0
     
     private var uWipeProgressLoc: Int = 0
     private var uWipeTypeLoc: Int = 0
@@ -84,10 +125,16 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         attribute vec4 vPosition;
         attribute vec2 vTexCoord;
         uniform mat4 uMVPMatrix;
+        uniform float uBendingAmount;
         varying vec2 fTexCoord;
         varying vec2 fTypewriterCoord;
         void main() {
-            gl_Position = uMVPMatrix * vPosition;
+            vec4 pos = vPosition;
+            if (abs(uBendingAmount) > 0.001) {
+                float x = vTexCoord.x - 0.5;
+                pos.y += uBendingAmount * x * x;
+            }
+            gl_Position = uMVPMatrix * pos;
             fTexCoord = vTexCoord;
             fTypewriterCoord = vTexCoord;
         }
@@ -106,8 +153,11 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         uniform vec2 uTexelSize;
         uniform float uStrokeWidth;
         uniform float uShadowBlur;
+        uniform float uGlowSize;
         uniform float uWipeProgress;
         uniform int uWipeType; // 0: typewriter, 1: linearR, 2: radial
+        uniform float uReflectionOpacity;
+        uniform vec4 uReflectionColor;
 
         void main() {
             vec2 uv = fTexCoord;
@@ -172,6 +222,27 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                 
                 if (maxAlpha < 0.01) discard;
                 gl_FragColor = vec4(uEffectColor.rgb, maxAlpha * uEffectColor.a * vColor.a * alphaMod);
+            } else if (uEffectMode == 3) { // Glow mode
+                float accumAlpha = 0.0;
+                float totalWeight = 0.0;
+                float blurRadius = uGlowSize * 0.8; 
+                for (float x = -1.5; x <= 1.5; x += 1.0) {
+                    for (float y = -1.5; y <= 1.5; y += 1.0) {
+                        float dist = length(vec2(x, y));
+                        float weight = exp(-dist * dist / 2.0);
+                        vec2 offset = vec2(x, y) * blurRadius * uTexelSize;
+                        accumAlpha += texture2D(sTexture, uv + offset).a * weight;
+                        totalWeight += weight;
+                    }
+                }
+                float avgAlpha = accumAlpha / totalWeight;
+                if (avgAlpha < 0.01) discard;
+                gl_FragColor = vec4(uEffectColor.rgb, avgAlpha * uEffectColor.a * vColor.a * alphaMod * 1.5); // Boost glow
+            } else if (uEffectMode == 4) { // Reflection mode
+                vec2 reflUv = vec2(uv.x, 1.0 - uv.y);
+                vec4 texSample = texture2D(sTexture, reflUv);
+                float gradient = 1.0 - uv.y;
+                gl_FragColor = texSample * vColor * uReflectionColor * alphaMod * uReflectionOpacity * gradient;
             } else { 
                 if (texColor.a < 0.01) discard;
                 gl_FragColor = texColor * vColor * alphaMod;
@@ -191,8 +262,11 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         uniform vec2 uTexelSize;
         uniform float uStrokeWidth;
         uniform float uShadowBlur;
+        uniform float uGlowSize;
         uniform float uWipeProgress;
         uniform int uWipeType;
+        uniform float uReflectionOpacity;
+        uniform vec4 uReflectionColor;
 
         void main() {
             vec2 uv = fTexCoord;
@@ -245,6 +319,27 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                 
                 if (maxAlpha < 0.01) discard;
                 gl_FragColor = vec4(uEffectColor.rgb, maxAlpha * uEffectColor.a * vColor.a * alphaMod);
+            } else if (uEffectMode == 3) { // Glow mode
+                float accumAlpha = 0.0;
+                float totalWeight = 0.0;
+                float blurRadius = uGlowSize * 0.8; 
+                for (float x = -1.5; x <= 1.5; x += 1.0) {
+                    for (float y = -1.5; y <= 1.5; y += 1.0) {
+                        float dist = length(vec2(x, y));
+                        float weight = exp(-dist * dist / 2.0);
+                        vec2 offset = vec2(x, y) * blurRadius * uTexelSize;
+                        accumAlpha += texture2D(sTexture, uv + offset).a * weight;
+                        totalWeight += weight;
+                    }
+                }
+                float avgAlpha = accumAlpha / totalWeight;
+                if (avgAlpha < 0.01) discard;
+                gl_FragColor = vec4(uEffectColor.rgb, avgAlpha * uEffectColor.a * vColor.a * alphaMod * 1.5);
+            } else if (uEffectMode == 4) { // Reflection mode
+                vec2 reflUv = vec2(uv.x, 1.0 - uv.y);
+                vec4 texSample = texture2D(sTexture, reflUv);
+                float gradient = 1.0 - uv.y;
+                gl_FragColor = texSample * vColor * uReflectionColor * alphaMod * uReflectionOpacity * gradient;
             } else { 
                 if (texColor.a < 0.01) discard;
                 gl_FragColor = texColor * vColor * alphaMod;
@@ -277,6 +372,11 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         uTexelSizeLoc = GLES20.glGetUniformLocation(program, "uTexelSize")
         uStrokeWidthLoc = GLES20.glGetUniformLocation(program, "uStrokeWidth")
         uShadowBlurLoc = GLES20.glGetUniformLocation(program, "uShadowBlur")
+        uGlowSizeLoc = GLES20.glGetUniformLocation(program, "uGlowSize")
+        uBendingAmountLoc = GLES20.glGetUniformLocation(program, "uBendingAmount")
+        uReflectionOffsetLoc = GLES20.glGetUniformLocation(program, "uReflectionOffset")
+        uReflectionOpacityLoc = GLES20.glGetUniformLocation(program, "uReflectionOpacity")
+        uReflectionColorLoc = GLES20.glGetUniformLocation(program, "uReflectionColor")
         uWipeProgressLoc = GLES20.glGetUniformLocation(program, "uWipeProgress")
         uWipeTypeLoc = GLES20.glGetUniformLocation(program, "uWipeType")
         
@@ -290,15 +390,11 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         uTexelSizeOESLoc = GLES20.glGetUniformLocation(programOES, "uTexelSize")
         uStrokeWidthOESLoc = GLES20.glGetUniformLocation(programOES, "uStrokeWidth")
         uShadowBlurOESLoc = GLES20.glGetUniformLocation(programOES, "uShadowBlur")
-        uWipeProgressOESLoc = GLES20.glGetUniformLocation(programOES, "uWipeProgress")
-        uWipeTypeOESLoc = GLES20.glGetUniformLocation(programOES, "uWipeType")
-        sTextureOESLoc = GLES20.glGetUniformLocation(programOES, "sTexture")
-        vColorOESLoc = GLES20.glGetUniformLocation(programOES, "vColor")
-        uEffectModeOESLoc = GLES20.glGetUniformLocation(programOES, "uEffectMode")
-        uEffectColorOESLoc = GLES20.glGetUniformLocation(programOES, "uEffectColor")
-        uTexelSizeOESLoc = GLES20.glGetUniformLocation(programOES, "uTexelSize")
-        uStrokeWidthOESLoc = GLES20.glGetUniformLocation(programOES, "uStrokeWidth")
-        uShadowBlurOESLoc = GLES20.glGetUniformLocation(programOES, "uShadowBlur")
+        uGlowSizeOESLoc = GLES20.glGetUniformLocation(programOES, "uGlowSize")
+        uBendingAmountOESLoc = GLES20.glGetUniformLocation(programOES, "uBendingAmount")
+        uReflectionOffsetOESLoc = GLES20.glGetUniformLocation(programOES, "uReflectionOffset")
+        uReflectionOpacityOESLoc = GLES20.glGetUniformLocation(programOES, "uReflectionOpacity")
+        uReflectionColorOESLoc = GLES20.glGetUniformLocation(programOES, "uReflectionColor")
 
         GLES20.glEnable(GLES20.GL_BLEND)
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
@@ -502,14 +598,18 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         // Pass Motion Blur Vector
         GLES20.glUniform2f(uBlurVectorLoc, blurX, blurY)
         
+        GLES20.glUniform1f(uBendingAmountLoc, if (clip.isBendingEnabled) clip.bendingAmount else 0f)
         setBlendMode(clip.blendMode.ordinal)
 
-        vertexBuffer.position(0)
-        GLES20.glVertexAttribPointer(vPositionLoc, 3, GLES20.GL_FLOAT, false, 5 * 4, vertexBuffer)
+        val activeBuffer = if (clip.isBendingEnabled) bendingVertexBuffer else vertexBuffer
+        val activeCount = if (clip.isBendingEnabled) bendingVertexCount else 4
+
+        activeBuffer.position(0)
+        GLES20.glVertexAttribPointer(vPositionLoc, 3, GLES20.GL_FLOAT, false, 5 * 4, activeBuffer)
         GLES20.glEnableVertexAttribArray(vPositionLoc)
         
-        vertexBuffer.position(3)
-        GLES20.glVertexAttribPointer(vTexCoordLoc, 2, GLES20.GL_FLOAT, false, 5 * 4, vertexBuffer)
+        activeBuffer.position(3)
+        GLES20.glVertexAttribPointer(vTexCoordLoc, 2, GLES20.GL_FLOAT, false, 5 * 4, activeBuffer)
         GLES20.glEnableVertexAttribArray(vTexCoordLoc)
 
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
@@ -543,7 +643,7 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                 val sc = clip.shadowColor
                 GLES20.glUniform4f(uEffectColorLoc, (sc shr 16 and 0xFF)/255f, (sc shr 8 and 0xFF)/255f, (sc and 0xFF)/255f, (sc shr 24 and 0xFF)/255f)
                 
-                GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+                GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, activeCount)
             }
 
             // Pass 2: Stroke
@@ -555,7 +655,7 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                 val sc = clip.strokeColor
                 GLES20.glUniform4f(uEffectColorLoc, (sc shr 16 and 0xFF)/255f, (sc shr 8 and 0xFF)/255f, (sc and 0xFF)/255f, (sc shr 24 and 0xFF)/255f)
                 
-                GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+                GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, activeCount)
             }
         }
 
@@ -578,7 +678,45 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
             GLES20.glUniform4f(vColorLoc, (tc shr 16 and 0xFF)/255f, (tc shr 8 and 0xFF)/255f, (tc and 0xFF)/255f, a)
         }
         
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, activeCount)
+
+        // Pass 4: Glow (Only for text)
+        if (clip.isText && clip.isGlowEnabled && Color.alpha(clip.glowColor) > 0) {
+            GLES20.glUniform1i(uEffectModeLoc, 3) // Glow Mode
+            GLES20.glUniform1f(uGlowSizeLoc, clip.glowSize)
+            val gc = clip.glowColor
+            GLES20.glUniform4f(uEffectColorLoc, (gc shr 16 and 0xFF)/255f, (gc shr 8 and 0xFF)/255f, (gc and 0xFF)/255f, (gc shr 24 and 0xFF)/255f)
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, activeCount)
+        }
+
+        // Pass 5: Reflection
+        if (clip.isReflectionEnabled) {
+            val reflMVP = FloatArray(16)
+            val reflModel = FloatArray(16)
+            android.opengl.Matrix.setIdentityM(reflModel, 0)
+            
+            // Reflection is flipped and offset down
+            val reflGlX = glX
+            val vPadding = if (clip.isText) (clip.shadowBlur + Math.abs(clip.shadowOffsetY) + 30f).coerceAtLeast(30f) else 0f
+            val paddingGL = (vPadding / bmpHeight.toFloat().coerceAtLeast(1f)) * logH
+            val reflGlY = glY - logH + paddingGL * 2 - (clip.reflectionOffset / height) * 2
+            android.opengl.Matrix.translateM(reflModel, 0, reflGlX, reflGlY, 0f)
+            
+            if (totalRotation != 0f) {
+                android.opengl.Matrix.rotateM(reflModel, 0, totalRotation, 0f, 0f, 1f)
+            }
+            
+            android.opengl.Matrix.scaleM(reflModel, 0, logW, logH, 1f)
+            android.opengl.Matrix.multiplyMM(reflMVP, 0, projection, 0, reflModel, 0)
+            
+            GLES20.glUniformMatrix4fv(uMVPMatrixLoc, 1, false, reflMVP, 0)
+            GLES20.glUniform1i(uEffectModeLoc, 4) // Reflection Mode
+            GLES20.glUniform1f(uReflectionOpacityLoc, clip.reflectionOpacity)
+            val rc = clip.reflectionColor
+            GLES20.glUniform4f(uReflectionColorLoc, (rc shr 16 and 0xFF)/255f, (rc shr 8 and 0xFF)/255f, (rc and 0xFF)/255f, (rc shr 24 and 0xFF)/255f)
+            
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, activeCount)
+        }
         
         setBlendMode(0) // Reset to Normal
         
@@ -694,6 +832,8 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
 
         val uWipeP = if (isOES) uWipeProgressOESLoc else uWipeProgressLoc
         val uWipeT = if (isOES) uWipeTypeOESLoc else uWipeTypeLoc
+        val uReflO = if (isOES) uReflectionOpacityOESLoc else uReflectionOpacityLoc
+        val uReflC = if (isOES) uReflectionColorOESLoc else uReflectionColorLoc
 
         GLES20.glUniform2f(uTSize, 1f / bmpWidth, 1f / bmpHeight)
         
@@ -745,11 +885,14 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         GLES20.glBindTexture(if (isOES) android.opengl.GLES11Ext.GL_TEXTURE_EXTERNAL_OES else GLES20.GL_TEXTURE_2D, textureId)
         GLES20.glUniform1i(sTex, 0)
 
-        vertexBuffer.position(0)
-        GLES20.glVertexAttribPointer(vPos, 3, GLES20.GL_FLOAT, false, 5 * 4, vertexBuffer)
+        val activeBuffer = if (clip.isBendingEnabled) bendingVertexBuffer else vertexBuffer
+        val activeCount = if (clip.isBendingEnabled) bendingVertexCount else 4
+
+        activeBuffer.position(0)
+        GLES20.glVertexAttribPointer(vPos, 3, GLES20.GL_FLOAT, false, 5 * 4, activeBuffer)
         GLES20.glEnableVertexAttribArray(vPos)
-        vertexBuffer.position(3)
-        GLES20.glVertexAttribPointer(vTex, 2, GLES20.GL_FLOAT, false, 5 * 4, vertexBuffer)
+        activeBuffer.position(3)
+        GLES20.glVertexAttribPointer(vTex, 2, GLES20.GL_FLOAT, false, 5 * 4, activeBuffer)
         GLES20.glEnableVertexAttribArray(vTex)
 
         // Pass 1: Shadow
@@ -777,7 +920,7 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
             val sc = clip.shadowColor
             GLES20.glUniform4f(uECol, (sc shr 16 and 0xFF)/255f, (sc shr 8 and 0xFF)/255f, (sc and 0xFF)/255f, (sc shr 24 and 0xFF)/255f)
             
-            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, activeCount)
         }
 
         // Pass 2: Stroke
@@ -799,7 +942,7 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
             val sc = clip.strokeColor
             GLES20.glUniform4f(uECol, (sc shr 16 and 0xFF)/255f, (sc shr 8 and 0xFF)/255f, (sc and 0xFF)/255f, (sc shr 24 and 0xFF)/255f)
             
-            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, activeCount)
         }
 
         // Pass 3: Main image
@@ -807,12 +950,51 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         android.opengl.Matrix.multiplyMM(mvpMatrix, 0, projection, 0, model, 0)
         GLES20.glUniformMatrix4fv(uMVP, 1, false, mvpMatrix, 0)
         GLES20.glUniform1i(uMode, 0) // Normal Mode
+        GLES20.glUniform1f(if (isOES) uBendingAmountOESLoc else uBendingAmountLoc, if (clip.isBendingEnabled) clip.bendingAmount else 0f)
         
         if (clip is SubtitleClip) {
             setBlendMode(clip.blendMode.ordinal)
         }
         
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, activeCount)
+
+        // Pass 4: Glow
+        if (clip.isGlowEnabled && Color.alpha(clip.glowColor) > 0) {
+            GLES20.glUniform1i(uMode, 3) // Glow Mode
+            GLES20.glUniform1f(if (isOES) uGlowSizeOESLoc else uGlowSizeLoc, clip.glowSize)
+            val gc = clip.glowColor
+            GLES20.glUniform4f(if (isOES) uEffectColorOESLoc else uEffectColorLoc, (gc shr 16 and 0xFF)/255f, (gc shr 8 and 0xFF)/255f, (gc and 0xFF)/255f, (gc shr 24 and 0xFF)/255f)
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, activeCount)
+        }
+
+        // Pass 5: Reflection
+        if (clip.isReflectionEnabled) {
+            val reflMVP = FloatArray(16)
+            val reflModel = FloatArray(16)
+            android.opengl.Matrix.setIdentityM(reflModel, 0)
+            
+            // Reflection is flipped and offset down
+            val reflGlX = glX
+            val vPadding = if (clip.isText) (clip.shadowBlur + Math.abs(clip.shadowOffsetY) + 30f).coerceAtLeast(30f) else 0f
+            val paddingGL = (vPadding / bmpHeight.toFloat().coerceAtLeast(1f)) * logH
+            val reflGlY = glY - logH + paddingGL * 2 - (clip.reflectionOffset / height) * 2
+            android.opengl.Matrix.translateM(reflModel, 0, reflGlX, reflGlY, 0f)
+            
+            if (totalRotation != 0f) {
+                android.opengl.Matrix.rotateM(reflModel, 0, totalRotation, 0f, 0f, 1f)
+            }
+            
+            android.opengl.Matrix.scaleM(reflModel, 0, logW, logH, 1f)
+            android.opengl.Matrix.multiplyMM(reflMVP, 0, projection, 0, reflModel, 0)
+            
+            GLES20.glUniformMatrix4fv(uMVP, 1, false, reflMVP, 0)
+            GLES20.glUniform1i(uMode, 4) // Reflection Mode
+            GLES20.glUniform1f(uReflO, clip.reflectionOpacity)
+            val rc = clip.reflectionColor
+            GLES20.glUniform4f(uReflC, (rc shr 16 and 0xFF)/255f, (rc shr 8 and 0xFF)/255f, (rc and 0xFF)/255f, (rc shr 24 and 0xFF)/255f)
+            
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, activeCount)
+        }
         
         if (clip is SubtitleClip) {
             setBlendMode(0) // Reset

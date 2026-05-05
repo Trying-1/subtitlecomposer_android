@@ -12,11 +12,15 @@ import 'package:hive/hive.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import '../services/force_align_service.dart';
+import '../services/project_service.dart';
+import 'package:uuid/uuid.dart';
+import '../models/editor_models.dart';
 
 class HistoryState {
   final List<Track> tracks;
   final List<Track> overlayTracks;
   final List<Track> backgroundTracks;
+  final List<Track> audioTracks;
   final double aspectRatio;
   final int backgroundColor;
   final String? backgroundImagePath;
@@ -31,6 +35,7 @@ class HistoryState {
     required this.tracks,
     required this.overlayTracks,
     required this.backgroundTracks,
+    required this.audioTracks,
     required this.aspectRatio,
     required this.backgroundColor,
     this.backgroundImagePath,
@@ -47,6 +52,7 @@ class HistoryState {
       tracks: tracks.map((t) => t.copyWith(clips: t.clips.map((c) => c.copyWith()).toList())).toList(),
       overlayTracks: overlayTracks.map((t) => t.copyWith(overlays: t.overlays.map((c) => c.copyWith()).toList())).toList(),
       backgroundTracks: backgroundTracks.map((t) => t.copyWith(backgrounds: t.backgrounds.map((c) => c.copyWith()).toList())).toList(),
+      audioTracks: audioTracks.map((t) => t.copyWith(audioClips: t.audioClips.map((c) => c.copyWith()).toList())).toList(),
       aspectRatio: aspectRatio,
       backgroundColor: backgroundColor,
       backgroundImagePath: backgroundImagePath,
@@ -61,42 +67,34 @@ class HistoryState {
 }
 
 class EditorProvider extends ChangeNotifier {
-  final AudioPlayer _audioPlayer = AudioPlayer();
   final NativeBridge _bridge = NativeBridge();
   final ForceAlignService _alignService = ForceAlignService();
   Timer? _playbackTimer;
   DateTime? _lastTick;
-  final Map<String, AudioPlayer> _audioClipPlayers = {};
+
+  Timer? _autoSaveTimer;
+  String _projectId = const Uuid().v4();
+  String _projectName = "Untitled Project";
 
   EditorProvider() {
-    _initAudioListeners();
     _init();
+    _startAutoSaveTimer();
   }
 
-  void _initAudioListeners() {
-    _audioPlayer.positionStream.listen((pos) {
-      // Main audio position is now synced via the master timer in _startPlayback
-      // We only listen here for informational purposes or background sync
-    });
-
-    _audioPlayer.playerStateStream.listen((state) {
-      if (_audioPath != null) {
-        // We no longer sync _isPlaying directly to the main player state
-        // because the master timer controls the project playback state.
-        if (state.processingState == ProcessingState.completed) {
-          // Main audio finished, but we let the master timer continue 
-          // if there are more clips later in the timeline.
-          _audioPlayer.pause();
-        }
+  void _startAutoSaveTimer() {
+    _autoSaveTimer?.cancel();
+    _autoSaveTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+      if (_isInitialized) {
+        saveProject();
       }
     });
+  }
 
-    _audioPlayer.durationStream.listen((dur) {
-      if (_audioPath != null) {
-        _totalDuration = dur ?? Duration.zero;
-        notifyListeners();
-      }
-    });
+  @override
+  void dispose() {
+    _autoSaveTimer?.cancel();
+    saveProject();
+    super.dispose();
   }
   
   List<Track> _tracks = [];
@@ -131,6 +129,7 @@ class EditorProvider extends ChangeNotifier {
   final List<Duration> _markers = [];
   bool _isCollisionAdjustEnabled = false;
   bool _isPlayheadLocked = false;
+  bool _isControlPanelCollapsed = true; // Start collapsed by default
   
   final ValueNotifier<Duration> playbackTime = ValueNotifier(Duration.zero);
 
@@ -158,10 +157,8 @@ class EditorProvider extends ChangeNotifier {
     return time;
   }
   Duration get totalDuration {
-    // If we have a main audio, that defines the project boundaries strictly
     if (_audioPath != null) return _totalDuration;
     
-    // Otherwise, fallback to dynamic duration based on clips
     int maxMs = 5000; 
     
     for (var t in _tracks) {
@@ -221,6 +218,7 @@ class EditorProvider extends ChangeNotifier {
   double get zoomLevel => _zoomLevel;
   double get aspectRatio => _aspectRatio;
   bool get isTimelineCollapsed => _isTimelineCollapsed;
+  bool get isControlPanelCollapsed => _isControlPanelCollapsed;
   bool get showTextTracks => _showTextTracks;
   bool get showOverlayTracks => _showOverlayTracks;
   bool get showBackgroundTracks => _showBackgroundTracks;
@@ -230,6 +228,120 @@ class EditorProvider extends ChangeNotifier {
 
   void toggleCollisionAdjust() {
     _isCollisionAdjustEnabled = !_isCollisionAdjustEnabled;
+    notifyListeners();
+  }
+
+  String get projectId => _projectId;
+  String get projectName => _projectName;
+
+  void setProjectName(String name) {
+    _projectName = name;
+    notifyListeners();
+  }
+
+  Future<void> saveProject() async {
+    if (_tracks.isEmpty && 
+        _overlayTracks.isEmpty && 
+        _backgroundTracks.isEmpty && 
+        _audioTracks.isEmpty && 
+        _audioPath == null) {
+      return;
+    }
+
+    final project = Project(
+      id: _projectId,
+      name: _projectName,
+      videoPath: _audioPath,
+      videoWidth: 1920,
+      videoHeight: 1080,
+      aspectRatio: _aspectRatio,
+      backgroundColor: _backgroundColor,
+      backgroundImagePath: _backgroundImagePath,
+      backgroundScale: _backgroundScale,
+      backgroundRotation: _backgroundRotation,
+      backgroundX: _backgroundX,
+      backgroundY: _backgroundY,
+      backgroundFillMode: _backgroundFillMode,
+      tracks: [
+        ..._tracks,
+        ..._overlayTracks,
+        ..._backgroundTracks,
+        ..._audioTracks,
+      ],
+      lastModified: DateTime.now(),
+    );
+    await ProjectService.saveProject(project);
+  }
+
+  Future<void> loadProject(String id) async {
+    final project = ProjectService.getProject(id);
+    if (project != null) {
+      _projectId = project.id;
+      _projectName = project.name;
+      _aspectRatio = project.aspectRatio;
+      _backgroundColor = project.backgroundColor;
+      _backgroundImagePath = project.backgroundImagePath;
+      _backgroundScale = project.backgroundScale;
+      _backgroundRotation = project.backgroundRotation;
+      _backgroundX = project.backgroundX;
+      _backgroundY = project.backgroundY;
+      _backgroundFillMode = project.backgroundFillMode;
+      
+      _tracks = [];
+      _overlayTracks = [];
+      _backgroundTracks = [];
+      _audioTracks = [];
+      
+      for (var track in project.tracks) {
+        switch (track.type) {
+          case TrackType.text:
+            _tracks.add(track);
+            break;
+          case TrackType.overlay:
+            _overlayTracks.add(track);
+            break;
+          case TrackType.background:
+            _backgroundTracks.add(track);
+            break;
+          case TrackType.audio:
+            _audioTracks.add(track);
+            break;
+        }
+      }
+      
+      if (project.videoPath != null) {
+        await loadAudio(project.videoPath!);
+      }
+      
+      syncToNative();
+      notifyListeners();
+    }
+  }
+
+  void createNewProject() {
+    _projectId = const Uuid().v4();
+    _projectName = "New Project ${DateTime.now().hour}:${DateTime.now().minute}";
+    _tracks = [];
+    _overlayTracks = [];
+    _backgroundTracks = [];
+    _audioTracks = [];
+    _audioPath = null;
+    _currentTime = Duration.zero;
+    _totalDuration = Duration.zero;
+    _selectedClipIds = {};
+    _undoStack.clear();
+    _redoStack.clear();
+    
+    _aspectRatio = 16 / 9;
+    _backgroundColor = 0xFF000000;
+    _backgroundImagePath = null;
+    _backgroundScale = 1.0;
+    _backgroundRotation = 0.0;
+    _backgroundX = 0.0;
+    _backgroundY = 0.0;
+    _backgroundFillMode = 0;
+
+    syncToNative();
     notifyListeners();
   }
 
@@ -246,7 +358,7 @@ class EditorProvider extends ChangeNotifier {
   void setAspectRatio(double ratio) {
     saveState();
     _aspectRatio = ratio;
-    _syncToNative();
+    syncToNative();
     notifyListeners();
   }
 
@@ -291,7 +403,7 @@ class EditorProvider extends ChangeNotifier {
     } else {
       saveState();
       _backgroundImagePath = null;
-      _syncToNative();
+      syncToNative();
       notifyListeners();
     }
   }
@@ -303,7 +415,7 @@ class EditorProvider extends ChangeNotifier {
     } else {
       saveState();
       _backgroundScale = scale;
-      _syncToNative();
+      syncToNative();
       notifyListeners();
     }
   }
@@ -315,7 +427,7 @@ class EditorProvider extends ChangeNotifier {
     } else {
       saveState();
       _backgroundRotation = rotation;
-      _syncToNative();
+      syncToNative();
       notifyListeners();
     }
   }
@@ -327,7 +439,7 @@ class EditorProvider extends ChangeNotifier {
     } else {
       saveState();
       _backgroundX = x;
-      _syncToNative();
+      syncToNative();
       notifyListeners();
     }
   }
@@ -339,7 +451,7 @@ class EditorProvider extends ChangeNotifier {
     } else {
       saveState();
       _backgroundY = y;
-      _syncToNative();
+      syncToNative();
       notifyListeners();
     }
   }
@@ -351,7 +463,7 @@ class EditorProvider extends ChangeNotifier {
     } else {
       saveState();
       _backgroundFillMode = mode;
-      _syncToNative();
+      syncToNative();
       notifyListeners();
     }
   }
@@ -385,6 +497,7 @@ class EditorProvider extends ChangeNotifier {
       tracks: _tracks.map((t) => t.copyWith(clips: t.clips.map((c) => c.copyWith()).toList())).toList(),
       overlayTracks: _overlayTracks.map((t) => t.copyWith(overlays: t.overlays.map((c) => c.copyWith()).toList())).toList(),
       backgroundTracks: _backgroundTracks.map((t) => t.copyWith(backgrounds: t.backgrounds.map((c) => c.copyWith()).toList())).toList(),
+      audioTracks: _audioTracks.map((t) => t.copyWith(audioClips: t.audioClips.map((c) => c.copyWith()).toList())).toList(),
       aspectRatio: _aspectRatio,
       backgroundColor: _backgroundColor,
       backgroundImagePath: _backgroundImagePath,
@@ -406,7 +519,7 @@ class EditorProvider extends ChangeNotifier {
     final prevState = _undoStack.removeLast();
     _applyState(prevState);
     
-    _syncToNative();
+    syncToNative();
     notifyListeners();
   }
 
@@ -419,7 +532,7 @@ class EditorProvider extends ChangeNotifier {
     final nextState = _redoStack.removeLast();
     _applyState(nextState);
 
-    _syncToNative();
+    syncToNative();
     notifyListeners();
   }
 
@@ -427,6 +540,7 @@ class EditorProvider extends ChangeNotifier {
     _tracks = state.tracks;
     _overlayTracks = state.overlayTracks;
     _backgroundTracks = state.backgroundTracks;
+    _audioTracks = state.audioTracks;
     _aspectRatio = state.aspectRatio;
     _backgroundColor = state.backgroundColor;
     _backgroundImagePath = state.backgroundImagePath;
@@ -444,9 +558,6 @@ class EditorProvider extends ChangeNotifier {
 
   void toggleMultiSelectMode() {
     _isMultiSelectMode = !_isMultiSelectMode;
-    if (!_isMultiSelectMode && _selectedClipIds.length > 1) {
-      // Opt-in: Keep only the first one when turning off multi-select? 
-    }
     notifyListeners();
   }
 
@@ -454,19 +565,16 @@ class EditorProvider extends ChangeNotifier {
     if (_selectedClipIds.isEmpty) return null;
     try {
       final firstId = _selectedClipIds.first;
-      // Search in text tracks
       for (var track in _tracks) {
         for (var clip in track.clips) {
           if (clip.id == firstId) return clip;
         }
       }
-      // Search in overlay tracks
       for (var track in _overlayTracks) {
         for (var clip in track.overlays) {
           if (clip.id == firstId) return clip;
         }
       }
-      // Search in background tracks
       for (var track in _backgroundTracks) {
         for (var clip in track.backgrounds) {
           if (clip.id == firstId) return clip;
@@ -508,7 +616,7 @@ class EditorProvider extends ChangeNotifier {
           final center = Duration(
             milliseconds: (clip.startTime.inMilliseconds + clip.endTime.inMilliseconds) ~/ 2,
           );
-          seek(center);
+          seekTo(center);
         }
       }
     }
@@ -534,14 +642,11 @@ class EditorProvider extends ChangeNotifier {
     
     if (allTextIds.isEmpty) return;
 
-    // Check if all text clips are currently selected
     bool areAllTextSelected = _selectedClipIds.containsAll(allTextIds);
 
     if (areAllTextSelected) {
-      // If all text clips are selected, deselect them
       _selectedClipIds = _selectedClipIds.where((id) => !allTextIds.contains(id)).toSet();
     } else {
-      // If not all text clips are selected, select all of them (keeping other types like audio selected if they were)
       _selectedClipIds = {..._selectedClipIds, ...allTextIds};
     }
     notifyListeners();
@@ -552,7 +657,6 @@ class EditorProvider extends ChangeNotifier {
     int highestTrack = -1;
     double closestDistSq = 1.0;
 
-    // Search in text tracks
     for (int i = 0; i < _tracks.length; i++) {
       for (var clip in _tracks[i].clips) {
         if (_currentTime >= clip.startTime && _currentTime < clip.endTime) {
@@ -571,17 +675,14 @@ class EditorProvider extends ChangeNotifier {
       }
     }
 
-    // Search in overlay tracks (overlays are usually on top of text)
     for (int i = 0; i < _overlayTracks.length; i++) {
       for (var clip in _overlayTracks[i].overlays) {
         if (_currentTime >= clip.startTime && _currentTime < clip.endTime) {
           final dx = clip.x - x;
           final dy = clip.y - y;
           final distSq = dx * dx + dy * dy;
-          final threshold = 0.1 * clip.scale; // Overlays use base scale for threshold
+          final threshold = 0.1 * clip.scale; 
           if (distSq < threshold * threshold) {
-            // Overlays always win over text if they overlap at same depth, but here we just check track index
-            // Overlay index start from top of text
             int overlayEffectiveTrack = i + _tracks.length;
             if (overlayEffectiveTrack >= highestTrack) {
               highestTrack = overlayEffectiveTrack;
@@ -592,20 +693,6 @@ class EditorProvider extends ChangeNotifier {
         }
       }
     }
-
-    // Search in background tracks - DISABLED for preview window selection
-    // Users should select backgrounds from the timeline to avoid accidental drags
-    /*
-    for (int i = 0; i < _backgroundTracks.length; i++) {
-      for (var clip in _backgroundTracks[i].backgrounds) {
-        if (_currentTime >= clip.startTime && _currentTime < clip.endTime) {
-          if (bestMatch == null) {
-              bestMatch = clip;
-          }
-        }
-      }
-    }
-    */
 
     if (bestMatch != null) {
       selectClip(bestMatch.id, toggle: toggle);
@@ -699,7 +786,6 @@ class EditorProvider extends ChangeNotifier {
     if (ids.isEmpty) return;
     final idSet = ids.toSet();
 
-    // Text tracks
     for (var track in _tracks) {
       for (int i = 0; i < track.clips.length; i++) {
         final clip = track.clips[i];
@@ -712,7 +798,6 @@ class EditorProvider extends ChangeNotifier {
       }
     }
 
-    // Overlay tracks
     for (var track in _overlayTracks) {
       for (int i = 0; i < track.overlays.length; i++) {
         final clip = track.overlays[i];
@@ -725,7 +810,7 @@ class EditorProvider extends ChangeNotifier {
       }
     }
 
-    _syncToNative();
+    syncToNative();
     notifyListeners();
   }
 
@@ -762,11 +847,19 @@ class EditorProvider extends ChangeNotifier {
     int? fillMode,
     double? volume,
     CustomBlendMode? blendMode,
+    bool? isGlowEnabled,
+    bool? isBendingEnabled,
+    bool? isReflectionEnabled,
+    int? glowColor,
+    double? glowSize,
+    double? bendingAmount,
+    double? reflectionOffset,
+    double? reflectionOpacity,
+    int? reflectionColor,
   }) {
     final idSet = ids.toSet();
     final isPropertyUpdate = x != null || y != null || scale != null || rotation != null || opacity != null;
     
-    // Update text tracks
     for (var track in _tracks) {
       for (int i = 0; i < track.clips.length; i++) {
         final clip = track.clips[i];
@@ -818,6 +911,15 @@ class EditorProvider extends ChangeNotifier {
             isShadowEnabled: isShadowEnabled,
             isBackgroundEnabled: isBackgroundEnabled,
             isStrokeEnabled: isStrokeEnabled,
+            isGlowEnabled: isGlowEnabled,
+            isBendingEnabled: isBendingEnabled,
+            isReflectionEnabled: isReflectionEnabled,
+            glowColor: glowColor,
+            glowSize: glowSize,
+            bendingAmount: bendingAmount,
+            reflectionOffset: reflectionOffset,
+            reflectionOpacity: reflectionOpacity,
+            reflectionColor: reflectionColor,
             blendMode: blendMode,
             fontFamily: fontFamily,
             entranceAnimation: entranceAnimation,
@@ -829,7 +931,6 @@ class EditorProvider extends ChangeNotifier {
       }
     }
 
-    // Update overlay tracks
     for (var track in _overlayTracks) {
       for (int i = 0; i < track.overlays.length; i++) {
         final clip = track.overlays[i];
@@ -877,13 +978,21 @@ class EditorProvider extends ChangeNotifier {
             entranceAnimation: entranceAnimation,
             exitAnimation: exitAnimation,
             loopAnimation: loopAnimation,
+            isGlowEnabled: isGlowEnabled,
+            glowColor: glowColor,
+            glowSize: glowSize,
+            isBendingEnabled: isBendingEnabled,
+            bendingAmount: bendingAmount,
+            isReflectionEnabled: isReflectionEnabled,
+            reflectionOffset: reflectionOffset,
+            reflectionOpacity: reflectionOpacity,
+            reflectionColor: reflectionColor,
             keyframes: updatedKeyframes,
           );
         }
       }
     }
     
-    // Update background tracks
     for (var track in _backgroundTracks) {
       for (int i = 0; i < track.backgrounds.length; i++) {
         final clip = track.backgrounds[i];
@@ -931,7 +1040,6 @@ class EditorProvider extends ChangeNotifier {
       }
     }
 
-    // Update audio tracks
     for (var track in _audioTracks) {
       for (int i = 0; i < track.audioClips.length; i++) {
         final clip = track.audioClips[i];
@@ -943,7 +1051,7 @@ class EditorProvider extends ChangeNotifier {
       }
     }
     
-    _syncToNative();
+    syncToNative();
     notifyListeners();
   }
 
@@ -955,7 +1063,7 @@ class EditorProvider extends ChangeNotifier {
     );
   }
 
-  void _syncToNative() {
+  void syncToNative() {
     final allClips = _tracks.expand((t) => t.clips).map((c) {
       final map = c.toJson();
       map['isText'] = true;
@@ -972,7 +1080,7 @@ class EditorProvider extends ChangeNotifier {
     final allBackgrounds = _backgroundTracks.expand((t) => t.backgrounds).map((c) {
       final map = c.toJson();
       map['isBackground'] = true;
-      map['isText'] = false; // Background clips are not text
+      map['isText'] = false; 
       return map;
     }).toList();
 
@@ -987,7 +1095,34 @@ class EditorProvider extends ChangeNotifier {
       bgY: backgroundY,
       bgFillMode: backgroundFillMode,
     );
-    _persistProject();
+    _pushAudioToNative();
+    saveProject();
+  }
+
+  void _pushAudioToNative() {
+    final List<String> paths = [];
+    final List<int> starts = [];
+    final List<int> ends = [];
+    final List<double> vols = [];
+
+    for (var track in _audioTracks) {
+      for (var clip in track.audioClips) {
+        // Main audio is handled separately in the C++ engine for convenience
+        // or we can just include it if we want it mixed the same way.
+        // For now, let's include everything that should be playing.
+        paths.add(clip.audioPath);
+        starts.add(clip.startTime.inMilliseconds);
+        ends.add(clip.endTime.inMilliseconds);
+        vols.add(clip.volume);
+      }
+    }
+
+    _bridge.setAudioClips(
+      paths: paths,
+      starts: starts,
+      ends: ends,
+      vols: vols,
+    );
   }
 
   Future<void> _loadPersistedProject() async {
@@ -1011,63 +1146,30 @@ class EditorProvider extends ChangeNotifier {
         _tracks = (state['tracks'] as List? ?? []).map((t) => Track.fromJson(Map<String, dynamic>.from(t))).toList();
         _overlayTracks = (state['overlayTracks'] as List? ?? []).map((t) => Track.fromJson(Map<String, dynamic>.from(t))).toList();
         _backgroundTracks = (state['backgroundTracks'] as List? ?? []).map((t) => Track.fromJson(Map<String, dynamic>.from(t))).toList();
-        
-        if (_audioPath != null) {
-          try {
-             await _audioPlayer.setFilePath(_audioPath!);
-             _totalDuration = _audioPlayer.duration ?? Duration.zero;
-          } catch(e) {
-            print("Error loading persisted audio: $e");
-          }
-        }
       }
     } catch (e) {
       print("Error loading project: $e");
     } finally {
       _isInitialized = true;
-      _syncToNative();
+      syncToNative();
       notifyListeners();
     }
   }
 
-  void _persistProject() {
-    if (!_isInitialized) return;
-    try {
-      final box = Hive.box('project_box');
-      final state = {
-        'aspectRatio': _aspectRatio,
-        'backgroundColor': _backgroundColor,
-        'backgroundImagePath': _backgroundImagePath,
-        'backgroundScale': _backgroundScale,
-        'backgroundRotation': _backgroundRotation,
-        'backgroundX': _backgroundX,
-        'backgroundY': _backgroundY,
-        'backgroundFillMode': _backgroundFillMode,
-        'whisperModelPath': _whisperModelPath,
-        'audioPath': _audioPath,
-        'tracks': _tracks.map((t) => t.toJson()).toList(),
-        'overlayTracks': _overlayTracks.map((t) => t.toJson()).toList(),
-        'backgroundTracks': _backgroundTracks.map((t) => t.toJson()).toList(),
-      };
-      box.put('project_state', state);
-    } catch (e) {
-      print("Error persisting project: $e");
-    }
-  }
 
   void _init() async {
+    await _bridge.initAudioEngine();
     await _loadPersistedProject();
   }
 
   Future<void> loadAudio(String path) async {
     _audioPath = path;
-    await _audioPlayer.setFilePath(path);
+    _bridge.setMainAudio(path);
     
-    // Add to timeline as main audio segment
     final durationMs = await _bridge.getVideoDuration(path);
     final duration = Duration(milliseconds: durationMs);
+    _totalDuration = duration;
     
-    // Remove existing main audio clips if any
     for (var track in _audioTracks) {
       track.audioClips.removeWhere((c) => c.isMainAudio);
     }
@@ -1086,6 +1188,7 @@ class EditorProvider extends ChangeNotifier {
     }
     _audioTracks[0].audioClips.insert(0, mainClip);
     
+    _pushAudioToNative();
     notifyListeners();
   }
 
@@ -1102,9 +1205,12 @@ class EditorProvider extends ChangeNotifier {
     for (var track in _backgroundTracks) {
       track.backgrounds.removeWhere((c) => _selectedClipIds.contains(c.id));
     }
+    for (var track in _audioTracks) {
+      track.audioClips.removeWhere((c) => _selectedClipIds.contains(c.id));
+    }
     
     _selectedClipIds = {};
-    _syncToNative();
+    syncToNative();
     notifyListeners();
   }
 
@@ -1150,7 +1256,6 @@ class EditorProvider extends ChangeNotifier {
     
     if (clip == null) return;
     
-    // Playhead must be inside the clip and not at the very edges
     if (_currentTime <= clip.startTime || _currentTime >= clip.endTime) return;
     
     final oldEndTime = clip.endTime;
@@ -1194,7 +1299,7 @@ class EditorProvider extends ChangeNotifier {
       list.insert(idx + 1, newClip);
     }
     
-    _syncToNative();
+    syncToNative();
     notifyListeners();
   }
 
@@ -1207,7 +1312,6 @@ class EditorProvider extends ChangeNotifier {
     _totalDuration = Duration.zero;
     _selectedClipIds = {};
     
-    // Reset background and aspect ratio
     _aspectRatio = 16 / 9;
     _backgroundColor = 0xFFFFFFFF;
     _backgroundImagePath = null;
@@ -1217,9 +1321,7 @@ class EditorProvider extends ChangeNotifier {
     _backgroundY = 0.0;
     _backgroundFillMode = 0;
 
-    _audioPlayer.stop();
-    
-    _syncToNative();
+    syncToNative();
     notifyListeners();
   }
 
@@ -1236,7 +1338,6 @@ class EditorProvider extends ChangeNotifier {
 
     _tracks = [Track(id: 'main', clips: clips.map((c) => c.copyWith(originalTrackId: 'main')).toList())];
     
-    // Sync to native
     await _bridge.updateClips(clips.map((c) => c.toJson()).toList());
     notifyListeners();
   }
@@ -1273,12 +1374,11 @@ class EditorProvider extends ChangeNotifier {
 
     _tracks = [Track(id: 'main', name: 'Main Track', clips: clips)];
     
-    // Update total duration if needed
     if (currentStart > _totalDuration) {
       _totalDuration = currentStart;
     }
 
-    _syncToNative();
+    syncToNative();
     notifyListeners();
   }
 
@@ -1291,35 +1391,22 @@ class EditorProvider extends ChangeNotifier {
   }
 
   void _startPlayback() {
-    _stopPlayback();
+    if (_isPlaying) return;
     _isPlaying = true;
     _lastTick = DateTime.now();
 
-    if (_currentTime >= totalDuration) {
-      _currentTime = Duration.zero;
-    }
-
-    // Start main audio if present
-    if (_audioPath != null) {
-      _audioPlayer.seek(_currentTime);
-      _audioPlayer.play();
-    }
-
     _bridge.setPlaying(true);
+    _bridge.startAudioEngine();
+    _bridge.seekAudioEngine(_currentTime.inMilliseconds);
 
-    int tickCount = 0;
-    _playbackTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
+    _playbackTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) async {
       if (!_isPlaying) {
         timer.cancel();
         return;
       }
 
-      final now = DateTime.now();
-      final diff = now.difference(_lastTick!);
-      _lastTick = now;
-
-      _currentTime += diff;
-      tickCount++;
+      final nativePosMs = await _bridge.getAudioPosition();
+      _currentTime = Duration(milliseconds: nativePosMs);
       
       final duration = totalDuration;
       if (_currentTime >= duration) {
@@ -1328,58 +1415,29 @@ class EditorProvider extends ChangeNotifier {
         return;
       }
 
-      // Sync Main Audio less frequently
-      if (_audioPath != null && tickCount % 3 == 0) {
-        // If the playhead is beyond main audio duration, pause it
-        if (_currentTime >= _totalDuration) {
-          if (_audioPlayer.playing) _audioPlayer.pause();
-        } else {
-          // Subtle sync to keep it aligned with master clock
-          final mainPos = _audioPlayer.position;
-          final syncDiff = (mainPos.inMilliseconds - _currentTime.inMilliseconds).abs();
-          if (syncDiff > 250) {
-            _audioPlayer.seek(_currentTime);
-          }
-          if (!_audioPlayer.playing) _audioPlayer.play();
-        }
-      }
-
-      if (tickCount % 4 == 0) {
-        _syncAudioClipPlayers();
-      }
-      
       playbackTime.value = _currentTime;
     });
     
-    _resumeAllAudioClips();
     notifyListeners();
   }
 
   void _stopPlayback() {
     _isPlaying = false;
     _playbackTimer?.cancel();
-    _playbackTimer = null;
     _bridge.setPlaying(false);
-    _bridge.seekTo(_currentTime.inMilliseconds); // Final sync
-    playbackTime.value = _currentTime;
-    
-    if (_audioPath != null) {
-      _audioPlayer.pause();
-    }
-    
-    _pauseAllAudioClips();
+    _bridge.stopAudioEngine();
     notifyListeners();
   }
 
-  void _pauseAllAudioClips() {
-    for (var player in _audioClipPlayers.values) {
-      player.pause();
-    }
+  void seekTo(Duration time) {
+    _currentTime = _clampTime(time);
+    playbackTime.value = _currentTime;
+    
+    _bridge.seekTo(_currentTime.inMilliseconds);
+    _bridge.seekAudioEngine(_currentTime.inMilliseconds);
+    notifyListeners();
   }
 
-  void _resumeAllAudioClips() {
-    _syncAudioClipPlayers();
-  }
 
   void addClip(String text) {
     saveState();
@@ -1427,7 +1485,7 @@ class EditorProvider extends ChangeNotifier {
 
     _tracks[targetTrackIdx].clips.add(newClip);
     
-    _syncToNative();
+    syncToNative();
     selectClip(newClip.id);
     notifyListeners();
   }
@@ -1545,7 +1603,7 @@ class EditorProvider extends ChangeNotifier {
     
     _selectedClipIds = {mergedClip.id};
     
-    _syncToNative();
+    syncToNative();
     notifyListeners();
   }
 
@@ -1597,7 +1655,7 @@ class EditorProvider extends ChangeNotifier {
     // Select the first word of the split
     _selectedClipIds = {newClips[0].id};
     
-    _syncToNative();
+    syncToNative();
     notifyListeners();
   }
 
@@ -1743,7 +1801,7 @@ class EditorProvider extends ChangeNotifier {
             } else {
                 trackList[currentTrackIdx].clips.insert(clipIdx, updatedClip as SubtitleClip);
             }
-            _syncToNative();
+            syncToNative();
             notifyListeners();
         }
     }
@@ -1853,7 +1911,7 @@ class EditorProvider extends ChangeNotifier {
         _resolveCollisions(updatedClip, targetTrackIdx);
     }
     
-    _syncToNative();
+    syncToNative();
     notifyListeners();
   }
 
@@ -1941,7 +1999,7 @@ class EditorProvider extends ChangeNotifier {
       _resolveCollisions(resetClip, trackIdx);
     }
 
-    _syncToNative();
+    syncToNative();
     notifyListeners();
   }
 
@@ -2058,7 +2116,7 @@ class EditorProvider extends ChangeNotifier {
     } else {
         trackList[targetTrackIdx].clips.add(clip as SubtitleClip);
     }
-    _syncToNative();
+    syncToNative();
     notifyListeners();
   }
 
@@ -2164,76 +2222,27 @@ class EditorProvider extends ChangeNotifier {
       _resolveCollisions(updatedClip, newTrackIdx);
     }
 
-    _syncToNative();
+    syncToNative();
     notifyListeners();
   }
 
   void seek(Duration pos) {
     if (_isPlayheadLocked) return;
     _currentTime = pos;
-    if (_audioPath != null) {
-      _audioPlayer.seek(pos);
-    }
-    
-    // Always sync audio clips regardless of main audio
-    _syncAudioClipPlayers(forceSeek: true);
     
     _bridge.seekTo(pos.inMilliseconds);
+    _bridge.seekAudioEngine(pos.inMilliseconds);
     _lastTick = DateTime.now();
     notifyListeners();
   }
 
-  void _syncAudioClipPlayers({bool forceSeek = false}) {
-    for (var track in _audioTracks) {
-      for (var clip in track.audioClips) {
-        // Skip main audio clip since it's handled by _audioPlayer directly
-        if (clip.isMainAudio) continue;
-        
-        final player = _getOrCreatePlayerForClip(clip);
-        if (_currentTime >= clip.startTime && _currentTime < clip.endTime) {
-          final targetOffset = _currentTime - clip.startTime;
-          
-          if (forceSeek) {
-             player.seek(targetOffset);
-          } else if (!_isPlaying) {
-             // If not playing, we can afford to sync more precisely when the playhead moves
-             final currentPos = player.position;
-             final diff = (currentPos.inMilliseconds - targetOffset.inMilliseconds).abs();
-             if (diff > 100) player.seek(targetOffset);
-          }
-          
-          if (_isPlaying) {
-            if (!player.playing) {
-              player.setVolume(clip.volume);
-              player.seek(targetOffset); // Initial sync when starting
-              player.play();
-            }
-          }
-        } else {
-          if (player.playing) player.pause();
-        }
-      }
-    }
-  }
-
-  AudioPlayer _getOrCreatePlayerForClip(AudioClip clip) {
-    if (!_audioClipPlayers.containsKey(clip.id)) {
-      final player = AudioPlayer();
-      player.setFilePath(clip.audioPath).catchError((e) {
-        print("Error loading audio clip: $e");
-      });
-      player.setVolume(clip.volume);
-      _audioClipPlayers[clip.id] = player;
-    }
-    return _audioClipPlayers[clip.id]!;
-  }
 
   void play() {
-    _audioPlayer.play();
+    _bridge.startAudioEngine();
   }
 
   void pause() {
-    _audioPlayer.pause();
+    _bridge.stopAudioEngine();
   }
 
   Future<String?> exportVideo() async {
@@ -2451,16 +2460,11 @@ class EditorProvider extends ChangeNotifier {
         clips: newClips,
       );
       _tracks.add(newTrack);
-      _syncToNative();
+      syncToNative();
       notifyListeners();
     }
   }
 
-  @override
-  void dispose() {
-    _audioPlayer.dispose();
-    super.dispose();
-  }
 
   Future<void> importModel(String originalPath) async {
     _isImportingModel = true;
@@ -2482,7 +2486,7 @@ class EditorProvider extends ChangeNotifier {
       await file.copy(newPath);
       
       _whisperModelPath = newPath;
-      _persistProject();
+      saveProject();
       notifyListeners();
     } catch (e) {
       print("Error importing model: $e");
@@ -2509,5 +2513,17 @@ class EditorProvider extends ChangeNotifier {
   void clearMarkers() {
     _markers.clear();
     notifyListeners();
+  }
+
+  void toggleControlPanelCollapse() {
+    _isControlPanelCollapsed = !_isControlPanelCollapsed;
+    notifyListeners();
+  }
+
+  void setControlPanelCollapsed(bool collapsed) {
+    if (_isControlPanelCollapsed != collapsed) {
+      _isControlPanelCollapsed = collapsed;
+      notifyListeners();
+    }
   }
 }

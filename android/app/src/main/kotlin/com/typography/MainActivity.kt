@@ -32,6 +32,16 @@ class MainActivity : FlutterActivity() {
     private external fun transcribeWhisper(contextPtr: Long, audioPath: String, initialPrompt: String, language: String): String
     private external fun freeWhisper(contextPtr: Long)
     
+    // Native Audio Engine
+    private external fun initAudioEngine()
+    private external fun releaseAudioEngine()
+    private external fun startAudioEngine()
+    private external fun stopAudioEngine()
+    private external fun seekAudioEngine(timeMs: Long)
+    private external fun setMainAudio(path: String)
+    private external fun getAudioPosition(): Long
+    private external fun setAudioClips(paths: Array<String>, starts: LongArray, ends: LongArray, vols: FloatArray)
+    
     private external fun decodeAudioToPcm(audioPath: String): FloatArray?
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -288,6 +298,43 @@ class MainActivity : FlutterActivity() {
                         result.success(0)
                     }
                 }
+                "initAudioEngine" -> {
+                    initAudioEngine()
+                    result.success(null)
+                }
+                "releaseAudioEngine" -> {
+                    releaseAudioEngine()
+                    result.success(null)
+                }
+                "startAudioEngine" -> {
+                    startAudioEngine()
+                    result.success(null)
+                }
+                "stopAudioEngine" -> {
+                    stopAudioEngine()
+                    result.success(null)
+                }
+                "seekAudioEngine" -> {
+                    val timeMs = (call.argument<Number>("timeMs"))?.toLong() ?: 0L
+                    seekAudioEngine(timeMs)
+                    result.success(null)
+                }
+                "setMainAudio" -> {
+                    val path = call.argument<String>("path") ?: ""
+                    setMainAudio(path)
+                    result.success(null)
+                }
+                "getAudioPosition" -> {
+                    result.success(getAudioPosition())
+                }
+                "setAudioClips" -> {
+                    val paths = (call.argument<List<String>>("paths"))?.toTypedArray() ?: emptyArray()
+                    val starts = (call.argument<List<Long>>("starts"))?.toLongArray() ?: LongArray(0)
+                    val ends = (call.argument<List<Long>>("ends"))?.toLongArray() ?: LongArray(0)
+                    val vols = (call.argument<List<Double>>("vols"))?.map { it.toFloat() }?.toFloatArray() ?: FloatArray(0)
+                    setAudioClips(paths, starts, ends, vols)
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }
@@ -321,6 +368,15 @@ class MainActivity : FlutterActivity() {
                 isShadowEnabled = it["isShadowEnabled"] as? Boolean ?: false,
                 isBackgroundEnabled = it["isBackgroundEnabled"] as? Boolean ?: false,
                 isStrokeEnabled = it["isStrokeEnabled"] as? Boolean ?: false,
+                isGlowEnabled = it["isGlowEnabled"] as? Boolean ?: false,
+                isBendingEnabled = it["isBendingEnabled"] as? Boolean ?: false,
+                isReflectionEnabled = it["isReflectionEnabled"] as? Boolean ?: false,
+                glowColor = (it["glowColor"] as? Number)?.toInt() ?: 0xFFFF0000.toInt(),
+                glowSize = (it["glowSize"] as? Number)?.toFloat() ?: 0f,
+                bendingAmount = (it["bendingAmount"] as? Number)?.toFloat() ?: 0f,
+                reflectionOffset = (it["reflectionOffset"] as? Number)?.toFloat() ?: 0f,
+                reflectionOpacity = (it["reflectionOpacity"] as? Number)?.toFloat() ?: 0.5f,
+                reflectionColor = (it["reflectionColor"] as? Number)?.toInt() ?: 0xFFFFFFFF.toInt(),
                 fontFamily = it["fontFamily"] as? String ?: "Poppins",
                 entranceAnimation = ClipAnimation.fromMap(it["entranceAnimation"] as? Map<String, Any>),
                 exitAnimation = ClipAnimation.fromMap(it["exitAnimation"] as? Map<String, Any>),

@@ -16,6 +16,15 @@ class EffectsTab extends StatefulWidget {
     bool? isStrokeEnabled,
     int? strokeColor,
     double? strokeWidth,
+    bool? isGlowEnabled,
+    int? glowColor,
+    double? glowSize,
+    bool? isBendingEnabled,
+    double? bendingAmount,
+    bool? isReflectionEnabled,
+    double? reflectionOffset,
+    double? reflectionOpacity,
+    int? reflectionColor,
   }) onUpdate;
 
   const EffectsTab({
@@ -34,7 +43,12 @@ class _EffectsTabState extends State<EffectsTab> {
   @override
   Widget build(BuildContext context) {
     final tabs = ['SHADOW', 'STROKE'];
-    if (widget.clip is SubtitleClip) tabs.add('BACKGROUND');
+    if (widget.clip is SubtitleClip) {
+      tabs.add('BACKGROUND');
+      tabs.add('GLOW');
+      tabs.add('BENDING');
+      tabs.add('REFLECTION');
+    }
 
     return Column(
       children: [
@@ -47,7 +61,123 @@ class _EffectsTabState extends State<EffectsTab> {
         else if (_activeSubTabIndex == 1)
           _buildStrokeView()
         else if (_activeSubTabIndex == 2 && widget.clip is SubtitleClip)
-          _buildBackgroundView(),
+          _buildBackgroundView()
+        else if (_activeSubTabIndex == 3 && widget.clip is SubtitleClip)
+          _buildGlowView()
+        else if (_activeSubTabIndex == 4 && widget.clip is SubtitleClip)
+          _buildBendingView()
+        else if (_activeSubTabIndex == 5 && widget.clip is SubtitleClip)
+          _buildReflectionView(),
+      ],
+    );
+  }
+
+  Widget _buildGlowView() {
+    final clip = widget.clip;
+    if (clip is! SubtitleClip) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('ENABLE GLOW', style: TextStyle(fontSize: 8, color: Colors.white38, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+            CommonControls.buildToggle(clip.isGlowEnabled, (v) => widget.onUpdate(isGlowEnabled: v)),
+          ],
+        ),
+        const SizedBox(height: 20),
+        if (clip.isGlowEnabled) ...[
+          CommonControls.buildColorPicker(context, 'Glow Color', clip.glowColor, (c) => widget.onUpdate(glowColor: c)),
+          const SizedBox(height: 12),
+          CommonControls.buildSlider(context, 'Glow Intensity', clip.glowSize, 0, 100, (v) => widget.onUpdate(glowSize: v), onReset: () => widget.onUpdate(glowSize: 15)),
+        ] else
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 40),
+              child: Text('Glow is disabled', style: TextStyle(color: Colors.white.withOpacity(0.1), fontSize: 11, fontWeight: FontWeight.bold)),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildBendingView() {
+    final clip = widget.clip;
+    if (clip is! SubtitleClip) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('ENABLE BENDING', style: TextStyle(fontSize: 8, color: Colors.white38, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+            CommonControls.buildToggle(clip.isBendingEnabled, (v) => widget.onUpdate(isBendingEnabled: v)),
+          ],
+        ),
+        const SizedBox(height: 20),
+        if (clip.isBendingEnabled) ...[
+          CommonControls.buildSlider(context, 'Bending Amount', clip.bendingAmount, -1, 1, (v) => widget.onUpdate(bendingAmount: v), onReset: () => widget.onUpdate(bendingAmount: 0)),
+          const SizedBox(height: 12),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12),
+            child: Text('Positive values arc upwards, negative arc downwards.', style: TextStyle(color: Colors.white38, fontSize: 10)),
+          ),
+        ] else
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 40),
+              child: Text('Bending is disabled', style: TextStyle(color: Colors.white.withOpacity(0.1), fontSize: 11, fontWeight: FontWeight.bold)),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildReflectionView() {
+    final clip = widget.clip;
+    bool isEnabled = false;
+    double offset = 0;
+    double opacity = 0;
+    double blur = 0;
+    int color = 0xFFFFFFFF;
+
+    if (clip is SubtitleClip) {
+      isEnabled = clip.isReflectionEnabled;
+      offset = clip.reflectionOffset;
+      opacity = clip.reflectionOpacity;
+      color = clip.reflectionColor;
+    } else if (clip is OverlayClip) {
+      isEnabled = clip.isReflectionEnabled;
+      offset = clip.reflectionOffset;
+      opacity = clip.reflectionOpacity;
+      color = clip.reflectionColor;
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('ENABLE REFLECTION', style: TextStyle(fontSize: 8, color: Colors.white38, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+            CommonControls.buildToggle(isEnabled, (v) => widget.onUpdate(isReflectionEnabled: v)),
+          ],
+        ),
+        const SizedBox(height: 20),
+        if (isEnabled) ...[
+          CommonControls.buildColorPicker(context, 'Reflection Tint', color, (c) => widget.onUpdate(reflectionColor: c)),
+          const SizedBox(height: 12),
+          CommonControls.buildSlider(context, 'Reflection Offset', offset, 0, 200, (v) => widget.onUpdate(reflectionOffset: v), onReset: () => widget.onUpdate(reflectionOffset: 10)),
+          const SizedBox(height: 12),
+          CommonControls.buildSlider(context, 'Reflection Opacity', opacity, 0, 1, (v) => widget.onUpdate(reflectionOpacity: v), onReset: () => widget.onUpdate(reflectionOpacity: 0.5)),
+        ] else
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 40),
+              child: Text('Reflection is disabled', style: TextStyle(color: Colors.white.withOpacity(0.1), fontSize: 11, fontWeight: FontWeight.bold)),
+            ),
+          ),
       ],
     );
   }

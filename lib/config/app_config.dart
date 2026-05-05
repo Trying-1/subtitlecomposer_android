@@ -3,24 +3,24 @@ class AppConfig {
   static const bool showNewProjectButton = true;
   static const bool showImportAudioButton = true;
   static const bool showImportVideoButton = true;
-  static const bool showSubtitlesButton = false;
-  static const bool showWordsButton = false;
+  static const bool showSubtitlesButton = true;
+  static const bool showWordsButton = true;
   static const bool showPasteButton = true;
-  static const bool showVoiceButton = false;
-  static const bool showJsonButton = false;
+  static const bool showVoiceButton = true;
+  static const bool showJsonButton = true;
   static const bool showEditButton = true;
-  static const bool showForceAlignButton = false;
-  static const bool showAddMusicButton = false;
-  static const bool showAddSFXButton = false;
-  static const bool showModelButton = false;
+  static const bool showForceAlignButton = true;
+  static const bool showAddMusicButton = true;
+  static const bool showAddSFXButton = true;
+  static const bool showModelButton = true;
   static const bool showAddTextButton = true;
   static const bool showExportButton = true;
 
   // Home Screen Elements
-  static const bool showHomeNewProject = false;
-  static const bool showHomeTutorials = false;
+  static const bool showHomeNewProject = true;
+  static const bool showHomeTutorials = true;
   static const bool showHomeNativePlayer = true;
-  static const bool showHomeProfile = false;
+  static const bool showHomeProfile = true;
 
   // Timeline Tools
   static const bool showTimelineUndo = true;

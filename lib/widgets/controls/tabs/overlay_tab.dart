@@ -258,16 +258,6 @@ class _OverlayTabState extends State<OverlayTab> {
                 _pickAssets(context, ImageSource.gallery, isVideo: true);
               },
             ),
-            const SizedBox(height: 12),
-            _buildPickerOption(
-              icon: Icons.camera_alt_rounded,
-              label: 'Camera',
-              subtitle: 'Capture new asset',
-              onTap: () {
-                Navigator.pop(context);
-                _pickAssets(context, ImageSource.camera);
-              },
-            ),
             const SizedBox(height: 24),
           ],
         ),

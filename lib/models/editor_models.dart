@@ -248,6 +248,15 @@ class SubtitleClip implements TimelineClip {
   final bool isShadowEnabled;
   final bool isBackgroundEnabled;
   final bool isStrokeEnabled;
+  final bool isGlowEnabled;
+  final bool isBendingEnabled;
+  final bool isReflectionEnabled;
+  final int glowColor;
+  final double glowSize;
+  final double bendingAmount;
+  final double reflectionOffset;
+  final double reflectionOpacity;
+  final int reflectionColor;
   final CustomBlendMode blendMode;
   @override
   final Duration originalStartTime;
@@ -293,6 +302,15 @@ class SubtitleClip implements TimelineClip {
     this.isShadowEnabled = false,
     this.isBackgroundEnabled = false,
     this.isStrokeEnabled = false,
+    this.isGlowEnabled = false,
+    this.isBendingEnabled = false,
+    this.isReflectionEnabled = false,
+    this.glowColor = 0xFFFF0000,
+    this.glowSize = 0.0,
+    this.bendingAmount = 0.0,
+    this.reflectionOffset = 0.0,
+    this.reflectionOpacity = 0.5,
+    this.reflectionColor = 0xFFFFFFFF,
     this.blendMode = CustomBlendMode.normal,
     this.fontFamily = 'Poppins',
     this.entranceAnimation = const ClipAnimation(),
@@ -331,6 +349,15 @@ class SubtitleClip implements TimelineClip {
     'isShadowEnabled': isShadowEnabled,
     'isBackgroundEnabled': isBackgroundEnabled,
     'isStrokeEnabled': isStrokeEnabled,
+    'isGlowEnabled': isGlowEnabled,
+    'isBendingEnabled': isBendingEnabled,
+    'isReflectionEnabled': isReflectionEnabled,
+    'glowColor': glowColor,
+    'glowSize': glowSize,
+    'bendingAmount': bendingAmount,
+    'reflectionOffset': reflectionOffset,
+    'reflectionOpacity': reflectionOpacity,
+    'reflectionColor': reflectionColor,
     'blendMode': blendMode.index,
     'fontFamily': fontFamily,
     'entranceAnimation': entranceAnimation.toJson(),
@@ -368,6 +395,15 @@ class SubtitleClip implements TimelineClip {
     isShadowEnabled: json['isShadowEnabled'] as bool? ?? false,
     isBackgroundEnabled: json['isBackgroundEnabled'] as bool? ?? false,
     isStrokeEnabled: json['isStrokeEnabled'] as bool? ?? ((json['strokeWidth'] as num?)?.toDouble() ?? 0.0) > 0,
+    isGlowEnabled: json['isGlowEnabled'] as bool? ?? false,
+    isBendingEnabled: json['isBendingEnabled'] as bool? ?? false,
+    isReflectionEnabled: json['isReflectionEnabled'] as bool? ?? false,
+    glowColor: json['glowColor'] as int? ?? 0xFFFF0000,
+    glowSize: (json['glowSize'] as num?)?.toDouble() ?? 0.0,
+    bendingAmount: (json['bendingAmount'] as num?)?.toDouble() ?? 0.0,
+    reflectionOffset: (json['reflectionOffset'] as num?)?.toDouble() ?? 0.0,
+    reflectionOpacity: (json['reflectionOpacity'] as num?)?.toDouble() ?? 0.5,
+    reflectionColor: json['reflectionColor'] as int? ?? 0xFFFFFFFF,
     blendMode: CustomBlendMode.values[json['blendMode'] as int? ?? 0],
     fontFamily: json['fontFamily'] as String? ?? 'Poppins',
     entranceAnimation: ClipAnimation.fromJson(Map<String, dynamic>.from(json['entranceAnimation'])),
@@ -405,6 +441,15 @@ class SubtitleClip implements TimelineClip {
     bool? isShadowEnabled,
     bool? isBackgroundEnabled,
     bool? isStrokeEnabled,
+    bool? isGlowEnabled,
+    bool? isBendingEnabled,
+    bool? isReflectionEnabled,
+    int? glowColor,
+    double? glowSize,
+    double? bendingAmount,
+    double? reflectionOffset,
+    double? reflectionOpacity,
+    int? reflectionColor,
     CustomBlendMode? blendMode,
     String? fontFamily,
     ClipAnimation? entranceAnimation,
@@ -439,6 +484,14 @@ class SubtitleClip implements TimelineClip {
     isShadowEnabled: isShadowEnabled ?? this.isShadowEnabled,
     isBackgroundEnabled: isBackgroundEnabled ?? this.isBackgroundEnabled,
     isStrokeEnabled: isStrokeEnabled ?? this.isStrokeEnabled,
+    isGlowEnabled: isGlowEnabled ?? this.isGlowEnabled,
+    isBendingEnabled: isBendingEnabled ?? this.isBendingEnabled,
+    isReflectionEnabled: isReflectionEnabled ?? this.isReflectionEnabled,
+    glowColor: glowColor ?? this.glowColor,
+    glowSize: glowSize ?? this.glowSize,
+    bendingAmount: bendingAmount ?? this.bendingAmount,
+    reflectionOffset: reflectionOffset ?? this.reflectionOffset,
+    reflectionOpacity: reflectionOpacity ?? this.reflectionOpacity,
     blendMode: blendMode ?? this.blendMode,
     fontFamily: fontFamily ?? this.fontFamily,
     entranceAnimation: entranceAnimation ?? this.entranceAnimation,
@@ -478,6 +531,15 @@ class OverlayClip implements TimelineClip {
   final bool isStrokeEnabled;
   final int strokeColor;
   final double strokeWidth;
+  final bool isGlowEnabled;
+  final int glowColor;
+  final double glowSize;
+  final bool isBendingEnabled;
+  final double bendingAmount;
+  final bool isReflectionEnabled;
+  final double reflectionOffset;
+  final double reflectionOpacity;
+  final int reflectionColor;
   @override
   final Duration originalStartTime;
   @override
@@ -515,6 +577,15 @@ class OverlayClip implements TimelineClip {
     this.isStrokeEnabled = false,
     this.strokeColor = 0xFF000000,
     this.strokeWidth = 0.0,
+    this.isGlowEnabled = false,
+    this.glowColor = 0xFFFF0000,
+    this.glowSize = 0.0,
+    this.isBendingEnabled = false,
+    this.bendingAmount = 0.0,
+    this.isReflectionEnabled = false,
+    this.reflectionOffset = 0.0,
+    this.reflectionOpacity = 0.5,
+    this.reflectionColor = 0xFFFFFFFF,
     this.entranceAnimation = const ClipAnimation(),
     this.exitAnimation = const ClipAnimation(),
     this.loopAnimation = const ClipAnimation(),
@@ -544,6 +615,15 @@ class OverlayClip implements TimelineClip {
     'isStrokeEnabled': isStrokeEnabled,
     'strokeColor': strokeColor,
     'strokeWidth': strokeWidth,
+    'isGlowEnabled': isGlowEnabled,
+    'glowColor': glowColor,
+    'glowSize': glowSize,
+    'isBendingEnabled': isBendingEnabled,
+    'bendingAmount': bendingAmount,
+    'isReflectionEnabled': isReflectionEnabled,
+    'reflectionOffset': reflectionOffset,
+    'reflectionOpacity': reflectionOpacity,
+    'reflectionColor': reflectionColor,
     'entranceAnimation': entranceAnimation.toJson(),
     'exitAnimation': exitAnimation.toJson(),
     'loopAnimation': loopAnimation.toJson(),
@@ -572,6 +652,15 @@ class OverlayClip implements TimelineClip {
     isStrokeEnabled: json['isStrokeEnabled'] as bool? ?? false,
     strokeColor: json['strokeColor'] as int? ?? 0xFF000000,
     strokeWidth: (json['strokeWidth'] as num?)?.toDouble() ?? 0.0,
+    isGlowEnabled: json['isGlowEnabled'] as bool? ?? false,
+    glowColor: json['glowColor'] as int? ?? 0xFFFF0000,
+    glowSize: (json['glowSize'] as num?)?.toDouble() ?? 0.0,
+    isBendingEnabled: json['isBendingEnabled'] as bool? ?? false,
+    bendingAmount: (json['bendingAmount'] as num?)?.toDouble() ?? 0.0,
+    isReflectionEnabled: json['isReflectionEnabled'] as bool? ?? false,
+    reflectionOffset: (json['reflectionOffset'] as num?)?.toDouble() ?? 0.0,
+    reflectionOpacity: (json['reflectionOpacity'] as num?)?.toDouble() ?? 0.5,
+    reflectionColor: json['reflectionColor'] as int? ?? 0xFFFFFFFF,
     entranceAnimation: ClipAnimation.fromJson(Map<String, dynamic>.from(json['entranceAnimation'])),
     exitAnimation: ClipAnimation.fromJson(Map<String, dynamic>.from(json['exitAnimation'])),
     loopAnimation: ClipAnimation.fromJson(Map<String, dynamic>.from(json['loopAnimation'] ?? {})),
@@ -600,6 +689,15 @@ class OverlayClip implements TimelineClip {
     bool? isStrokeEnabled,
     int? strokeColor,
     double? strokeWidth,
+    bool? isGlowEnabled,
+    int? glowColor,
+    double? glowSize,
+    bool? isBendingEnabled,
+    double? bendingAmount,
+    bool? isReflectionEnabled,
+    double? reflectionOffset,
+    double? reflectionOpacity,
+    int? reflectionColor,
     ClipAnimation? entranceAnimation,
     ClipAnimation? exitAnimation,
     ClipAnimation? loopAnimation,
@@ -625,6 +723,15 @@ class OverlayClip implements TimelineClip {
     isStrokeEnabled: isStrokeEnabled ?? this.isStrokeEnabled,
     strokeColor: strokeColor ?? this.strokeColor,
     strokeWidth: strokeWidth ?? this.strokeWidth,
+    isGlowEnabled: isGlowEnabled ?? this.isGlowEnabled,
+    glowColor: glowColor ?? this.glowColor,
+    glowSize: glowSize ?? this.glowSize,
+    isBendingEnabled: isBendingEnabled ?? this.isBendingEnabled,
+    bendingAmount: bendingAmount ?? this.bendingAmount,
+    isReflectionEnabled: isReflectionEnabled ?? this.isReflectionEnabled,
+    reflectionOffset: reflectionOffset ?? this.reflectionOffset,
+    reflectionOpacity: reflectionOpacity ?? this.reflectionOpacity,
+    reflectionColor: reflectionColor ?? this.reflectionColor,
     entranceAnimation: entranceAnimation ?? this.entranceAnimation,
     exitAnimation: exitAnimation ?? this.exitAnimation,
     loopAnimation: loopAnimation ?? this.loopAnimation,
@@ -936,6 +1043,7 @@ class Track {
     List<SubtitleClip>? clips,
     List<OverlayClip>? overlays,
     List<BackgroundClip>? backgrounds,
+    List<AudioClip>? audioClips,
   }) => Track(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -944,5 +1052,111 @@ class Track {
     overlays: overlays ?? this.overlays,
     backgrounds: backgrounds ?? this.backgrounds,
     audioClips: audioClips ?? this.audioClips,
+  );
+}
+
+class Project {
+  final String id;
+  final String name;
+  final String? videoPath;
+  final double videoWidth;
+  final double videoHeight;
+  final double aspectRatio;
+  final int backgroundColor;
+  final String? backgroundImagePath;
+  final double backgroundScale;
+  final double backgroundRotation;
+  final double backgroundX;
+  final double backgroundY;
+  final int backgroundFillMode;
+  final List<Track> tracks;
+  final DateTime lastModified;
+
+  Project({
+    required this.id,
+    required this.name,
+    this.videoPath,
+    this.videoWidth = 1920,
+    this.videoHeight = 1080,
+    this.aspectRatio = 16 / 9,
+    this.backgroundColor = 0xFF000000,
+    this.backgroundImagePath,
+    this.backgroundScale = 1.0,
+    this.backgroundRotation = 0.0,
+    this.backgroundX = 0.0,
+    this.backgroundY = 0.0,
+    this.backgroundFillMode = 0,
+    this.tracks = const [],
+    required this.lastModified,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'videoPath': videoPath,
+    'videoWidth': videoWidth,
+    'videoHeight': videoHeight,
+    'aspectRatio': aspectRatio,
+    'backgroundColor': backgroundColor,
+    'backgroundImagePath': backgroundImagePath,
+    'backgroundScale': backgroundScale,
+    'backgroundRotation': backgroundRotation,
+    'backgroundX': backgroundX,
+    'backgroundY': backgroundY,
+    'backgroundFillMode': backgroundFillMode,
+    'tracks': tracks.map((t) => t.toJson()).toList(),
+    'lastModified': lastModified.toIso8601String(),
+  };
+
+  factory Project.fromJson(Map<String, dynamic> json) => Project(
+    id: json['id'],
+    name: json['name'],
+    videoPath: json['videoPath'],
+    videoWidth: (json['videoWidth'] as num?)?.toDouble() ?? 1920,
+    videoHeight: (json['videoHeight'] as num?)?.toDouble() ?? 1080,
+    aspectRatio: (json['aspectRatio'] as num?)?.toDouble() ?? 16 / 9,
+    backgroundColor: json['backgroundColor'] ?? 0xFF000000,
+    backgroundImagePath: json['backgroundImagePath'],
+    backgroundScale: (json['backgroundScale'] as num?)?.toDouble() ?? 1.0,
+    backgroundRotation: (json['backgroundRotation'] as num?)?.toDouble() ?? 0.0,
+    backgroundX: (json['backgroundX'] as num?)?.toDouble() ?? 0.0,
+    backgroundY: (json['backgroundY'] as num?)?.toDouble() ?? 0.0,
+    backgroundFillMode: json['backgroundFillMode'] ?? 0,
+    tracks: (json['tracks'] as List? ?? []).map((t) => Track.fromJson(Map<String, dynamic>.from(t))).toList(),
+    lastModified: DateTime.parse(json['lastModified'] ?? DateTime.now().toIso8601String()),
+  );
+
+  Project copyWith({
+    String? id,
+    String? name,
+    String? videoPath,
+    double? videoWidth,
+    double? videoHeight,
+    double? aspectRatio,
+    int? backgroundColor,
+    String? backgroundImagePath,
+    double? backgroundScale,
+    double? backgroundRotation,
+    double? backgroundX,
+    double? backgroundY,
+    int? backgroundFillMode,
+    List<Track>? tracks,
+    DateTime? lastModified,
+  }) => Project(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    videoPath: videoPath ?? this.videoPath,
+    videoWidth: videoWidth ?? this.videoWidth,
+    videoHeight: videoHeight ?? this.videoHeight,
+    aspectRatio: aspectRatio ?? this.aspectRatio,
+    backgroundColor: backgroundColor ?? this.backgroundColor,
+    backgroundImagePath: backgroundImagePath ?? this.backgroundImagePath,
+    backgroundScale: backgroundScale ?? this.backgroundScale,
+    backgroundRotation: backgroundRotation ?? this.backgroundRotation,
+    backgroundX: backgroundX ?? this.backgroundX,
+    backgroundY: backgroundY ?? this.backgroundY,
+    backgroundFillMode: backgroundFillMode ?? this.backgroundFillMode,
+    tracks: tracks ?? this.tracks,
+    lastModified: lastModified ?? this.lastModified,
   );
 }

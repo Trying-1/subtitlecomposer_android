@@ -122,4 +122,47 @@ class NativeBridge {
     if (segments == null) return [];
     return segments.map((e) => Map<String, dynamic>.from(e as Map)).toList();
   }
+
+  // Native Audio Engine
+  Future<void> initAudioEngine() async {
+    await _channel.invokeMethod('initAudioEngine');
+  }
+
+  Future<void> releaseAudioEngine() async {
+    await _channel.invokeMethod('releaseAudioEngine');
+  }
+
+  Future<void> startAudioEngine() async {
+    await _channel.invokeMethod('startAudioEngine');
+  }
+
+  Future<void> stopAudioEngine() async {
+    await _channel.invokeMethod('stopAudioEngine');
+  }
+
+  Future<void> seekAudioEngine(int timeMs) async {
+    await _channel.invokeMethod('seekAudioEngine', {'timeMs': timeMs});
+  }
+
+  Future<void> setMainAudio(String path) async {
+    await _channel.invokeMethod('setMainAudio', {'path': path});
+  }
+
+  Future<int> getAudioPosition() async {
+    return await _channel.invokeMethod<int>('getAudioPosition') ?? 0;
+  }
+
+  Future<void> setAudioClips({
+    required List<String> paths,
+    required List<int> starts,
+    required List<int> ends,
+    required List<double> vols,
+  }) async {
+    await _channel.invokeMethod('setAudioClips', {
+      'paths': paths,
+      'starts': starts,
+      'ends': ends,
+      'vols': vols,
+    });
+  }
 }

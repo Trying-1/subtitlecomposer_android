@@ -130,9 +130,52 @@ class _TimelineEditorState extends State<TimelineEditor> {
   String? _activeEdgeClipId;
   bool? _activeEdgeIsLeft;
   double _baseZoomLevel = 1.0;
-
+  
+  late ScrollController _horizontalScrollController;
+  bool _isManualScrolling = false;
   double _lastPPS = 50.0;
   double get _pixelsPerSecond => _lastPPS;
+
+  @override
+  void initState() {
+    super.initState();
+    _horizontalScrollController = ScrollController();
+    widget.playbackTime?.addListener(_onPlaybackTimeChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.playbackTime?.removeListener(_onPlaybackTimeChanged);
+    _horizontalScrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(TimelineEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.playbackTime != widget.playbackTime) {
+      oldWidget.playbackTime?.removeListener(_onPlaybackTimeChanged);
+      widget.playbackTime?.addListener(_onPlaybackTimeChanged);
+    }
+  }
+
+  void _onPlaybackTimeChanged() {
+    if (!widget.isPlaying || _isManualScrolling) return;
+    
+    // Auto-scroll to keep playhead at center
+    final time = widget.playbackTime?.value ?? widget.currentTime;
+    final playheadPos = (time.inMilliseconds / 1000.0) * _pixelsPerSecond;
+    
+    if (_horizontalScrollController.hasClients) {
+      final viewportWidth = _horizontalScrollController.position.viewportDimension;
+      final targetOffset = (playheadPos - viewportWidth / 2).clamp(
+        0.0, 
+        _horizontalScrollController.position.maxScrollExtent
+      );
+      
+      _horizontalScrollController.jumpTo(targetOffset);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -168,52 +211,69 @@ class _TimelineEditorState extends State<TimelineEditor> {
                         widget.onZoomChanged(newZoom);
                       }
                     },
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      physics: _isScrollingLocked ? const NeverScrollableScrollPhysics() : const AlwaysScrollableScrollPhysics(),
-                      child: SizedBox(
-                        width: timelineWidth,
-                        child: Column(
-                          children: [
-                            _buildTimeRuler(),
-                            Expanded(
-                              child: GestureDetector(
-                                onTap: () => widget.onSelect(null),
-                                child: SingleChildScrollView(
-                                  physics: const AlwaysScrollableScrollPhysics(),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      if (widget.showTextTracks) ...[
-                                        _buildSectionHeader("TEXT"),
-                                        ...widget.tracks.map((track) => _buildTrackRow(track)),
-                                        _buildEmptySpaceDragTarget(TrackType.text),
+                    child: NotificationListener<ScrollNotification>(
+                      onNotification: (notification) {
+                        if (notification is ScrollStartNotification) {
+                          if (notification.dragDetails != null) {
+                            _isManualScrolling = true;
+                            // If playing and user scrolls manually, pause playback
+                            if (widget.isPlaying) {
+                              widget.onTogglePlay();
+                            }
+                          }
+                        } else if (notification is ScrollEndNotification) {
+                          _isManualScrolling = false;
+                        }
+                        return false;
+                      },
+                      child: SingleChildScrollView(
+                        controller: _horizontalScrollController,
+                        scrollDirection: Axis.horizontal,
+                        physics: _isScrollingLocked ? const NeverScrollableScrollPhysics() : const AlwaysScrollableScrollPhysics(),
+                        child: SizedBox(
+                          width: timelineWidth,
+                          child: Column(
+                            children: [
+                              _buildTimeRuler(),
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () => widget.onSelect(null),
+                                  child: SingleChildScrollView(
+                                    physics: const AlwaysScrollableScrollPhysics(),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        if (widget.showTextTracks) ...[
+                                          _buildSectionHeader("TEXT"),
+                                          ...widget.tracks.map((track) => _buildTrackRow(track)),
+                                          _buildEmptySpaceDragTarget(TrackType.text),
+                                        ],
+                                        if (widget.showOverlayTracks) ...[
+                                          const SizedBox(height: 16),
+                                          _buildSectionHeader("OVERLAYS"),
+                                          ...widget.overlayTracks.map((track) => _buildTrackRow(track)),
+                                          _buildEmptySpaceDragTarget(TrackType.overlay),
+                                        ],
+                                        if (widget.showBackgroundTracks) ...[
+                                          const SizedBox(height: 16),
+                                          _buildSectionHeader("BACKGROUND"),
+                                          ...widget.backgroundTracks.map((track) => _buildTrackRow(track)),
+                                          _buildEmptySpaceDragTarget(TrackType.background),
+                                        ],
+                                        if (widget.showAudioTracks) ...[
+                                          const SizedBox(height: 16),
+                                          _buildSectionHeader("MUSIC & SFX"),
+                                          ...widget.audioTracks.map((track) => _buildTrackRow(track)),
+                                          _buildEmptySpaceDragTarget(TrackType.audio),
+                                        ],
+                                        const SizedBox(height: 100), // Buffer for scrolling
                                       ],
-                                      if (widget.showOverlayTracks) ...[
-                                        const SizedBox(height: 16),
-                                        _buildSectionHeader("OVERLAYS"),
-                                        ...widget.overlayTracks.map((track) => _buildTrackRow(track)),
-                                        _buildEmptySpaceDragTarget(TrackType.overlay),
-                                      ],
-                                      if (widget.showBackgroundTracks) ...[
-                                        const SizedBox(height: 16),
-                                        _buildSectionHeader("BACKGROUND"),
-                                        ...widget.backgroundTracks.map((track) => _buildTrackRow(track)),
-                                        _buildEmptySpaceDragTarget(TrackType.background),
-                                      ],
-                                      if (widget.showAudioTracks) ...[
-                                        const SizedBox(height: 16),
-                                        _buildSectionHeader("MUSIC & SFX"),
-                                        ...widget.audioTracks.map((track) => _buildTrackRow(track)),
-                                        _buildEmptySpaceDragTarget(TrackType.audio),
-                                      ],
-                                      const SizedBox(height: 100), // Buffer for scrolling
-                                    ],
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),

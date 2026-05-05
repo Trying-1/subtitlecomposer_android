@@ -7,11 +7,23 @@ import '../profile/profile_screen.dart';
 import '../video_player/video_player_screen.dart';
 import '../../config/app_config.dart';
 
-class HomeScreen extends StatelessWidget {
+import 'package:intl/intl.dart';
+import '../../services/project_service.dart';
+import '../../models/editor_models.dart';
+
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  @override
   Widget build(BuildContext context) {
+    final projects = ProjectService.getAllProjects();
+    final editorProvider = context.watch<EditorProvider>();
+
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
       appBar: AppBar(
@@ -48,6 +60,7 @@ class HomeScreen extends StatelessWidget {
                 subtitle: 'Create a new typography video',
                 icon: Icons.add_rounded,
                 onTap: () {
+                  editorProvider.createNewProject();
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const EditorScreen()));
                 },
                 primary: true,
@@ -88,7 +101,29 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            _buildRecentProjectsList(),
+            if (projects.isEmpty)
+              _buildEmptyProjectsState()
+            else
+              _buildRecentProjectsList(context, projects, editorProvider),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyProjectsState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 40),
+        child: Column(
+          children: [
+            Icon(Icons.movie_filter_rounded, size: 64, color: Colors.white.withOpacity(0.05)),
+            const SizedBox(height: 16),
+            const Text(
+              'No projects yet.\nCreate one to get started!',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white24, fontSize: 13),
+            ),
           ],
         ),
       ),
@@ -154,52 +189,152 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildRecentProjectsList() {
+  Widget _buildRecentProjectsList(BuildContext context, List<Project> projects, EditorProvider provider) {
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: 3,
+      itemCount: projects.length,
       itemBuilder: (context, index) {
+        final project = projects[index];
+        final timeStr = DateFormat('MMM d, HH:mm').format(project.lastModified);
+        
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.03),
+          child: InkWell(
+            onTap: () async {
+              await provider.loadProject(project.id);
+              if (mounted) {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const EditorScreen()));
+              }
+            },
             borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.05),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.movie_outlined, color: Colors.white24, size: 24),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.03),
+                borderRadius: BorderRadius.circular(12),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Untitled Project ${index + 1}',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Modified 2h ago',
-                      style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 12),
+                    child: const Icon(Icons.movie_outlined, color: Colors.white24, size: 24),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          project.name,
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Modified $timeStr',
+                          style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 12),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                  PopupMenuButton(
+                    icon: const Icon(Icons.more_vert_rounded, color: Colors.white10),
+                    color: const Color(0xFF252525),
+                    itemBuilder: (context) => [
+                      PopupMenuItem(
+                        child: const Row(
+                          children: [
+                            Icon(Icons.edit_rounded, size: 16, color: Colors.white70),
+                            SizedBox(width: 8),
+                            Text('Rename', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                          ],
+                        ),
+                        onTap: () {
+                          // Use a delayed future to show dialog after menu closes
+                          Future.delayed(Duration.zero, () => _showRenameDialog(context, project));
+                        },
+                      ),
+                      PopupMenuItem(
+                        child: const Row(
+                          children: [
+                            Icon(Icons.copy_rounded, size: 16, color: Colors.white70),
+                            SizedBox(width: 8),
+                            Text('Duplicate', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                          ],
+                        ),
+                        onTap: () async {
+                          await ProjectService.duplicateProject(project.id);
+                          setState(() {});
+                        },
+                      ),
+                      PopupMenuItem(
+                        child: const Row(
+                          children: [
+                            Icon(Icons.delete_outline_rounded, size: 16, color: Colors.redAccent),
+                            SizedBox(width: 8),
+                            Text('Delete', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
+                          ],
+                        ),
+                        onTap: () async {
+                          await ProjectService.deleteProject(project.id);
+                          setState(() {});
+                        },
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              const Icon(Icons.more_vert_rounded, color: Colors.white10),
-            ],
+            ),
           ),
         );
       },
     );
   }
+
+  void _showRenameDialog(BuildContext context, Project project) {
+    final controller = TextEditingController(text: project.name);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF252525),
+        title: const Text('Rename Project', style: TextStyle(color: Colors.white, fontSize: 16)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: 'Project Name',
+            hintStyle: TextStyle(color: Colors.white24),
+            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white10)),
+            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white)),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCEL', style: TextStyle(color: Colors.white38)),
+          ),
+          TextButton(
+            onPressed: () async {
+              if (controller.text.isNotEmpty) {
+                final updated = project.copyWith(name: controller.text);
+                await ProjectService.saveProject(updated);
+                if (mounted) {
+                  setState(() {});
+                  Navigator.pop(context);
+                }
+              }
+            },
+            child: const Text('RENAME', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
 }
+

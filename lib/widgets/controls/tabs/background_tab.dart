@@ -331,22 +331,6 @@ class _BackgroundTabState extends State<BackgroundTab> {
                 }
               },
             ),
-            const SizedBox(height: 12),
-            _buildPickerOption(
-              icon: Icons.camera_alt_rounded,
-              label: 'Camera',
-              subtitle: 'Capture new background',
-              onTap: () async {
-                Navigator.pop(context);
-                final picker = ImagePicker();
-                final XFile? image = await picker.pickImage(source: ImageSource.camera);
-                if (image != null) {
-                  assetProvider.addBackgroundAssets([image.path]);
-                  provider.setBackgroundImage(image.path);
-                  setState(() => _activeTab = 1);
-                }
-              },
-            ),
             const SizedBox(height: 24),
           ],
         ),

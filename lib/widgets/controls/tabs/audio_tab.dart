@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:just_audio/just_audio.dart';
 import '../../../models/editor_models.dart';
 import '../../../providers/editor_provider.dart';
 import '../../../providers/asset_provider.dart';
@@ -27,6 +28,8 @@ class AudioTab extends StatefulWidget {
 
 class _AudioTabState extends State<AudioTab> {
   int _activeTab = 0; // 0: Control, 1: Assets
+  final AudioPlayer _previewPlayer = AudioPlayer();
+  String? _previewingPath;
 
   @override
   void initState() {
@@ -34,6 +37,22 @@ class _AudioTabState extends State<AudioTab> {
     if (widget.selectedAudio == null) {
       _activeTab = 1;
     }
+    
+    _previewPlayer.playerStateStream.listen((state) {
+      if (state.processingState == ProcessingState.completed) {
+        if (mounted) {
+          setState(() {
+            _previewingPath = null;
+          });
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _previewPlayer.dispose();
+    super.dispose();
   }
 
   @override
@@ -41,6 +60,26 @@ class _AudioTabState extends State<AudioTab> {
     super.didUpdateWidget(oldWidget);
     if (widget.selectedAudio != null && oldWidget.selectedAudio == null) {
       _activeTab = 0;
+    }
+  }
+
+  void _togglePreview(String path) async {
+    if (_previewingPath == path) {
+      await _previewPlayer.stop();
+      setState(() {
+        _previewingPath = null;
+      });
+    } else {
+      try {
+        await _previewPlayer.stop();
+        await _previewPlayer.setFilePath(path);
+        _previewPlayer.play();
+        setState(() {
+          _previewingPath = path;
+        });
+      } catch (e) {
+        print("Error previewing audio: $e");
+      }
     }
   }
 
@@ -112,20 +151,32 @@ class _AudioTabState extends State<AudioTab> {
                   ),
                   child: Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.cyanAccent.withOpacity(0.1),
-                          shape: BoxShape.circle,
+                      InkWell(
+                        onTap: () => _togglePreview(path),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: (_previewingPath == path) 
+                              ? Colors.cyanAccent 
+                              : Colors.cyanAccent.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            (_previewingPath == path) ? Icons.stop_rounded : Icons.play_arrow_rounded, 
+                            color: (_previewingPath == path) ? Colors.black : Colors.cyanAccent, 
+                            size: 16
+                          ),
                         ),
-                        child: const Icon(Icons.music_note_rounded, color: Colors.cyanAccent, size: 16),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: Text(
-                          assetProvider.getAssetName(path),
-                          style: const TextStyle(color: Colors.white70, fontSize: 12),
-                          overflow: TextOverflow.ellipsis,
+                        child: InkWell(
+                          onTap: () => widget.onAddAudio(path),
+                          child: Text(
+                            assetProvider.getAssetName(path),
+                            style: const TextStyle(color: Colors.white70, fontSize: 12),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ),
                       IconButton(

@@ -11,10 +11,11 @@ import 'providers/font_provider.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/home/home_screen.dart';
 
+import 'services/project_service.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Hive.initFlutter();
-  await Hive.openBox('project_box');
+  await ProjectService.init();
   await Hive.openBox('asset_box');
   await Hive.openBox('font_box');
   await Hive.openBox('settings_box');
