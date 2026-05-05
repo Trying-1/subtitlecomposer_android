@@ -148,6 +148,10 @@ class NativeBridge {
     await _channel.invokeMethod('setMainAudio', {'path': path});
   }
 
+  Future<void> setMainAudioVolume(double volume) async {
+    await _channel.invokeMethod('setMainAudioVolume', {'volume': volume});
+  }
+
   Future<int> getAudioPosition() async {
     return await _channel.invokeMethod<int>('getAudioPosition') ?? 0;
   }

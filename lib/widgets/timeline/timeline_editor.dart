@@ -2,6 +2,27 @@ import 'package:flutter/material.dart';
 import '../../config/app_config.dart';
 import '../../models/editor_models.dart';
 
+class LockableScrollPhysics extends AlwaysScrollableScrollPhysics {
+  final bool Function() isLocked;
+  const LockableScrollPhysics({required this.isLocked, super.parent});
+  @override
+  LockableScrollPhysics applyTo(ScrollPhysics? ancestor) {
+    return LockableScrollPhysics(isLocked: isLocked, parent: buildParent(ancestor));
+  }
+  @override
+  double applyPhysicsToUserOffset(ScrollMetrics position, double offset) {
+    if (isLocked()) return 0.0;
+    return super.applyPhysicsToUserOffset(position, offset);
+  }
+  @override
+  bool shouldAcceptUserOffset(ScrollMetrics position) => !isLocked();
+  @override
+  Simulation? createBallisticSimulation(ScrollMetrics position, double velocity) {
+    if (isLocked()) return null;
+    return super.createBallisticSimulation(position, velocity);
+  }
+}
+
 class TimelineEditor extends StatefulWidget {
   final List<Track> tracks;
   final List<Track> overlayTracks;
@@ -58,6 +79,11 @@ class TimelineEditor extends StatefulWidget {
   final bool isPlayheadLocked;
   final VoidCallback onTogglePlayheadLock;
   final VoidCallback onAddText;
+  final VoidCallback onBulkAudio;
+  final int textTimelineColor;
+  final int audioTimelineColor;
+  final int overlayTimelineColor;
+  final int backgroundTimelineColor;
 
   const TimelineEditor({
     super.key,
@@ -116,6 +142,11 @@ class TimelineEditor extends StatefulWidget {
     required this.isPlayheadLocked,
     required this.onTogglePlayheadLock,
     required this.onAddText,
+    required this.onBulkAudio,
+    this.textTimelineColor = 0xFFFF9800,
+    this.audioTimelineColor = 0xFF009688,
+    this.overlayTimelineColor = 0xFF03A9F4,
+    this.backgroundTimelineColor = 0xFFFFEB3B,
   });
 
   @override
@@ -130,6 +161,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
   String? _activeEdgeClipId;
   bool? _activeEdgeIsLeft;
   double _baseZoomLevel = 1.0;
+  DateTime _lastUpdateTime = DateTime.now();
   
   late ScrollController _horizontalScrollController;
   bool _isManualScrolling = false;
@@ -202,9 +234,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
               if (!widget.isCollapsed)
                 Expanded(
                   child: GestureDetector(
-                    onScaleStart: (details) {
-                      _baseZoomLevel = widget.zoomLevel;
-                    },
+                    onScaleStart: (details) => _baseZoomLevel = widget.zoomLevel,
                     onScaleUpdate: (details) {
                       if (details.pointerCount >= 2) {
                         final newZoom = (_baseZoomLevel * details.scale).clamp(0.0, 5.0);
@@ -213,14 +243,9 @@ class _TimelineEditorState extends State<TimelineEditor> {
                     },
                     child: NotificationListener<ScrollNotification>(
                       onNotification: (notification) {
-                        if (notification is ScrollStartNotification) {
-                          if (notification.dragDetails != null) {
-                            _isManualScrolling = true;
-                            // If playing and user scrolls manually, pause playback
-                            if (widget.isPlaying) {
-                              widget.onTogglePlay();
-                            }
-                          }
+                        if (notification is ScrollStartNotification && notification.dragDetails != null) {
+                          _isManualScrolling = true;
+                          if (widget.isPlaying) widget.onTogglePlay();
                         } else if (notification is ScrollEndNotification) {
                           _isManualScrolling = false;
                         }
@@ -229,46 +254,18 @@ class _TimelineEditorState extends State<TimelineEditor> {
                       child: SingleChildScrollView(
                         controller: _horizontalScrollController,
                         scrollDirection: Axis.horizontal,
-                        physics: _isScrollingLocked ? const NeverScrollableScrollPhysics() : const AlwaysScrollableScrollPhysics(),
+                        physics: LockableScrollPhysics(isLocked: () => _isScrollingLocked),
                         child: SizedBox(
-                          width: timelineWidth,
+                          width: timelineWidth + 40, // Add space for label
                           child: Column(
                             children: [
-                              _buildTimeRuler(),
+                              _buildTimeRulerWithOffset(),
                               Expanded(
                                 child: GestureDetector(
                                   onTap: () => widget.onSelect(null),
                                   child: SingleChildScrollView(
                                     physics: const AlwaysScrollableScrollPhysics(),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        if (widget.showTextTracks) ...[
-                                          _buildSectionHeader("TEXT"),
-                                          ...widget.tracks.map((track) => _buildTrackRow(track)),
-                                          _buildEmptySpaceDragTarget(TrackType.text),
-                                        ],
-                                        if (widget.showOverlayTracks) ...[
-                                          const SizedBox(height: 16),
-                                          _buildSectionHeader("OVERLAYS"),
-                                          ...widget.overlayTracks.map((track) => _buildTrackRow(track)),
-                                          _buildEmptySpaceDragTarget(TrackType.overlay),
-                                        ],
-                                        if (widget.showBackgroundTracks) ...[
-                                          const SizedBox(height: 16),
-                                          _buildSectionHeader("BACKGROUND"),
-                                          ...widget.backgroundTracks.map((track) => _buildTrackRow(track)),
-                                          _buildEmptySpaceDragTarget(TrackType.background),
-                                        ],
-                                        if (widget.showAudioTracks) ...[
-                                          const SizedBox(height: 16),
-                                          _buildSectionHeader("MUSIC & SFX"),
-                                          ...widget.audioTracks.map((track) => _buildTrackRow(track)),
-                                          _buildEmptySpaceDragTarget(TrackType.audio),
-                                        ],
-                                        const SizedBox(height: 100), // Buffer for scrolling
-                                      ],
-                                    ),
+                                    child: _buildTracksColumn(),
                                   ),
                                 ),
                               ),
@@ -431,6 +428,15 @@ class _TimelineEditorState extends State<TimelineEditor> {
                       _buildVerticalToggle("ADD TXT", false, widget.onAddText, icon: Icons.text_fields_rounded, color: Colors.deepPurpleAccent),
                       const SizedBox(width: 16),
                     ],
+
+                    _buildVerticalToggle(
+                      "BULK SFX", 
+                      false, 
+                      widget.onBulkAudio, 
+                      icon: Icons.library_music_rounded, 
+                      color: widget.isMultiSelectMode && widget.selectedClipIds.length > 1 ? Colors.amberAccent : Colors.white10
+                    ),
+                    const SizedBox(width: 16),
                     
                     if (AppConfig.showTimelineKeyframes) ...[
                       if (widget.onAddKeyframe != null) ...[
@@ -620,36 +626,44 @@ class _TimelineEditorState extends State<TimelineEditor> {
 
   Widget _buildTrackRow(Track track) {
     final GlobalKey trackKey = GlobalKey();
-    return DragTarget<Object>( // Object to support both
-      key: trackKey,
-      onWillAccept: (data) => true,
-      onAcceptWithDetails: (details) {
-        final RenderBox box = trackKey.currentContext!.findRenderObject() as RenderBox;
-        final localPos = box.globalToLocal(details.offset);
-        final startTime = Duration(milliseconds: (localPos.dx / _pixelsPerSecond * 1000).toInt());
-        widget.onMoveClip(details.data, track.id, startTime);
-      },
-      builder: (context, candidateData, rejectedData) {
-        return Container(
-          height: 48,
-          decoration: BoxDecoration(
-            color: candidateData.isNotEmpty ? Colors.deepPurpleAccent.withOpacity(0.05) : Colors.transparent,
-            border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.05))),
+    return Row(
+      children: [
+        _buildTrackLabelWidget(track),
+        Expanded(
+          child: DragTarget<Object>( // Object to support both
+            key: trackKey,
+            onWillAccept: (data) => true,
+            onAcceptWithDetails: (details) {
+              final RenderBox box = trackKey.currentContext!.findRenderObject() as RenderBox;
+              final localPos = box.globalToLocal(details.offset);
+              final startTime = Duration(milliseconds: (localPos.dx / _pixelsPerSecond * 1000).toInt());
+              _isScrollingLocked = false; // Reset before rebuild
+              widget.onMoveClip(details.data, track.id, startTime);
+            },
+            builder: (context, candidateData, rejectedData) {
+              return Container(
+                height: 48,
+                decoration: BoxDecoration(
+                  color: candidateData.isNotEmpty ? Colors.deepPurpleAccent.withOpacity(0.05) : Colors.transparent,
+                  border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.05))),
+                ),
+                child: Stack(
+                  children: [
+                    if (track.type == TrackType.text)
+                      ...track.clips.map((clip) => _buildClipWidget(clip))
+                    else if (track.type == TrackType.overlay)
+                      ...track.overlays.map((clip) => _buildClipWidget(clip))
+                    else if (track.type == TrackType.background)
+                      ...track.backgrounds.map((clip) => _buildClipWidget(clip))
+                    else if (track.type == TrackType.audio)
+                      ...track.audioClips.map((clip) => _buildClipWidget(clip)),
+                  ],
+                ),
+              );
+            },
           ),
-          child: Stack(
-            children: [
-              if (track.type == TrackType.text)
-                ...track.clips.map((clip) => _buildClipWidget(clip))
-              else if (track.type == TrackType.overlay)
-                ...track.overlays.map((clip) => _buildClipWidget(clip))
-              else if (track.type == TrackType.background)
-                ...track.backgrounds.map((clip) => _buildClipWidget(clip))
-              else if (track.type == TrackType.audio)
-                ...track.audioClips.map((clip) => _buildClipWidget(clip)),
-            ],
-          ),
-        );
-      },
+        ),
+      ],
     );
   }
 
@@ -665,7 +679,17 @@ class _TimelineEditorState extends State<TimelineEditor> {
       width: width.clamp(20.0, double.infinity),
       child: LongPressDraggable<Object>(
         data: clip,
-        // Removed axis: Axis.vertical to allow horizontal dragging mode:AGENT_MODE_EXECUTION
+        onDragStarted: () {
+          setState(() => _isScrollingLocked = true);
+          widget.onActionStart();
+        },
+        onDragEnd: (_) {
+          setState(() => _isScrollingLocked = false);
+          widget.onResolveCollisions(clip.id);
+        },
+        onDraggableCanceled: (_, __) {
+          setState(() => _isScrollingLocked = false);
+        },
         feedback: Material(
           color: Colors.transparent,
           child: SizedBox(
@@ -686,68 +710,52 @@ class _TimelineEditorState extends State<TimelineEditor> {
               left: 0,
               top: 0,
               bottom: 0,
-              width: 40, // Increased hit area
+              width: 24,
               child: Listener(
-                key: ValueKey('${clip.id}_left_handle'),
+                behavior: HitTestBehavior.opaque,
                 onPointerDown: (_) {
-                  setState(() {
-                    _activeEdgeClipId = clip.id;
-                    _activeEdgeIsLeft = true;
-                    _isScrollingLocked = true;
-                    _dragAccumulatedDelta = 0;
-                    _initialClipStartTime = clip.startTime;
-                  });
+                  // Direct assignment — NO setState here to avoid rebuild killing the pointer tracking
+                  _activeEdgeClipId = clip.id;
+                  _activeEdgeIsLeft = true;
+                  _isScrollingLocked = true;
+                  _dragAccumulatedDelta = 0;
+                  _initialClipStartTime = clip.startTime;
                   widget.onActionStart();
                 },
-                onPointerUp: (_) {
-                  if (_dragAccumulatedDelta.abs() < 5) {
-                    widget.onSelect(clip.id);
+                onPointerMove: (event) {
+                  if (_initialClipStartTime == null || _activeEdgeClipId != clip.id) return;
+                  _dragAccumulatedDelta += event.delta.dx;
+                  final totalDeltaSeconds = _dragAccumulatedDelta / _pixelsPerSecond;
+                  final newStart = _initialClipStartTime! + Duration(microseconds: (totalDeltaSeconds * 1000000).toInt());
+                  if (newStart < clip.endTime && newStart >= Duration.zero) {
+                    widget.onUpdateClipTiming(clip, newStart, null, false);
+                    setState(() {}); // local repaint only
                   }
+                },
+                onPointerUp: (_) {
+                  final clipId = _activeEdgeClipId;
                   setState(() {
                     _activeEdgeClipId = null;
                     _activeEdgeIsLeft = null;
                     _isScrollingLocked = false;
                     _initialClipStartTime = null;
                   });
-                  widget.onResolveCollisions(clip.id);
+                  if (clipId != null) widget.onResolveCollisions(clipId);
                 },
                 onPointerCancel: (_) {
-                   setState(() {
+                  setState(() {
                     _activeEdgeClipId = null;
                     _activeEdgeIsLeft = null;
                     _isScrollingLocked = false;
                   });
                 },
-                onPointerMove: (event) {
-                  if (_initialClipStartTime == null || _activeEdgeClipId != clip.id || _activeEdgeIsLeft != true) return;
-                  _dragAccumulatedDelta += event.delta.dx;
-                  final totalDeltaSeconds = _dragAccumulatedDelta / _pixelsPerSecond;
-                  final newStart = _initialClipStartTime! + Duration(microseconds: (totalDeltaSeconds * 1000000).toInt());
-                  
-                  if (newStart < clip.endTime && newStart >= Duration.zero) {
-                    widget.onUpdateClipTiming(clip, newStart, null, false);
-                  }
-                },
-                child: Container(
-                  color: Colors.transparent,
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Container(
-                      width: 5,
-                      height: 24,
-                      margin: const EdgeInsets.only(left: 2),
-                      decoration: BoxDecoration(
-                        color: (_activeEdgeClipId == clip.id && _activeEdgeIsLeft == true) ? Colors.greenAccent : Colors.white70,
-                        borderRadius: BorderRadius.circular(2.5),
-                        boxShadow: [
-                          BoxShadow(
-                            color: (_activeEdgeClipId == clip.id && _activeEdgeIsLeft == true) 
-                              ? Colors.greenAccent.withOpacity(0.5) 
-                              : Colors.black.withOpacity(0.5), 
-                            blurRadius: 4
-                          )
-                        ],
-                      ),
+                child: Center(
+                  child: Container(
+                    width: 4,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: (_activeEdgeClipId == clip.id && _activeEdgeIsLeft == true) ? Colors.greenAccent : Colors.white54,
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
                 ),
@@ -757,68 +765,51 @@ class _TimelineEditorState extends State<TimelineEditor> {
               right: 0,
               top: 0,
               bottom: 0,
-              width: 40, // Increased hit area
+              width: 24,
               child: Listener(
-                key: ValueKey('${clip.id}_right_handle'),
+                behavior: HitTestBehavior.opaque,
                 onPointerDown: (_) {
-                  setState(() {
-                    _activeEdgeClipId = clip.id;
-                    _activeEdgeIsLeft = false;
-                    _isScrollingLocked = true;
-                    _dragAccumulatedDelta = 0;
-                    _initialClipEndTime = clip.endTime;
-                  });
+                  _activeEdgeClipId = clip.id;
+                  _activeEdgeIsLeft = false;
+                  _isScrollingLocked = true;
+                  _dragAccumulatedDelta = 0;
+                  _initialClipEndTime = clip.endTime;
                   widget.onActionStart();
                 },
-                onPointerUp: (_) {
-                  if (_dragAccumulatedDelta.abs() < 5) {
-                    widget.onSelect(clip.id);
+                onPointerMove: (event) {
+                  if (_initialClipEndTime == null || _activeEdgeClipId != clip.id) return;
+                  _dragAccumulatedDelta += event.delta.dx;
+                  final totalDeltaSeconds = _dragAccumulatedDelta / _pixelsPerSecond;
+                  final newEnd = _initialClipEndTime! + Duration(microseconds: (totalDeltaSeconds * 1000000).toInt());
+                  if (newEnd > clip.startTime) {
+                    widget.onUpdateClipTiming(clip, null, newEnd, false);
+                    setState(() {}); // local repaint only
                   }
+                },
+                onPointerUp: (_) {
+                  final clipId = _activeEdgeClipId;
                   setState(() {
                     _activeEdgeClipId = null;
                     _activeEdgeIsLeft = null;
                     _isScrollingLocked = false;
                     _initialClipEndTime = null;
                   });
-                  widget.onResolveCollisions(clip.id);
+                  if (clipId != null) widget.onResolveCollisions(clipId);
                 },
                 onPointerCancel: (_) {
-                   setState(() {
+                  setState(() {
                     _activeEdgeClipId = null;
                     _activeEdgeIsLeft = null;
                     _isScrollingLocked = false;
                   });
                 },
-                onPointerMove: (event) {
-                  if (_initialClipEndTime == null || _activeEdgeClipId != clip.id || _activeEdgeIsLeft != false) return;
-                  _dragAccumulatedDelta += event.delta.dx;
-                  final totalDeltaSeconds = _dragAccumulatedDelta / _pixelsPerSecond;
-                  final newEnd = _initialClipEndTime! + Duration(microseconds: (totalDeltaSeconds * 1000000).toInt());
-                  
-                  if (newEnd > clip.startTime) {
-                    widget.onUpdateClipTiming(clip, null, newEnd, false);
-                  }
-                },
-                child: Container(
-                  color: Colors.transparent,
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: Container(
-                      width: 5,
-                      height: 24,
-                      margin: const EdgeInsets.only(right: 2),
-                      decoration: BoxDecoration(
-                        color: (_activeEdgeClipId == clip.id && _activeEdgeIsLeft == false) ? Colors.greenAccent : Colors.white70,
-                        borderRadius: BorderRadius.circular(2.5),
-                        boxShadow: [
-                          BoxShadow(
-                            color: (_activeEdgeClipId == clip.id && _activeEdgeIsLeft == false) 
-                              ? Colors.greenAccent.withOpacity(0.5) 
-                              : Colors.black.withOpacity(0.5), 
-                            blurRadius: 4
-                          )
-                        ],
-                      ),
+                child: Center(
+                  child: Container(
+                    width: 4,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: (_activeEdgeClipId == clip.id && _activeEdgeIsLeft == false) ? Colors.greenAccent : Colors.white54,
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
                 ),
@@ -837,35 +828,50 @@ class _TimelineEditorState extends State<TimelineEditor> {
     final hasAnimation = hasEntrance || hasExit;
     final width = _calculatePosition(clip.endTime) - _calculatePosition(clip.startTime);
 
+    Color startColor;
+    Color endColor;
+    Color borderColor;
+
+    if (isSelected) {
+      startColor = Colors.deepPurpleAccent;
+      endColor = Colors.deepPurple;
+      borderColor = Colors.white70;
+    } else if (clip is AudioClip) {
+      startColor = Color(widget.audioTimelineColor).withOpacity(0.5);
+      endColor = Color(widget.audioTimelineColor).withOpacity(0.3);
+      borderColor = Color(widget.audioTimelineColor).withOpacity(0.7);
+    } else if (clip is OverlayClip) {
+      startColor = Color(widget.overlayTimelineColor).withOpacity(0.5);
+      endColor = Color(widget.overlayTimelineColor).withOpacity(0.3);
+      borderColor = Color(widget.overlayTimelineColor).withOpacity(0.7);
+    } else if (clip is BackgroundClip) {
+      startColor = Color(widget.backgroundTimelineColor).withOpacity(0.5);
+      endColor = Color(widget.backgroundTimelineColor).withOpacity(0.3);
+      borderColor = Color(widget.backgroundTimelineColor).withOpacity(0.7);
+    } else {
+      // Subtitle (Text)
+      startColor = Color(widget.textTimelineColor).withOpacity(0.5);
+      endColor = Color(widget.textTimelineColor).withOpacity(0.3);
+      borderColor = Color(widget.textTimelineColor).withOpacity(0.7);
+    }
+
     return Container(
       width: width.clamp(20.0, double.infinity),
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: isSelected 
-            ? [Colors.deepPurpleAccent, Colors.deepPurple] 
-            : clip is AudioClip
-              ? [Colors.cyan.withOpacity(0.4), Colors.cyan.withOpacity(0.2)]
-              : hasAnimation
-                ? [const Color(0xFF4C1D95).withOpacity(0.6), const Color(0xFF7C3AED).withOpacity(0.3)]
-                : [Colors.deepPurple.withOpacity(0.4), Colors.deepPurple.withOpacity(0.2)],
+          colors: [startColor, endColor],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
-          color: isSelected 
-            ? Colors.white70 
-            : clip is AudioClip
-              ? Colors.cyanAccent.withOpacity(0.3)
-              : hasAnimation 
-                ? Colors.deepPurpleAccent.withOpacity(0.5) 
-                : Colors.deepPurpleAccent.withOpacity(0.3),
+          color: borderColor,
           width: isSelected ? 1.5 : 1,
         ),
         boxShadow: (isSelected || isFeedback) ? [
           BoxShadow(
-            color: (clip is AudioClip ? Colors.cyanAccent : Colors.deepPurpleAccent).withOpacity(0.4), 
+            color: borderColor.withOpacity(0.4), 
             blurRadius: 10, 
             spreadRadius: 1
           )
@@ -879,8 +885,16 @@ class _TimelineEditorState extends State<TimelineEditor> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (clip is AudioClip) ...[
-                  const Icon(Icons.audiotrack_rounded, size: 10, color: Colors.cyanAccent),
+                  Icon(Icons.audiotrack_rounded, size: 10, color: Color(widget.audioTimelineColor)),
                   const SizedBox(width: 4),
+                ] else if (clip is OverlayClip) ...[
+                  Icon(Icons.layers_outlined, size: 10, color: Color(widget.overlayTimelineColor)),
+                  const SizedBox(width: 4),
+                ] else if (clip is BackgroundClip) ...[
+                  Icon(Icons.wallpaper_rounded, size: 10, color: Color(widget.backgroundTimelineColor)),
+                  const SizedBox(width: 4),
+                ] else if (clip is SubtitleClip) ...[
+                  // Removed text icon as requested
                 ],
                 Flexible(
                   child: Text(
@@ -942,54 +956,161 @@ class _TimelineEditorState extends State<TimelineEditor> {
     return (time.inMilliseconds / 1000) * _pixelsPerSecond; 
   }
 
+
+
+  Widget _buildTimeRulerWithOffset() {
+    return Row(
+      children: [
+        const SizedBox(width: 40), // Offset for track labels
+        Expanded(child: _buildTimeRuler()),
+      ],
+    );
+  }
+
+  Widget _buildLabelsColumn() {
+    return Column(
+      children: [
+        if (widget.showTextTracks) ...[
+          ...widget.tracks.map((t) => _buildTrackLabelWidget(t)),
+          _buildEmptySpaceLabel(),
+        ],
+        if (widget.showOverlayTracks) ...[
+          const SizedBox(height: 4),
+          ...widget.overlayTracks.map((t) => _buildTrackLabelWidget(t)),
+          _buildEmptySpaceLabel(),
+        ],
+        if (widget.showBackgroundTracks) ...[
+          const SizedBox(height: 4),
+          ...widget.backgroundTracks.map((t) => _buildTrackLabelWidget(t)),
+          _buildEmptySpaceLabel(),
+        ],
+        if (widget.showAudioTracks) ...[
+          const SizedBox(height: 4),
+          ...widget.audioTracks.map((t) => _buildTrackLabelWidget(t)),
+          _buildEmptySpaceLabel(),
+        ],
+        const SizedBox(height: 100),
+      ],
+    );
+  }
+
+  Widget _buildTracksColumn() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (widget.showTextTracks) ...[
+          ...widget.tracks.map((track) => _buildTrackRow(track)),
+          _buildEmptySpaceDragTarget(TrackType.text),
+        ],
+        if (widget.showOverlayTracks) ...[
+          const SizedBox(height: 4),
+          ...widget.overlayTracks.map((track) => _buildTrackRow(track)),
+          _buildEmptySpaceDragTarget(TrackType.overlay),
+        ],
+        if (widget.showBackgroundTracks) ...[
+          const SizedBox(height: 4),
+          ...widget.backgroundTracks.map((track) => _buildTrackRow(track)),
+          _buildEmptySpaceDragTarget(TrackType.background),
+        ],
+        if (widget.showAudioTracks) ...[
+          const SizedBox(height: 4),
+          ...widget.audioTracks.map((track) => _buildTrackRow(track)),
+          _buildEmptySpaceDragTarget(TrackType.audio),
+        ],
+        const SizedBox(height: 100),
+      ],
+    );
+  }
+
+  Widget _buildTrackLabelWidget(Track track) {
+    return Container(
+      height: 48,
+      width: 40,
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.05))),
+      ),
+      child: Center(
+        child: RotatedBox(
+          quarterTurns: 3,
+          child: Text(
+            _getTrackLabel(track),
+            style: TextStyle(
+              fontSize: 6.5,
+              fontWeight: FontWeight.w900,
+              color: _getTrackColor(track).withOpacity(0.7),
+              letterSpacing: 0.5,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptySpaceLabel() {
+    return const SizedBox(height: 60, width: 40);
+  }
+
   Widget _buildEmptySpaceDragTarget(TrackType type) {
     return DragTarget<Object>(
-      onWillAccept: (_) => true,
-      onAccept: (_) => widget.onAddTrack(type),
+      onWillAccept: (data) => true,
+      onAccept: (data) {
+        widget.onAddTrack(type);
+        // We'll need a way to move the clip to the new track immediately,
+        // but for now this just creates the track.
+      },
       builder: (context, candidateData, rejectedData) {
-        return Container(
-          height: 60,
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: candidateData.isNotEmpty ? Colors.deepPurpleAccent.withOpacity(0.05) : Colors.transparent,
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (candidateData.isNotEmpty)
-                const Text(
-                  "DROP TO CREATE NEW TRACK", 
-                  style: TextStyle(color: Colors.deepPurpleAccent, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1.0)
-                )
-              else 
-                TextButton.icon(
-                  onPressed: () => widget.onAddTrack(type),
-                  icon: const Icon(Icons.add_circle_outline_rounded, size: 14, color: Colors.white24),
-                  label: Text("ADD ${type == TrackType.text ? 'TEXT' : (type == TrackType.overlay ? 'OVERLAY' : (type == TrackType.background ? 'BACKGROUND' : 'AUDIO'))} TRACK", 
-                    style: const TextStyle(fontSize: 8, color: Colors.white24, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+        return Row(
+          children: [
+            _buildEmptySpaceLabel(),
+            Expanded(
+              child: Container(
+                height: 60,
+                decoration: BoxDecoration(
+                  color: candidateData.isNotEmpty ? Colors.deepPurpleAccent.withOpacity(0.05) : Colors.transparent,
                 ),
-            ],
-          ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (candidateData.isNotEmpty)
+                      const Text(
+                        "DROP TO CREATE NEW TRACK", 
+                        style: TextStyle(color: Colors.deepPurpleAccent, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1.0)
+                      )
+                    else 
+                      TextButton.icon(
+                        onPressed: () => widget.onAddTrack(type),
+                        icon: const Icon(Icons.add_circle_outline_rounded, size: 14, color: Colors.white24),
+                        label: Text("ADD ${type == TrackType.text ? 'TEXT' : (type == TrackType.overlay ? 'OVERLAY' : (type == TrackType.background ? 'BACKGROUND' : 'AUDIO'))} TRACK", 
+                          style: const TextStyle(fontSize: 8, color: Colors.white24, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         );
       },
     );
   }
 
-  Widget _buildSectionHeader(String title) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: Colors.black.withOpacity(0.2),
-      width: double.infinity,
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 8,
-          color: Colors.deepPurpleAccent,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 2.0,
-        ),
-      ),
-    );
+  String _getTrackLabel(Track track) {
+    String typePrefix = "";
+    switch (track.type) {
+      case TrackType.text: typePrefix = "TEXT"; break;
+      case TrackType.overlay: typePrefix = "OVERLAY"; break;
+      case TrackType.background: typePrefix = "BG"; break;
+      case TrackType.audio: typePrefix = "AUDIO"; break;
+    }
+    return typePrefix;
+  }
+
+  Color _getTrackColor(Track track) {
+    switch (track.type) {
+      case TrackType.text: return Color(widget.textTimelineColor);
+      case TrackType.overlay: return Color(widget.overlayTimelineColor);
+      case TrackType.background: return Color(widget.backgroundTimelineColor);
+      case TrackType.audio: return Color(widget.audioTimelineColor);
+    }
   }
 }
 

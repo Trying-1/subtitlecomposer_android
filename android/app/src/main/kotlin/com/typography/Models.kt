@@ -163,7 +163,9 @@ data class SubtitleClip(
     val blendMode: CustomBlendMode = CustomBlendMode.NORMAL,
     val keyframes: List<Keyframe> = emptyList(),
     val imagePath: String? = null,
-    val isText: Boolean = true
+    val isText: Boolean = true,
+    val isBackground: Boolean = false,
+    val fillMode: Int = 0 // 0: cover, 1: fit, 2: center
 )
 
 /**

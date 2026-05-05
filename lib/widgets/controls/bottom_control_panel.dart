@@ -119,7 +119,6 @@ class BottomControlPanel extends StatefulWidget {
 }
 
 class _BottomControlPanelState extends State<BottomControlPanel> {
-  int _activeTabIndex = 0;
 
   final List<Map<String, dynamic>> _tabs = [
     {'name': 'Text', 'icon': Icons.text_fields_rounded},
@@ -154,7 +153,7 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
         children: [
           if (!isCollapsed)
             Expanded(
-              child: _buildActiveTabContentWrapper(),
+              child: _buildActiveTabContentWrapper(provider.activeTabIndex),
             ),
           const Divider(height: 1, color: Colors.white10),
           _buildTabBar(),
@@ -163,11 +162,11 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
     );
   }
 
-  Widget _buildActiveTabContentWrapper() {
-    if (_activeTabIndex >= 8) {
+  Widget _buildActiveTabContentWrapper(int activeTabIndex) {
+    if (activeTabIndex >= 8) {
       return SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        child: _buildGlobalTabContent(),
+        child: _buildGlobalTabContent(activeTabIndex),
       );
     }
 
@@ -196,7 +195,7 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: _buildActiveTabContent(),
+            child: _buildActiveTabContent(activeTabIndex),
           ),
         ),
       ],
@@ -220,6 +219,7 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
   }
 
   Widget _buildTabBar() {
+    final provider = context.watch<EditorProvider>();
     return Container(
       height: 52,
       decoration: const BoxDecoration(
@@ -231,28 +231,25 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
         child: Row(
           children: List.generate(_tabs.length, (index) {
             final tab = _tabs[index];
-            return _buildTabBarItem(index, tab['icon'], tab['name']);
+            return _buildTabBarItem(index, tab['icon'], tab['name'], provider.activeTabIndex);
           }),
         ),
       ),
     );
   }
 
-  Widget _buildTabBarItem(int index, IconData icon, String label) {
+  Widget _buildTabBarItem(int index, IconData icon, String label, int activeTabIndex) {
     final provider = context.read<EditorProvider>();
     final isCollapsed = provider.isControlPanelCollapsed;
-    final isSelected = _activeTabIndex == index;
+    final isSelected = activeTabIndex == index;
 
     return InkWell(
       onTap: () {
-        setState(() {
-          if (_activeTabIndex == index) {
-            provider.toggleControlPanelCollapse();
-          } else {
-            _activeTabIndex = index;
-            provider.setControlPanelCollapsed(false);
-          }
-        });
+        if (activeTabIndex == index) {
+          provider.toggleControlPanelCollapse();
+        } else {
+          provider.setActiveTabIndex(index);
+        }
       },
       child: Container(
         width: 72,
@@ -286,9 +283,9 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
     );
   }
 
-  Widget _buildActiveTabContent() {
+  Widget _buildActiveTabContent(int activeTabIndex) {
     final clip = widget.clip!;
-    switch (_activeTabIndex) {
+    switch (activeTabIndex) {
       case 0: 
         if (clip is SubtitleClip) return TextTab(clip: clip, onUpdate: ({text, textCase, fontSize, letterSpacing, blendMode}) => widget.onUpdate(text: text, textCase: textCase, fontSize: fontSize, letterSpacing: letterSpacing, blendMode: blendMode));
         return _buildWrongClipTypeMessage("TEXT");
@@ -327,8 +324,8 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
     );
   }
 
-  Widget _buildGlobalTabContent() {
-    switch (_activeTabIndex) {
+  Widget _buildGlobalTabContent(int activeTabIndex) {
+    switch (activeTabIndex) {
       case 8: return OverlayTab(
         selectedOverlay: widget.selectedOverlay,
         onAddOverlay: widget.onAddOverlay,

@@ -392,6 +392,8 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         uShadowBlurOESLoc = GLES20.glGetUniformLocation(programOES, "uShadowBlur")
         uGlowSizeOESLoc = GLES20.glGetUniformLocation(programOES, "uGlowSize")
         uBendingAmountOESLoc = GLES20.glGetUniformLocation(programOES, "uBendingAmount")
+        uWipeProgressOESLoc = GLES20.glGetUniformLocation(programOES, "uWipeProgress")
+        uWipeTypeOESLoc = GLES20.glGetUniformLocation(programOES, "uWipeType")
         uReflectionOffsetOESLoc = GLES20.glGetUniformLocation(programOES, "uReflectionOffset")
         uReflectionOpacityOESLoc = GLES20.glGetUniformLocation(programOES, "uReflectionOpacity")
         uReflectionColorOESLoc = GLES20.glGetUniformLocation(programOES, "uReflectionColor")
@@ -875,8 +877,36 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         val finalScale = clip.scale * animState.scale
         val imgAspect = bmpWidth.toFloat() / bmpHeight.toFloat().coerceAtLeast(1f)
         
-        val logW = (2f * imgAspect) * finalScale * animState.scaleX
-        val logH = 2f * finalScale * animState.scaleY
+        var logW = (2f * imgAspect) * finalScale * animState.scaleX
+        var logH = 2f * finalScale * animState.scaleY
+
+        if (clip.isBackground) {
+            when (clip.fillMode) {
+                0 -> { // Cover
+                    if (imgAspect > aspect) {
+                        logH = 2f * finalScale * animState.scaleY
+                        logW = logH * imgAspect
+                    } else {
+                        logW = 2f * aspect * finalScale * animState.scaleX
+                        logH = logW / imgAspect
+                    }
+                }
+                1 -> { // Fit
+                    if (imgAspect > aspect) {
+                        logW = 2f * aspect * finalScale * animState.scaleX
+                        logH = logW / imgAspect
+                    } else {
+                        logH = 2f * finalScale * animState.scaleY
+                        logW = logH * imgAspect
+                    }
+                }
+                2 -> { // Center
+                    val baseline = 1080f
+                    logW = (bmpWidth.toFloat() / baseline) * 2f * finalScale * animState.scaleX
+                    logH = (bmpHeight.toFloat() / baseline) * 2f * finalScale * animState.scaleY
+                }
+            }
+        }
         
         val a = clip.opacity * animState.opacity
         GLES20.glUniform4f(vCol, 1f, 1f, 1f, a)

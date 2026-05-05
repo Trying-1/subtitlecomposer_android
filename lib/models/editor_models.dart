@@ -1070,6 +1070,10 @@ class Project {
   final double backgroundY;
   final int backgroundFillMode;
   final List<Track> tracks;
+  final int textTimelineColor;
+  final int audioTimelineColor;
+  final int overlayTimelineColor;
+  final int backgroundTimelineColor;
   final DateTime lastModified;
 
   Project({
@@ -1087,6 +1091,10 @@ class Project {
     this.backgroundY = 0.0,
     this.backgroundFillMode = 0,
     this.tracks = const [],
+    this.textTimelineColor = 0xFFFF9800,
+    this.audioTimelineColor = 0xFF009688,
+    this.overlayTimelineColor = 0xFF03A9F4,
+    this.backgroundTimelineColor = 0xFFFFEB3B,
     required this.lastModified,
   });
 
@@ -1105,6 +1113,10 @@ class Project {
     'backgroundY': backgroundY,
     'backgroundFillMode': backgroundFillMode,
     'tracks': tracks.map((t) => t.toJson()).toList(),
+    'textTimelineColor': textTimelineColor,
+    'audioTimelineColor': audioTimelineColor,
+    'overlayTimelineColor': overlayTimelineColor,
+    'backgroundTimelineColor': backgroundTimelineColor,
     'lastModified': lastModified.toIso8601String(),
   };
 
@@ -1123,6 +1135,10 @@ class Project {
     backgroundY: (json['backgroundY'] as num?)?.toDouble() ?? 0.0,
     backgroundFillMode: json['backgroundFillMode'] ?? 0,
     tracks: (json['tracks'] as List? ?? []).map((t) => Track.fromJson(Map<String, dynamic>.from(t))).toList(),
+    textTimelineColor: json['textTimelineColor'] ?? 0xFFFF9800,
+    audioTimelineColor: json['audioTimelineColor'] ?? 0xFF009688,
+    overlayTimelineColor: json['overlayTimelineColor'] ?? 0xFF03A9F4,
+    backgroundTimelineColor: json['backgroundTimelineColor'] ?? 0xFFFFEB3B,
     lastModified: DateTime.parse(json['lastModified'] ?? DateTime.now().toIso8601String()),
   );
 
@@ -1141,6 +1157,10 @@ class Project {
     double? backgroundY,
     int? backgroundFillMode,
     List<Track>? tracks,
+    int? textTimelineColor,
+    int? audioTimelineColor,
+    int? overlayTimelineColor,
+    int? backgroundTimelineColor,
     DateTime? lastModified,
   }) => Project(
     id: id ?? this.id,
@@ -1157,6 +1177,10 @@ class Project {
     backgroundY: backgroundY ?? this.backgroundY,
     backgroundFillMode: backgroundFillMode ?? this.backgroundFillMode,
     tracks: tracks ?? this.tracks,
+    textTimelineColor: textTimelineColor ?? this.textTimelineColor,
+    audioTimelineColor: audioTimelineColor ?? this.audioTimelineColor,
+    overlayTimelineColor: overlayTimelineColor ?? this.overlayTimelineColor,
+    backgroundTimelineColor: backgroundTimelineColor ?? this.backgroundTimelineColor,
     lastModified: lastModified ?? this.lastModified,
   );
 }

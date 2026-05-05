@@ -102,6 +102,7 @@ static void bqPlayerCallback(SLAndroidSimpleBufferQueueItf bq, void *context) {
 }
 
 AudioEngine::AudioEngine() {
+    mMainAudio.volume = 1.0f;
 }
 
 AudioEngine::~AudioEngine() {
@@ -174,6 +175,11 @@ void AudioEngine::shutdownOpenSL() {
         (*mEngineObj)->Destroy(mEngineObj);
         mEngineObj = nullptr;
     }
+}
+
+void AudioEngine::setMainAudioVolume(float volume) {
+    std::lock_guard<std::mutex> lock(mClipMutex);
+    mMainAudio.volume = volume;
 }
 
 void AudioEngine::setMainAudio(const std::string& path) {
@@ -269,7 +275,7 @@ void AudioEngine::processAudio(float* buffer, int numFrames) {
         for (int i = 0; i < numFrames * 2; i++) {
             size_t idx = startIdx + i;
             if (idx < mMainAudio.pcmData.size()) {
-                buffer[i] += mMainAudio.pcmData[idx];
+                buffer[i] += mMainAudio.pcmData[idx] * mMainAudio.volume;
             }
         }
     }

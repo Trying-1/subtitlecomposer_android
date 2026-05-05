@@ -13,6 +13,8 @@ import 'screens/home/home_screen.dart';
 
 import 'services/project_service.dart';
 
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await ProjectService.init();
@@ -47,6 +49,7 @@ class TypographyEditorApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'Typo Edit',
       theme: ThemeConfig.theme,

@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../providers/editor_provider.dart';
+import '../../common/custom_color_picker.dart';
 import '../../../config/app_config.dart';
 import 'common/common_controls.dart';
 
@@ -116,7 +119,53 @@ class ProjectTab extends StatelessWidget {
               ),
           ],
         ),
+        const SizedBox(height: 32),
+        const Text('TIMELINE COLORS', style: TextStyle(fontSize: 8, color: Colors.deepPurpleAccent, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+        const SizedBox(height: 16),
+        _buildColorRow(context, 'Text (Orange)', context.watch<EditorProvider>().textTimelineColor, 'text'),
+        const SizedBox(height: 12),
+        _buildColorRow(context, 'Audio (Teal)', context.watch<EditorProvider>().audioTimelineColor, 'audio'),
+        const SizedBox(height: 12),
+        _buildColorRow(context, 'Overlay (Sky Blue)', context.watch<EditorProvider>().overlayTimelineColor, 'overlay'),
+        const SizedBox(height: 12),
+        _buildColorRow(context, 'Background (Yellow)', context.watch<EditorProvider>().backgroundTimelineColor, 'background'),
+        const SizedBox(height: 32),
       ],
+    );
+  }
+
+  Widget _buildColorRow(BuildContext context, String label, int colorValue, String type) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(label, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+        ),
+        InkWell(
+          onTap: () => _showColorPicker(context, colorValue, type),
+          child: Container(
+            width: 40,
+            height: 20,
+            decoration: BoxDecoration(
+              color: Color(colorValue),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: Colors.white24, width: 1),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showColorPicker(BuildContext context, int currentColor, String type) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => CustomColorPicker(
+        initialColor: Color(currentColor),
+        onColorChanged: (color) {
+          context.read<EditorProvider>().setTimelineColor(type, color.value);
+        },
+      ),
     );
   }
 }

@@ -28,6 +28,7 @@ public:
 
     void setClips(const std::vector<PreviewAudioClip>& clips);
     void setMainAudio(const std::string& path);
+    void setMainAudioVolume(float volume);
     
     void start();
     void stop();

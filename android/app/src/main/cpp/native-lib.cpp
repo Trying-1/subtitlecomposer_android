@@ -669,6 +669,12 @@ Java_com_typography_MainActivity_seekAudioEngine(JNIEnv *env, jobject thiz, jlon
 
 extern "C"
 JNIEXPORT void JNICALL
+Java_com_typography_MainActivity_setMainAudioVolume(JNIEnv *env, jobject thiz, jfloat volume) {
+    if (gAudioEngine) gAudioEngine->setMainAudioVolume(volume);
+}
+
+extern "C"
+JNIEXPORT void JNICALL
 Java_com_typography_MainActivity_setMainAudio(JNIEnv *env, jobject thiz, jstring path) {
     if (gAudioEngine) {
         const char* p = env->GetStringUTFChars(path, nullptr);

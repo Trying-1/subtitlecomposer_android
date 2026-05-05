@@ -242,7 +242,10 @@ class BackgroundRenderer {
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId)
             GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bmp, 0)
         } else if (isVideo) {
-            videoDecoder?.updateFrame(currentTimeMs, timeoutUs)
+            val decoder = videoDecoder ?: return
+            val duration = decoder.getDurationMs()
+            val loopTime = if (duration > 0) currentTimeMs % duration else currentTimeMs
+            decoder.updateFrame(loopTime, timeoutUs)
         }
     }
 

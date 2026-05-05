@@ -39,6 +39,7 @@ class MainActivity : FlutterActivity() {
     private external fun stopAudioEngine()
     private external fun seekAudioEngine(timeMs: Long)
     private external fun setMainAudio(path: String)
+    private external fun setMainAudioVolume(volume: Float)
     private external fun getAudioPosition(): Long
     private external fun setAudioClips(paths: Array<String>, starts: LongArray, ends: LongArray, vols: FloatArray)
     
@@ -324,6 +325,11 @@ class MainActivity : FlutterActivity() {
                     setMainAudio(path)
                     result.success(null)
                 }
+                "setMainAudioVolume" -> {
+                    val volume = (call.argument<Number>("volume"))?.toFloat() ?: 1.0f
+                    setMainAudioVolume(volume)
+                    result.success(null)
+                }
                 "getAudioPosition" -> {
                     result.success(getAudioPosition())
                 }
@@ -384,7 +390,9 @@ class MainActivity : FlutterActivity() {
                 blendMode = CustomBlendMode.fromIndex((it["blendMode"] as? Number)?.toInt() ?: 0),
                 keyframes = (it["keyframes"] as? List<Map<String, Any>>)?.mapNotNull { k -> Keyframe.fromMap(k) } ?: emptyList(),
                 imagePath = it["imagePath"] as? String,
-                isText = it["isText"] as? Boolean ?: (it["imagePath"] == null)
+                isText = it["isText"] as? Boolean ?: (it["imagePath"] == null),
+                isBackground = it["isBackground"] as? Boolean ?: false,
+                fillMode = (it["fillMode"] as? Number)?.toInt() ?: 0
             )
         }
     }

@@ -14,6 +14,7 @@ import 'package:path/path.dart' as p;
 import '../services/force_align_service.dart';
 import '../services/project_service.dart';
 import 'package:uuid/uuid.dart';
+import '../utils/toast_utils.dart';
 import '../models/editor_models.dart';
 
 class HistoryState {
@@ -72,28 +73,24 @@ class EditorProvider extends ChangeNotifier {
   Timer? _playbackTimer;
   DateTime? _lastTick;
 
-  Timer? _autoSaveTimer;
+  bool _hasUnsavedChanges = false;
+  bool get hasUnsavedChanges => _hasUnsavedChanges;
   String _projectId = const Uuid().v4();
   String _projectName = "Untitled Project";
 
   EditorProvider() {
     _init();
-    _startAutoSaveTimer();
   }
 
-  void _startAutoSaveTimer() {
-    _autoSaveTimer?.cancel();
-    _autoSaveTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
-      if (_isInitialized) {
-        saveProject();
-      }
-    });
+  void _markDirty() {
+    if (!_hasUnsavedChanges) {
+      _hasUnsavedChanges = true;
+      notifyListeners();
+    }
   }
 
   @override
   void dispose() {
-    _autoSaveTimer?.cancel();
-    saveProject();
     super.dispose();
   }
   
@@ -110,6 +107,19 @@ class EditorProvider extends ChangeNotifier {
   double _zoomLevel = 1.0; // 1.0 = 50 pixels per second
   String? _audioPath;
   String? get audioPath => _audioPath;
+  double _mainAudioVolume = 1.0;
+  double get mainAudioVolume => _mainAudioVolume;
+  
+  // Timeline Colors
+  int _textTimelineColor = 0xFFFF9800; // Orange
+  int _audioTimelineColor = 0xFF009688; // Teal
+  int _overlayTimelineColor = 0xFF03A9F4; // Sky Blue
+  int _backgroundTimelineColor = 0xFFFFEB3B; // Yellow
+
+  int get textTimelineColor => _textTimelineColor;
+  int get audioTimelineColor => _audioTimelineColor;
+  int get overlayTimelineColor => _overlayTimelineColor;
+  int get backgroundTimelineColor => _backgroundTimelineColor;
   double _aspectRatio = 16 / 9;
   int _backgroundColor = 0xFFFFFFFF;
   String? _backgroundImagePath;
@@ -130,6 +140,7 @@ class EditorProvider extends ChangeNotifier {
   bool _isCollisionAdjustEnabled = false;
   bool _isPlayheadLocked = false;
   bool _isControlPanelCollapsed = true; // Start collapsed by default
+  int _activeTabIndex = 0;
   
   final ValueNotifier<Duration> playbackTime = ValueNotifier(Duration.zero);
 
@@ -198,6 +209,32 @@ class EditorProvider extends ChangeNotifier {
   bool get isMultiSelectMode => _isMultiSelectMode;
   String? get whisperModelPath => _whisperModelPath;
   bool get isPlayheadLocked => _isPlayheadLocked;
+  int get activeTabIndex => _activeTabIndex;
+
+  List<TimelineClip> getSelectedClips() {
+    final List<TimelineClip> selected = [];
+    for (var track in _tracks) {
+      for (var clip in track.clips) {
+        if (_selectedClipIds.contains(clip.id)) selected.add(clip);
+      }
+    }
+    for (var track in _overlayTracks) {
+      for (var clip in track.overlays) {
+        if (_selectedClipIds.contains(clip.id)) selected.add(clip);
+      }
+    }
+    for (var track in _backgroundTracks) {
+      for (var clip in track.backgrounds) {
+        if (_selectedClipIds.contains(clip.id)) selected.add(clip);
+      }
+    }
+    for (var track in _audioTracks) {
+      for (var clip in track.audioClips) {
+        if (_selectedClipIds.contains(clip.id)) selected.add(clip);
+      }
+    }
+    return selected;
+  }
   bool get isImportingModel => _isImportingModel;
   
   void togglePlayheadLock() {
@@ -268,9 +305,15 @@ class EditorProvider extends ChangeNotifier {
         ..._backgroundTracks,
         ..._audioTracks,
       ],
+      textTimelineColor: _textTimelineColor,
+      audioTimelineColor: _audioTimelineColor,
+      overlayTimelineColor: _overlayTimelineColor,
+      backgroundTimelineColor: _backgroundTimelineColor,
       lastModified: DateTime.now(),
     );
     await ProjectService.saveProject(project);
+    _hasUnsavedChanges = false;
+    notifyListeners();
   }
 
   Future<void> loadProject(String id) async {
@@ -286,6 +329,10 @@ class EditorProvider extends ChangeNotifier {
       _backgroundX = project.backgroundX;
       _backgroundY = project.backgroundY;
       _backgroundFillMode = project.backgroundFillMode;
+      _textTimelineColor = project.textTimelineColor;
+      _audioTimelineColor = project.audioTimelineColor;
+      _overlayTimelineColor = project.overlayTimelineColor;
+      _backgroundTimelineColor = project.backgroundTimelineColor;
       
       _tracks = [];
       _overlayTracks = [];
@@ -489,6 +536,7 @@ class EditorProvider extends ChangeNotifier {
       _undoStack.removeAt(0);
     }
     _redoStack.clear();
+    _markDirty();
     notifyListeners();
   }
 
@@ -518,8 +566,8 @@ class EditorProvider extends ChangeNotifier {
 
     final prevState = _undoStack.removeLast();
     _applyState(prevState);
-    
     syncToNative();
+    _markDirty();
     notifyListeners();
   }
 
@@ -531,8 +579,8 @@ class EditorProvider extends ChangeNotifier {
 
     final nextState = _redoStack.removeLast();
     _applyState(nextState);
-
     syncToNative();
+    _markDirty();
     notifyListeners();
   }
 
@@ -601,23 +649,55 @@ class EditorProvider extends ChangeNotifier {
     return clip is BackgroundClip ? clip : null;
   }
 
+  TrackType? _getClipType(String id) {
+    for (var t in _tracks) {
+      if (t.clips.any((c) => c.id == id)) return TrackType.text;
+    }
+    for (var t in _audioTracks) {
+      if (t.audioClips.any((c) => c.id == id)) return TrackType.audio;
+    }
+    for (var t in _overlayTracks) {
+      if (t.overlays.any((c) => c.id == id)) return TrackType.overlay;
+    }
+    for (var t in _backgroundTracks) {
+      if (t.backgrounds.any((c) => c.id == id)) return TrackType.background;
+    }
+    return null;
+  }
+
   void selectClip(String? id, {bool toggle = true}) {
     if (id == null) {
       _selectedClipIds = {};
     } else {
-      if (_isMultiSelectMode && toggle) {
-        toggleClipSelection(id);
+      final newType = _getClipType(id);
+      
+      if (_selectedClipIds.isNotEmpty) {
+        final firstId = _selectedClipIds.first;
+        final firstType = _getClipType(firstId);
+        
+        if (firstType != newType) {
+          // Deselect previous type if new selection is different
+          _selectedClipIds = {id};
+        } else {
+          if (_isMultiSelectMode && toggle) {
+            toggleClipSelection(id);
+            return; // toggleClipSelection handles notifyListeners
+          } else {
+            if (!_isMultiSelectMode || !_selectedClipIds.contains(id)) {
+              _selectedClipIds = _isMultiSelectMode ? (Set.from(_selectedClipIds)..add(id)) : {id};
+            }
+          }
+        }
       } else {
-        if (!_isMultiSelectMode || !_selectedClipIds.contains(id)) {
-          _selectedClipIds = _isMultiSelectMode ? (Set.from(_selectedClipIds)..add(id)) : {id};
-        }
-        final clip = selectedTimelineClip;
-        if (clip != null && !_isPlayheadLocked) {
-          final center = Duration(
-            milliseconds: (clip.startTime.inMilliseconds + clip.endTime.inMilliseconds) ~/ 2,
-          );
-          seekTo(center);
-        }
+        _selectedClipIds = {id};
+      }
+
+      final clip = selectedTimelineClip;
+      if (clip != null && !_isPlayheadLocked) {
+        final center = Duration(
+          milliseconds: (clip.startTime.inMilliseconds + clip.endTime.inMilliseconds) ~/ 2,
+        );
+        seekTo(center);
       }
     }
     notifyListeners();
@@ -627,7 +707,18 @@ class EditorProvider extends ChangeNotifier {
     if (_selectedClipIds.contains(id)) {
       _selectedClipIds.remove(id);
     } else {
-      _selectedClipIds.add(id);
+      final newType = _getClipType(id);
+      if (_selectedClipIds.isNotEmpty) {
+        final firstId = _selectedClipIds.first;
+        final firstType = _getClipType(firstId);
+        if (firstType != newType) {
+          _selectedClipIds = {id};
+        } else {
+          _selectedClipIds.add(id);
+        }
+      } else {
+        _selectedClipIds.add(id);
+      }
     }
     notifyListeners();
   }
@@ -1052,6 +1143,7 @@ class EditorProvider extends ChangeNotifier {
     }
     
     syncToNative();
+    _markDirty();
     notifyListeners();
   }
 
@@ -1096,7 +1188,6 @@ class EditorProvider extends ChangeNotifier {
       bgFillMode: backgroundFillMode,
     );
     _pushAudioToNative();
-    saveProject();
   }
 
   void _pushAudioToNative() {
@@ -1123,6 +1214,24 @@ class EditorProvider extends ChangeNotifier {
       ends: ends,
       vols: vols,
     );
+    _bridge.setMainAudioVolume(_mainAudioVolume);
+  }
+
+  void setMainAudioVolume(double volume) {
+    _mainAudioVolume = volume;
+    _bridge.setMainAudioVolume(_mainAudioVolume);
+    notifyListeners();
+  }
+
+  void setTimelineColor(String type, int color) {
+    switch (type) {
+      case 'text': _textTimelineColor = color; break;
+      case 'audio': _audioTimelineColor = color; break;
+      case 'overlay': _overlayTimelineColor = color; break;
+      case 'background': _backgroundTimelineColor = color; break;
+    }
+    saveState();
+    notifyListeners();
   }
 
   Future<void> _loadPersistedProject() async {
@@ -1801,8 +1910,9 @@ class EditorProvider extends ChangeNotifier {
             } else {
                 trackList[currentTrackIdx].clips.insert(clipIdx, updatedClip as SubtitleClip);
             }
-            syncToNative();
-            notifyListeners();
+            // SILENT update: no syncToNative, no notifyListeners during active drag.
+            // This prevents the entire widget tree from rebuilding and killing
+            // the active GestureDetector drag mid-flight.
         }
     }
   }
@@ -2117,6 +2227,7 @@ class EditorProvider extends ChangeNotifier {
         trackList[targetTrackIdx].clips.add(clip as SubtitleClip);
     }
     syncToNative();
+    _markDirty();
     notifyListeners();
   }
 
@@ -2222,8 +2333,31 @@ class EditorProvider extends ChangeNotifier {
       _resolveCollisions(updatedClip, newTrackIdx);
     }
 
+    _cleanupEmptyTracks();
     syncToNative();
     notifyListeners();
+  }
+
+  void _cleanupEmptyTracks() {
+    _tracks.removeWhere((t) => t.clips.isEmpty);
+    if (_tracks.isEmpty) {
+      _tracks.add(Track(id: DateTime.now().millisecondsSinceEpoch.toString(), name: 'Track 1', type: TrackType.text, clips: []));
+    }
+
+    _overlayTracks.removeWhere((t) => t.overlays.isEmpty);
+    if (_overlayTracks.isEmpty) {
+      _overlayTracks.add(Track(id: '${DateTime.now().millisecondsSinceEpoch}_o', name: 'Overlay 1', type: TrackType.overlay, overlays: []));
+    }
+
+    _backgroundTracks.removeWhere((t) => t.backgrounds.isEmpty);
+    if (_backgroundTracks.isEmpty) {
+      _backgroundTracks.add(Track(id: '${DateTime.now().millisecondsSinceEpoch}_b', name: 'Background 1', type: TrackType.background, backgrounds: []));
+    }
+
+    _audioTracks.removeWhere((t) => t.audioClips.isEmpty);
+    if (_audioTracks.isEmpty) {
+      _audioTracks.add(Track(id: '${DateTime.now().millisecondsSinceEpoch}_a', name: 'Audio 1', type: TrackType.audio, audioClips: []));
+    }
   }
 
   void seek(Duration pos) {
@@ -2383,7 +2517,63 @@ class EditorProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> addBulkAudioClips(String path) async {
+    final selected = getSelectedClips();
+    if (selected.isEmpty) return;
+    
+    saveState();
+    
+    final durationMs = await _bridge.getVideoDuration(path);
+    final duration = durationMs > 0 ? Duration(milliseconds: durationMs) : const Duration(seconds: 1);
+    
+    for (var targetClip in selected) {
+      final startTime = targetClip.startTime;
+      final id = 'audio_${DateTime.now().millisecondsSinceEpoch}_${targetClip.id}';
+      
+      final clip = AudioClip(
+        id: id,
+        audioPath: path,
+        startTime: startTime,
+        endTime: startTime + duration,
+        sourceDurationMs: durationMs,
+      );
+
+      // Find a track or create new
+      Track? targetTrack;
+      for (var track in _audioTracks) {
+        bool hasCollision = false;
+        for (var existing in track.audioClips) {
+          if (clip.startTime < existing.endTime && clip.endTime > existing.startTime) {
+            hasCollision = true;
+            break;
+          }
+        }
+        if (!hasCollision) {
+          targetTrack = track;
+          break;
+        }
+      }
+
+      if (targetTrack == null) {
+        targetTrack = Track(
+          id: 'audio_track_${_audioTracks.length}',
+          type: TrackType.audio,
+          audioClips: [],
+        );
+        _audioTracks.add(targetTrack);
+      }
+      targetTrack.audioClips.add(clip);
+    }
+
+    _pushAudioToNative();
+    notifyListeners();
+    ToastUtils.show('Bulk SFX applied successfully');
+  }
+
   Future<void> addAudioClip(String path) async {
+    if (_isMultiSelectMode && _selectedClipIds.length > 1) {
+      return addBulkAudioClips(path);
+    }
     saveState();
     final id = 'audio_${DateTime.now().millisecondsSinceEpoch}';
     
@@ -2428,7 +2618,9 @@ class EditorProvider extends ChangeNotifier {
     
     targetTrack.audioClips.add(clip);
     _selectedClipIds = {id};
+    _pushAudioToNative();
     notifyListeners();
+    ToastUtils.show('SFX added successfully');
   }
 
   void applyTranscriptionClips(List<Map<String, dynamic>> data, {bool replaceExisting = true}) {
@@ -2486,7 +2678,7 @@ class EditorProvider extends ChangeNotifier {
       await file.copy(newPath);
       
       _whisperModelPath = newPath;
-      saveProject();
+      _markDirty();
       notifyListeners();
     } catch (e) {
       print("Error importing model: $e");
@@ -2521,9 +2713,13 @@ class EditorProvider extends ChangeNotifier {
   }
 
   void setControlPanelCollapsed(bool collapsed) {
-    if (_isControlPanelCollapsed != collapsed) {
-      _isControlPanelCollapsed = collapsed;
-      notifyListeners();
-    }
+    _isControlPanelCollapsed = collapsed;
+    notifyListeners();
+  }
+
+  void setActiveTabIndex(int index) {
+    _activeTabIndex = index;
+    _isControlPanelCollapsed = false;
+    notifyListeners();
   }
 }

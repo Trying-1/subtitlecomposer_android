@@ -233,6 +233,25 @@ yes, if that more smooth and professional level then offcourse we  need that
 [good, theres some audio quality mismatch in the preview and ouput, sometimes glicth sound]
 [in the audio assets library allow to play the preview, so that we can listen before adding it to timeline, got it]
 
+===========version12==============
+[next to streamline the editing, I want a feature to add bulk sound effects, like when a word appears on we need sfx so instead of manually adding same audio for each and every word, we can select the multiple word segments and then add the specific sfx in those time, in the audio timeline this will save alot of time right? understood the plan]
+[add button in the timeline tool panel for this as well.]
+[don't open filepicker, we will use the sfx from the audio library.]
+[I am not sure of it but the volume control is not working effiently, like even with 0 volume they are audible, and even with volume  max(currently 2) they are hardly audible. ]
+[good, next add a toast notification that sfx added succesfully. showing up from the top right of the screen, understood]
+[also next lets use different color for different timeline, like separate colors for text segment, for background, for overlay, and audio segments. understood. ]
+[use yellow ofr background segments, teal for audio, orange for text, sky blue for overlay, and lets have this color control in the project tab. projects settings understood]
+[good next lets put the timeline label to the left most, like not as full separate row, just show it on the left most.  understood what I mean, this will give use more vertical space in the timeline area. ]
+[don't fix it. it will just as the part of timeline track moves similar to the timeline when scrolled, just in the left most to the tracks undersood. ]
+[good, next issue in the multi select, lets not allow cross timeline slection, like don't allow text and other segmement togethere, not like text and overlay segment are selected together, understood, so if we try to select other the segments then deselect the previous segment type, understood. ]
+[add the default white background.]
+[good but now the issue is that segment duration adjustment  drag is conflicting with timeline scroll man. this is bad]
+[it working now, next clean up the unused track. like I drag segment to new track but again I move it back to orinal track then clean up the newly created tracks that are unsed or else they are unecessarliy taking up the timeline space, understood]
+
+
+
+
+
 
 
 

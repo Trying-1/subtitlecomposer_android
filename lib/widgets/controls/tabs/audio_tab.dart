@@ -99,13 +99,35 @@ class _AudioTabState extends State<AudioTab> {
   }
 
   Widget _buildAssetsView(BuildContext context, AssetProvider assetProvider) {
+    final editorProvider = context.watch<EditorProvider>();
+    final isBulkMode = editorProvider.isMultiSelectMode && editorProvider.selectedClipIds.length > 1;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('AUDIO LIBRARY', style: TextStyle(fontSize: 8, color: Colors.cyanAccent, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('AUDIO LIBRARY', style: TextStyle(fontSize: 8, color: Colors.cyanAccent, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+                if (isBulkMode)
+                  Container(
+                    margin: const EdgeInsets.only(top: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.amberAccent.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.amberAccent.withOpacity(0.3)),
+                    ),
+                    child: Text(
+                      'BULK ADD (${editorProvider.selectedClipIds.length} CLIPS)',
+                      style: const TextStyle(fontSize: 7, color: Colors.amberAccent, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+              ],
+            ),
             IconButton(
               onPressed: () => _showPickerOptions(context),
               icon: const Icon(Icons.add_circle_outline_rounded, color: Colors.cyanAccent, size: 18),
@@ -374,7 +396,7 @@ class _AudioTabState extends State<AudioTab> {
                 'Volume',
                 widget.selectedAudio!.volume,
                 0.0,
-                2.0,
+                5.0,
                 (v) => widget.onUpdate(volume: v),
               ),
               const SizedBox(height: 16),
@@ -396,8 +418,20 @@ class _AudioTabState extends State<AudioTab> {
               ),
             ],
           )
-        else
+        else ...[
+          const Text('GLOBAL AUDIO', style: TextStyle(fontSize: 8, color: Colors.cyanAccent, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+          const SizedBox(height: 12),
+          CommonControls.buildSlider(
+            context,
+            'Video Volume',
+            context.watch<EditorProvider>().mainAudioVolume,
+            0.0,
+            5.0,
+            (v) => context.read<EditorProvider>().setMainAudioVolume(v),
+          ),
+          const SizedBox(height: 24),
           _buildAssetsView(context, assetProvider),
+        ],
       ],
     );
   }

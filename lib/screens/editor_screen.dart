@@ -828,11 +828,78 @@ class _EditorScreenState extends State<EditorScreen> {
 
   double? _previewHeight;
 
+  void _handleBulkAudio(BuildContext context, EditorProvider provider) async {
+    if (!provider.isMultiSelectMode || provider.selectedClipIds.length <= 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select multiple clips first using MULTI mode')),
+      );
+      return;
+    }
+
+    // Instead of picking a file, we switch to the Audio tab
+    provider.setActiveTabIndex(10); 
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Select an audio from the library to apply to all selected clips'),
+        duration: Duration(seconds: 3),
+      ),
+    );
+  }
+
+  Future<bool> _showSaveDialog(BuildContext context, EditorProvider provider) async {
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Unsaved Changes', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+        content: const Text(
+          'You have unsaved changes. Do you want to save before exiting?',
+          style: TextStyle(color: Colors.white70, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'exit'),
+            child: const Text('EXIT WITHOUT SAVING', style: TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.bold)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'cancel'),
+            child: const Text('CANCEL', style: TextStyle(color: Colors.white38, fontSize: 12)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              await provider.saveProject();
+              if (context.mounted) Navigator.pop(context, 'save');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.greenAccent,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('SAVE & EXIT', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (result == 'exit' || result == 'save') return true;
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<EditorProvider>();
 
-    return Scaffold(
+    return PopScope(
+      canPop: !provider.hasUnsavedChanges,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final shouldPop = await _showSaveDialog(context, provider);
+        if (shouldPop && context.mounted) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
       backgroundColor: const Color(0xFF0F0F13),
       body: SafeArea(
         bottom: false,
@@ -937,6 +1004,11 @@ class _EditorScreenState extends State<EditorScreen> {
                           isPlayheadLocked: provider.isPlayheadLocked,
                           onTogglePlayheadLock: provider.togglePlayheadLock,
                           onAddText: () => _showAddTextDialog(context, provider),
+                          onBulkAudio: () => _handleBulkAudio(context, provider),
+                          textTimelineColor: provider.textTimelineColor,
+                          audioTimelineColor: provider.audioTimelineColor,
+                          overlayTimelineColor: provider.overlayTimelineColor,
+                          backgroundTimelineColor: provider.backgroundTimelineColor,
                         )
                       else
                         Expanded(
@@ -996,6 +1068,11 @@ class _EditorScreenState extends State<EditorScreen> {
                             isPlayheadLocked: provider.isPlayheadLocked,
                             onTogglePlayheadLock: provider.togglePlayheadLock,
                             onAddText: () => _showAddTextDialog(context, provider),
+                            onBulkAudio: () => _handleBulkAudio(context, provider),
+                            textTimelineColor: provider.textTimelineColor,
+                            audioTimelineColor: provider.audioTimelineColor,
+                            overlayTimelineColor: provider.overlayTimelineColor,
+                            backgroundTimelineColor: provider.backgroundTimelineColor,
                           ),
                         ),
                                             SizedBox(height: provider.isControlPanelCollapsed ? 52 : 240 + 16),
@@ -1177,6 +1254,7 @@ class _EditorScreenState extends State<EditorScreen> {
               ),
             );
           },
+        ),
         ),
       ),
     );
