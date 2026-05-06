@@ -112,6 +112,11 @@ class AnimationLibrary {
       label: 'Wavy Bend',
       icon: Icons.waves_rounded,
     ),
+    AnimationMetadata(
+      type: AnimationType.ripple,
+      label: 'Ripple',
+      icon: Icons.blur_circular_rounded,
+    ),
   ];
 
   static const List<AnimationMetadata> exitAnimations = [
@@ -200,6 +205,11 @@ class AnimationLibrary {
       label: 'Wavy Bend',
       icon: Icons.waves_rounded,
     ),
+    AnimationMetadata(
+      type: AnimationType.ripple,
+      label: 'Ripple',
+      icon: Icons.blur_circular_rounded,
+    ),
   ];
 
   static const List<AnimationMetadata> loopAnimations = [
@@ -252,6 +262,11 @@ class AnimationLibrary {
       type: AnimationType.wavyBend,
       label: 'Wavy Bend',
       icon: Icons.waves_rounded,
+    ),
+    AnimationMetadata(
+      type: AnimationType.ripple,
+      label: 'Ripple',
+      icon: Icons.blur_circular_rounded,
     ),
   ];
 }

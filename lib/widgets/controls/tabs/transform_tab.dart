@@ -16,9 +16,9 @@ class TransformTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        CommonControls.buildSlider(context, 'Scale', clip.scale, 0.1, 5.0, (v) => onUpdate(scale: v), onReset: () => onUpdate(scale: 1.0)),
+        CommonControls.buildDialScrubber(context, 'Scale', clip.scale, 0.1, 5.0, (v) => onUpdate(scale: v), onReset: () => onUpdate(scale: 1.0)),
         const SizedBox(height: 12),
-        CommonControls.buildSlider(context, 'Rotation', clip.rotation, -180, 180, (v) => onUpdate(rotation: v), onReset: () => onUpdate(rotation: 0.0)),
+        CommonControls.buildDialScrubber(context, 'Rotation', clip.rotation, -180, 180, (v) => onUpdate(rotation: v), onReset: () => onUpdate(rotation: 0.0)),
         const SizedBox(height: 8),
         CommonControls.buildQuickRotationControls(clip.rotation, (v) => onUpdate(rotation: v)),
         const SizedBox(height: 12),

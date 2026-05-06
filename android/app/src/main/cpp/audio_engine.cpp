@@ -84,20 +84,24 @@ std::vector<float> decodeToPcm(const char* path, int targetSampleRate) {
 
 static void bqPlayerCallback(SLAndroidSimpleBufferQueueItf bq, void *context) {
     AudioEngine* engine = (AudioEngine*)context;
-    const int numFrames = 1024; // Match mBufferSizeFrames
-    float floatBuf[numFrames * 2]; 
-    int16_t outBuf[numFrames * 2];
+    const int numFrames = 1024;
     
-    engine->processAudio(floatBuf, numFrames);
+    // Use the engine's persistent float buffer for mixing
+    engine->processAudio(engine->mFloatBuf, numFrames);
     
-    // Convert float to 16-bit PCM
+    // Pick the buffer that OpenSL is NOT currently reading
+    int16_t* outBuf = (engine->mCurrentBuffer == 0) ? engine->mBufferA : engine->mBufferB;
+    engine->mCurrentBuffer = 1 - engine->mCurrentBuffer;
+    
+    // Convert float to 16-bit PCM with proper clamping
     for (int i = 0; i < numFrames * 2; i++) {
-        float sample = floatBuf[i];
+        float sample = engine->mFloatBuf[i];
         if (sample > 1.0f) sample = 1.0f;
         if (sample < -1.0f) sample = -1.0f;
         outBuf[i] = (int16_t)(sample * 32767.0f);
     }
     
+    // Enqueue the persistent buffer — it stays valid until the next callback
     (*bq)->Enqueue(bq, outBuf, numFrames * 2 * sizeof(int16_t));
 }
 

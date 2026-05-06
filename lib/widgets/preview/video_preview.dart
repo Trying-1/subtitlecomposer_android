@@ -65,23 +65,30 @@ class _VideoPreviewState extends State<VideoPreview> {
     final clip = provider.selectedTimelineClip;
     if (clip == null || clip is BackgroundClip) return;
 
-    // Handle drag (focalPointDelta is the movement since last update)
+    // Handle drag
     final dx = details.focalPointDelta.dx / constraints.maxWidth;
     final dy = details.focalPointDelta.dy / constraints.maxHeight;
 
     if (provider.selectedClipIds.length > 1) {
-      // Move all selected clips equally
-      provider.moveClips(provider.selectedClipIds, dx, dy);
+      provider.moveClips(provider.selectedClipIds, dx, dy, silent: true);
     } else {
-      // Move single clip and handle scaling
       final newScale = (_baseScale * details.scale).clamp(0.1, 5.0);
       provider.updateClip(
         clip.id,
         x: (clip.x + dx).clamp(-0.5, 1.5),
         y: (clip.y + dy).clamp(-0.5, 1.5),
         scale: newScale,
+        silent: true,
       );
     }
+  }
+
+  void _handleScaleEnd() {
+    final provider = context.read<EditorProvider>();
+    _isSeeking = false;
+    // Final sync and notify to ensure all other UI (like timeline) updates
+    provider.syncToNative();
+    provider.notifyListeners();
   }
 
   void _handleFocusSeekStart(ScaleStartDetails details) {
@@ -146,7 +153,7 @@ class _VideoPreviewState extends State<VideoPreview> {
                           behavior: HitTestBehavior.opaque,
                           onScaleStart: (details) => _handleScaleStart(details, constraints),
                           onScaleUpdate: (details) => _handleScaleUpdate(context, details, constraints),
-                          onScaleEnd: (_) => _isSeeking = false,
+                          onScaleEnd: (_) => _handleScaleEnd(),
                           onTapUp: (details) {
                             final provider = context.read<EditorProvider>();
                             final tapX = details.localPosition.dx / constraints.maxWidth;

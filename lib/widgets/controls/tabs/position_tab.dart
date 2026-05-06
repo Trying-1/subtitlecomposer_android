@@ -96,9 +96,9 @@ class _PositionTabState extends State<PositionTab> {
   Widget _buildManualControls(BuildContext context) {
     return Column(
       children: [
-        CommonControls.buildSlider(context, 'Horizontal (X)', widget.clip.x, 0, 1, (v) => widget.onUpdate(x: v)),
+        CommonControls.buildDialScrubber(context, 'Horizontal (X)', widget.clip.x, -0.5, 1.5, (v) => widget.onUpdate(x: v), onReset: () => widget.onUpdate(x: 0.5)),
         const SizedBox(height: 12),
-        CommonControls.buildSlider(context, 'Vertical (Y)', widget.clip.y, 0, 1, (v) => widget.onUpdate(y: v)),
+        CommonControls.buildDialScrubber(context, 'Vertical (Y)', widget.clip.y, -0.5, 1.5, (v) => widget.onUpdate(y: v), onReset: () => widget.onUpdate(y: 0.5)),
       ],
     );
   }

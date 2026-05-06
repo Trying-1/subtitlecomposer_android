@@ -17,7 +17,7 @@ class VideoExporter(
     private val clips: List<SubtitleClip>,
     private val durationMs: Long,
     private val assetManager: android.content.res.AssetManager,
-    private val backgroundColor: Int = 0xFF000000.toInt(),
+    private val backgroundColor: Int = 0xFFFFFFFF.toInt(),
     private val backgroundImagePath: String? = null,
     private val bgScale: Float = 1f,
     private val bgRotation: Float = 0f,

@@ -112,6 +112,12 @@ class AnimationPresets {
       entrance: ClipAnimation(type: AnimationType.radialWipe, durationMs: 600, easing: EasingType.easeOut),
       exit: ClipAnimation(type: AnimationType.radialWipe, durationMs: 400, easing: EasingType.easeIn),
     ),
+    AnimationPreset(
+      name: 'Ripple',
+      icon: '💧',
+      entrance: ClipAnimation(type: AnimationType.ripple, durationMs: 800, easing: EasingType.easeOut),
+      exit: ClipAnimation(type: AnimationType.ripple, durationMs: 500, easing: EasingType.easeIn),
+    ),
   ];
 
   static String animationTypeName(AnimationType type) {
@@ -145,6 +151,7 @@ class AnimationPresets {
       case AnimationType.radialWipe: return 'Radial Wipe';
       case AnimationType.throwback: return 'Throwback';
       case AnimationType.wavyBend: return 'Wavy Bend';
+      case AnimationType.ripple: return 'Ripple';
     }
   }
 

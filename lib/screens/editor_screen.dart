@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import '../providers/editor_provider.dart';
 import '../widgets/preview/video_preview.dart';
 import '../widgets/timeline/timeline_editor.dart';
+import '../widgets/dialogs/export_success_dialog.dart';
 import '../widgets/controls/bottom_control_panel.dart';
 import '../services/audio_service.dart';
 import '../models/editor_models.dart';
@@ -783,12 +784,9 @@ class _EditorScreenState extends State<EditorScreen> {
   Future<void> _handleExport(BuildContext context, EditorProvider provider) async {
     final path = await provider.exportVideo();
     if (path != null && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Video exported to gallery'),
-          backgroundColor: Colors.deepPurpleAccent,
-          behavior: SnackBarBehavior.floating,
-        ),
+      showDialog(
+        context: context,
+        builder: (context) => ExportSuccessDialog(videoPath: path),
       );
     }
   }
@@ -1198,6 +1196,10 @@ class _EditorScreenState extends State<EditorScreen> {
                             double? reflectionOffset,
                             double? reflectionOpacity,
                             int? reflectionColor,
+                            bool? isGradientEnabled,
+                            int? gradientColor1,
+                            int? gradientColor2,
+                            double? gradientAngle,
                           }) {
                             provider.updateClips(
                               provider.selectedClipIds,
@@ -1239,6 +1241,10 @@ class _EditorScreenState extends State<EditorScreen> {
                               reflectionOffset: reflectionOffset,
                               reflectionOpacity: reflectionOpacity,
                               reflectionColor: reflectionColor,
+                              isGradientEnabled: isGradientEnabled,
+                              gradientColor1: gradientColor1,
+                              gradientColor2: gradientColor2,
+                              gradientAngle: gradientAngle,
                             );
                           },
                           onApplyPreset: (preset) {

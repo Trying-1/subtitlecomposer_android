@@ -274,6 +274,19 @@ class CommonControls {
     );
   }
 
+  static Widget buildToggleRow(String label, bool value, ValueChanged<bool> onChanged) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 10, color: Colors.white38)),
+          buildToggle(value, onChanged),
+        ],
+      ),
+    );
+  }
+
   static Widget buildToggle(bool value, ValueChanged<bool> onChanged) {
     return SizedBox(
       height: 20,
@@ -387,6 +400,8 @@ class CommonControls {
       {'val': 0, 'label': 'Cover', 'icon': Icons.fullscreen_rounded},
       {'val': 1, 'label': 'Fit', 'icon': Icons.fullscreen_exit_rounded},
       {'val': 2, 'label': 'Center', 'icon': Icons.center_focus_strong_rounded},
+      {'val': 3, 'label': 'Width', 'icon': Icons.swap_horiz_rounded},
+      {'val': 4, 'label': 'Height', 'icon': Icons.swap_vert_rounded},
     ];
 
     return Column(
@@ -425,25 +440,26 @@ class CommonControls {
   }
 
   static Widget buildQuickRotationControls(double current, ValueChanged<double> onChanged) {
-    final values = [-180.0, -90.0, -15.0, 0.0, 15.0, 90.0, 180.0];
+    final values = [0.0, 15.0, 45.0];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.start,
         children: values.map((v) {
-          final isIncremental = v.abs() == 15.0;
-          final label = isIncremental ? (v > 0 ? '+15°' : '-15°') : '${v > 0 ? "+" : ""}${v.toInt()}°';
+          final isReset = v == 0.0;
+          final label = isReset ? '0°' : '+${v.toInt()}°';
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: InkWell(
               onTap: () {
-                if (isIncremental) {
-                  var newVal = current + v;
-                  if (newVal > 180) newVal = -180 + (newVal - 180);
-                  if (newVal < -180) newVal = 180 + (newVal + 180);
-                  onChanged(newVal.clamp(-180, 180));
+                if (isReset) {
+                  onChanged(0.0);
                 } else {
-                  onChanged(v);
+                  var newVal = current + v;
+                  // Wrap around logic
+                  while (newVal > 180) newVal -= 360;
+                  while (newVal < -180) newVal += 360;
+                  onChanged(newVal);
                 }
               },
               borderRadius: BorderRadius.circular(6),
@@ -465,4 +481,164 @@ class CommonControls {
       ),
     );
   }
+  static Widget buildDialScrubber(BuildContext context, String label, double value, double min, double max, ValueChanged<double> onChanged, {VoidCallback? onReset}) {
+    return _DialScrubber(
+      label: label,
+      value: value,
+      min: min,
+      max: max,
+      onChanged: onChanged,
+      onReset: onReset,
+    );
+  }
+}
+
+class _DialScrubber extends StatefulWidget {
+  final String label;
+  final double value;
+  final double min;
+  final double max;
+  final ValueChanged<double> onChanged;
+  final VoidCallback? onReset;
+
+  const _DialScrubber({
+    required this.label,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.onChanged,
+    this.onReset,
+  });
+
+  @override
+  State<_DialScrubber> createState() => _DialScrubberState();
+}
+
+class _DialScrubberState extends State<_DialScrubber> {
+  double _dragStartValue = 0;
+  double _dragStartX = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Text(widget.label, style: const TextStyle(fontSize: 10, color: Colors.white38)),
+                if (widget.onReset != null) ...[
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: widget.onReset,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Icon(Icons.refresh_rounded, size: 10, color: Colors.deepPurpleAccent),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            Text(widget.value.toStringAsFixed(2), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white70)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        GestureDetector(
+          onPanStart: (details) {
+            _dragStartValue = widget.value;
+            _dragStartX = details.localPosition.dx;
+          },
+          onPanUpdate: (details) {
+            final dx = details.localPosition.dx - _dragStartX;
+            // Sensitivity: 200px = full range or a fixed amount?
+            // For scale, maybe 100px = 1.0 change
+            final range = widget.max - widget.min;
+            final delta = (dx / 150.0) * (range * 0.2); // 20% of range per 150px
+            final newValue = (_dragStartValue + delta).clamp(widget.min, widget.max);
+            widget.onChanged(newValue);
+          },
+          child: Container(
+            height: 32,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.03),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: Colors.white.withOpacity(0.05)),
+            ),
+            child: CustomPaint(
+              painter: DialPainter(
+                value: widget.value,
+                min: widget.min,
+                max: widget.max,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class DialPainter extends CustomPainter {
+  final double value;
+  final double min;
+  final double max;
+
+  DialPainter({required this.value, required this.min, required this.max});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white24
+      ..strokeWidth = 1;
+
+    final double width = size.width;
+    final double height = size.height;
+    final double midX = width / 2;
+    
+    // We want to show ticks that "move" as the value changes
+    // Calculate an offset based on the value
+    final range = max - min;
+    final normalizedValue = (value - min) / range;
+    final offset = normalizedValue * 500; // 500 is an arbitrary factor for "scroll speed" of ticks
+
+    final int tickCount = 40;
+    final double spacing = 15.0;
+    
+    for (int i = -tickCount; i <= tickCount; i++) {
+      final x = midX + (i * spacing) - (offset % spacing);
+      if (x < 0 || x > width) continue;
+      
+      final isMajor = (i + (offset / spacing).floor()) % 5 == 0;
+      final tickHeight = isMajor ? height * 0.5 : height * 0.25;
+      paint.color = isMajor ? Colors.white38 : Colors.white10;
+      
+      canvas.drawLine(
+        Offset(x, (height - tickHeight) / 2),
+        Offset(x, (height + tickHeight) / 2),
+        paint,
+      );
+    }
+
+    // Center indicator
+    final indicatorPaint = Paint()
+      ..color = Colors.deepPurpleAccent
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+    
+    canvas.drawLine(
+      Offset(midX, height * 0.1),
+      Offset(midX, height * 0.9),
+      indicatorPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant DialPainter oldDelegate) => oldDelegate.value != value;
 }

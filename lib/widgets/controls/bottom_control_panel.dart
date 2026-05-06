@@ -80,6 +80,10 @@ class BottomControlPanel extends StatefulWidget {
     double? reflectionOffset,
     double? reflectionOpacity,
     int? reflectionColor,
+    bool? isGradientEnabled,
+    int? gradientColor1,
+    int? gradientColor2,
+    double? gradientAngle,
   }) onUpdate;
   final Function(String path) onAddAudioClip;
   final Function(AnimationPreset) onApplyPreset;
@@ -293,7 +297,7 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
         if (clip is SubtitleClip) return FontTab(clip: clip, onUpdate: ({fontFamily}) => widget.onUpdate(fontFamily: fontFamily));
         return _buildWrongClipTypeMessage("FONT");
       case 2: 
-        if (clip is SubtitleClip) return StyleTab(clip: clip, onUpdate: ({color, textOpacity, entranceAnimation, exitAnimation, loopAnimation}) => widget.onUpdate(color: color, textOpacity: textOpacity, entranceAnimation: entranceAnimation, exitAnimation: exitAnimation, loopAnimation: loopAnimation));
+        if (clip is SubtitleClip) return StyleTab(clip: clip, onUpdate: ({color, textOpacity, entranceAnimation, exitAnimation, loopAnimation, isGradientEnabled, gradientColor1, gradientColor2, gradientAngle}) => widget.onUpdate(color: color, textOpacity: textOpacity, entranceAnimation: entranceAnimation, exitAnimation: exitAnimation, loopAnimation: loopAnimation, isGradientEnabled: isGradientEnabled, gradientColor1: gradientColor1, gradientColor2: gradientColor2, gradientAngle: gradientAngle));
         return _buildWrongClipTypeMessage("STYLE");
       case 3: 
         if (clip is SubtitleClip || clip is OverlayClip) return EffectsTab(clip: clip, onUpdate: ({isShadowEnabled, shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY, isBackgroundEnabled, backgroundColor, backgroundRadius, isStrokeEnabled, strokeColor, strokeWidth, isGlowEnabled, glowColor, glowSize, isBendingEnabled, bendingAmount, isReflectionEnabled, reflectionOffset, reflectionOpacity, reflectionColor}) => widget.onUpdate(isShadowEnabled: isShadowEnabled, shadowColor: shadowColor, shadowBlur: shadowBlur, shadowOffsetX: shadowOffsetX, shadowOffsetY: shadowOffsetY, isBackgroundEnabled: isBackgroundEnabled, backgroundColor: backgroundColor, backgroundRadius: backgroundRadius, isStrokeEnabled: isStrokeEnabled, strokeColor: strokeColor, strokeWidth: strokeWidth, isGlowEnabled: isGlowEnabled, glowColor: glowColor, glowSize: glowSize, isBendingEnabled: isBendingEnabled, bendingAmount: bendingAmount, isReflectionEnabled: isReflectionEnabled, reflectionOffset: reflectionOffset, reflectionOpacity: reflectionOpacity, reflectionColor: reflectionColor));

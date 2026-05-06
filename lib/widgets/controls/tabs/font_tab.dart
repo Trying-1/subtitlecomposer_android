@@ -67,42 +67,41 @@ class _FontTabState extends State<FontTab> {
               child: const Text('No custom fonts imported', style: TextStyle(color: Colors.white24, fontSize: 10)),
             )
           else
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 2.2,
-                crossAxisSpacing: 8,
-                mainAxisSpacing: 8,
-              ),
-              itemCount: customFonts.length,
-              itemBuilder: (context, index) {
-                final font = customFonts[index];
-                final isSelected = widget.clip.fontFamily == font.family;
-                return GestureDetector(
-                  onTap: () => widget.onUpdate(fontFamily: font.family),
-                  onLongPress: () => _confirmDelete(font),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isSelected ? Colors.deepPurpleAccent.withOpacity(0.1) : Colors.white.withOpacity(0.04),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: isSelected ? Colors.deepPurpleAccent : Colors.white10),
-                    ),
-                    child: Center(
-                      child: Text(
-                        font.family,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontFamily: font.family, color: Colors.white70, fontSize: 11),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              childAspectRatio: 2.5,
+              crossAxisSpacing: 6,
+              mainAxisSpacing: 6,
+            ),
+            itemCount: customFonts.length,
+            itemBuilder: (context, index) {
+              final font = customFonts[index];
+              final isSelected = widget.clip.fontFamily == font.family;
+              return GestureDetector(
+                onTap: () => widget.onUpdate(fontFamily: font.family),
+                onLongPress: () => _confirmDelete(font),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: isSelected ? Colors.deepPurpleAccent.withOpacity(0.2) : Colors.white.withOpacity(0.03),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: isSelected ? Colors.deepPurpleAccent.withOpacity(0.5) : Colors.transparent),
+                  ),
+                  child: Center(
+                    child: Text(
+                      font.family,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontFamily: font.family, color: isSelected ? Colors.white : Colors.white38, fontSize: 9),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                );
-              },
-            ),
+                ),
+              );
+            },
+          ),
           const SizedBox(height: 24),
           const Text('PRESET FONTS', style: TextStyle(fontSize: 8, color: Colors.white38, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
           const SizedBox(height: 12),

@@ -98,6 +98,10 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
     private var uReflectionOffsetLoc: Int = 0
     private var uReflectionOpacityLoc: Int = 0
     private var uReflectionColorLoc: Int = 0
+    private var uGradientEnabledLoc: Int = 0
+    private var uGradientColor1Loc: Int = 0
+    private var uGradientColor2Loc: Int = 0
+    private var uGradientAngleLoc: Int = 0
     
     private var vPositionOESLoc: Int = 0
     private var vTexCoordOESLoc: Int = 0
@@ -114,12 +118,18 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
     private var uReflectionOffsetOESLoc: Int = 0
     private var uReflectionOpacityOESLoc: Int = 0
     private var uReflectionColorOESLoc: Int = 0
+    private var uGradientEnabledOESLoc: Int = 0
+    private var uGradientColor1OESLoc: Int = 0
+    private var uGradientColor2OESLoc: Int = 0
+    private var uGradientAngleOESLoc: Int = 0
     
     private var uWipeProgressLoc: Int = 0
     private var uWipeTypeLoc: Int = 0
+    private var uWipeIntensityLoc: Int = 0
     
     private var uWipeProgressOESLoc: Int = 0
     private var uWipeTypeOESLoc: Int = 0
+    private var uWipeIntensityOESLoc: Int = 0
 
     private val vertexShaderCode = """
         attribute vec4 vPosition;
@@ -155,9 +165,15 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         uniform float uShadowBlur;
         uniform float uGlowSize;
         uniform float uWipeProgress;
-        uniform int uWipeType; // 0: typewriter, 1: linearR, 2: radial
+        uniform int uWipeType;
+        uniform float uWipeIntensity;
         uniform float uReflectionOpacity;
         uniform vec4 uReflectionColor;
+        
+        uniform int uGradientEnabled;
+        uniform vec4 uGradientColor1;
+        uniform vec4 uGradientColor2;
+        uniform float uGradientAngle;
 
         void main() {
             vec2 uv = fTexCoord;
@@ -173,25 +189,27 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                 alphaMod = 1.0 - smoothstep(uWipeProgress - softness, uWipeProgress, dist);
             } else if (uWipeType == 3) { // Wavy Bend
                 float waveFreq = 8.0;
-                float waveAmp = 0.04 * uWipeProgress;
+                float waveAmp = 0.04 * uWipeIntensity; // Using intensity
                 float phase = uWipeProgress * 6.2832;
                 uv.y += sin(uv.x * waveFreq + phase) * waveAmp;
                 uv.x += cos(uv.y * waveFreq * 0.7 + phase * 1.3) * waveAmp * 0.5;
+            } else if (uWipeType == 4) { // Ripple
+                float dist = distance(uv, vec2(0.5, 0.5));
+                float wave = sin(dist * 25.0 - uWipeProgress * 6.2832);
+                uv += (uv - 0.5) * wave * 0.04 * uWipeIntensity; // Using intensity
             }
             
-            if (alphaMod <= 0.0) discard;
+            uv = clamp(uv, 0.0, 1.0); // Prevent wrapping artifacts
+            vec4 texColor = texture2D(sTexture, uv);
             
-            vec4 texColor;
-            if (length(uBlurVector) < 0.001) {
-                texColor = texture2D(sTexture, uv);
-            } else {
-                vec4 accum = vec4(0.0);
-                float samples = 5.0;
-                for (float i = 0.0; i < 5.0; i += 1.0) {
-                    float offset = (i / (samples - 1.0)) - 0.5;
-                    accum += texture2D(sTexture, uv + uBlurVector * offset);
-                }
-                texColor = accum / samples;
+            vec4 finalColor = vColor;
+            if (uGradientEnabled == 1) {
+                float rad = uGradientAngle * 0.0174533; // deg to rad
+                vec2 dir = vec2(cos(rad), sin(rad));
+                float t = dot(uv - 0.5, dir) + 0.5;
+                t = clamp(t, 0.0, 1.0);
+                finalColor = mix(uGradientColor1, uGradientColor2, t);
+                finalColor.a *= vColor.a;
             }
 
             if (uEffectMode == 1) { // Shadow mode
@@ -208,7 +226,7 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                 }
                 float avgAlpha = accumAlpha / totalWeight;
                 if (avgAlpha < 0.01) discard;
-                gl_FragColor = vec4(uEffectColor.rgb, avgAlpha * uEffectColor.a * vColor.a * alphaMod);
+                gl_FragColor = vec4(uEffectColor.rgb, avgAlpha * uEffectColor.a * finalColor.a * alphaMod);
             } else if (uEffectMode == 2) { // Stroke mode
                 if (texColor.a > 0.8) discard; 
                 
@@ -221,7 +239,7 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                 }
                 
                 if (maxAlpha < 0.01) discard;
-                gl_FragColor = vec4(uEffectColor.rgb, maxAlpha * uEffectColor.a * vColor.a * alphaMod);
+                gl_FragColor = vec4(uEffectColor.rgb, maxAlpha * uEffectColor.a * finalColor.a * alphaMod);
             } else if (uEffectMode == 3) { // Glow mode
                 float accumAlpha = 0.0;
                 float totalWeight = 0.0;
@@ -237,15 +255,15 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                 }
                 float avgAlpha = accumAlpha / totalWeight;
                 if (avgAlpha < 0.01) discard;
-                gl_FragColor = vec4(uEffectColor.rgb, avgAlpha * uEffectColor.a * vColor.a * alphaMod * 1.5); // Boost glow
+                gl_FragColor = vec4(uEffectColor.rgb, avgAlpha * uEffectColor.a * finalColor.a * alphaMod * 1.5); // Boost glow
             } else if (uEffectMode == 4) { // Reflection mode
                 vec2 reflUv = vec2(uv.x, 1.0 - uv.y);
                 vec4 texSample = texture2D(sTexture, reflUv);
                 float gradient = 1.0 - uv.y;
-                gl_FragColor = texSample * vColor * uReflectionColor * alphaMod * uReflectionOpacity * gradient;
+                gl_FragColor = texSample * finalColor * uReflectionColor * alphaMod * uReflectionOpacity * gradient;
             } else { 
                 if (texColor.a < 0.01) discard;
-                gl_FragColor = texColor * vColor * alphaMod;
+                gl_FragColor = texColor * finalColor * alphaMod;
             }
         }
     """.trimIndent()
@@ -265,8 +283,14 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         uniform float uGlowSize;
         uniform float uWipeProgress;
         uniform int uWipeType;
+        uniform float uWipeIntensity;
         uniform float uReflectionOpacity;
         uniform vec4 uReflectionColor;
+        
+        uniform int uGradientEnabled;
+        uniform vec4 uGradientColor1;
+        uniform vec4 uGradientColor2;
+        uniform float uGradientAngle;
 
         void main() {
             vec2 uv = fTexCoord;
@@ -282,16 +306,31 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                 alphaMod = 1.0 - smoothstep(uWipeProgress - softness, uWipeProgress, dist);
             } else if (uWipeType == 3) { // Wavy Bend
                 float waveFreq = 8.0;
-                float waveAmp = 0.04 * uWipeProgress;
+                float waveAmp = 0.04 * uWipeIntensity;
                 float phase = uWipeProgress * 6.2832;
                 uv.y += sin(uv.x * waveFreq + phase) * waveAmp;
                 uv.x += cos(uv.y * waveFreq * 0.7 + phase * 1.3) * waveAmp * 0.5;
+            } else if (uWipeType == 4) { // Ripple
+                float dist = distance(uv, vec2(0.5, 0.5));
+                float wave = sin(dist * 25.0 - uWipeProgress * 6.2832);
+                uv += (uv - 0.5) * wave * 0.04 * uWipeIntensity;
             }
-
+            
+            uv = clamp(uv, 0.0, 1.0); // Prevent wrapping artifacts
             if (alphaMod <= 0.0) discard;
 
             vec4 texColor = texture2D(sTexture, uv);
             
+            vec4 finalColor = vColor;
+            if (uGradientEnabled == 1) {
+                float rad = uGradientAngle * 0.0174533; // deg to rad
+                vec2 dir = vec2(cos(rad), sin(rad));
+                float t = dot(uv - 0.5, dir) + 0.5;
+                t = clamp(t, 0.0, 1.0);
+                finalColor = mix(uGradientColor1, uGradientColor2, t);
+                finalColor.a *= vColor.a;
+            }
+
             if (uEffectMode == 1) { // Shadow mode
                 float accumAlpha = 0.0;
                 float totalWeight = 0.0;
@@ -306,7 +345,7 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                 }
                 float avgAlpha = accumAlpha / totalWeight;
                 if (avgAlpha < 0.01) discard;
-                gl_FragColor = vec4(uEffectColor.rgb, avgAlpha * uEffectColor.a * vColor.a * alphaMod);
+                gl_FragColor = vec4(uEffectColor.rgb, avgAlpha * uEffectColor.a * finalColor.a * alphaMod);
             } else if (uEffectMode == 2) { // Stroke mode
                 if (texColor.a > 0.8) discard; 
                 
@@ -318,7 +357,7 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                 }
                 
                 if (maxAlpha < 0.01) discard;
-                gl_FragColor = vec4(uEffectColor.rgb, maxAlpha * uEffectColor.a * vColor.a * alphaMod);
+                gl_FragColor = vec4(uEffectColor.rgb, maxAlpha * uEffectColor.a * finalColor.a * alphaMod);
             } else if (uEffectMode == 3) { // Glow mode
                 float accumAlpha = 0.0;
                 float totalWeight = 0.0;
@@ -334,15 +373,15 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                 }
                 float avgAlpha = accumAlpha / totalWeight;
                 if (avgAlpha < 0.01) discard;
-                gl_FragColor = vec4(uEffectColor.rgb, avgAlpha * uEffectColor.a * vColor.a * alphaMod * 1.5);
+                gl_FragColor = vec4(uEffectColor.rgb, avgAlpha * uEffectColor.a * finalColor.a * alphaMod * 1.5);
             } else if (uEffectMode == 4) { // Reflection mode
                 vec2 reflUv = vec2(uv.x, 1.0 - uv.y);
                 vec4 texSample = texture2D(sTexture, reflUv);
                 float gradient = 1.0 - uv.y;
-                gl_FragColor = texSample * vColor * uReflectionColor * alphaMod * uReflectionOpacity * gradient;
+                gl_FragColor = texSample * finalColor * uReflectionColor * alphaMod * uReflectionOpacity * gradient;
             } else { 
                 if (texColor.a < 0.01) discard;
-                gl_FragColor = texColor * vColor * alphaMod;
+                gl_FragColor = texColor * finalColor * alphaMod;
             }
         }
     """.trimIndent()
@@ -379,6 +418,10 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         uReflectionColorLoc = GLES20.glGetUniformLocation(program, "uReflectionColor")
         uWipeProgressLoc = GLES20.glGetUniformLocation(program, "uWipeProgress")
         uWipeTypeLoc = GLES20.glGetUniformLocation(program, "uWipeType")
+        uGradientEnabledLoc = GLES20.glGetUniformLocation(program, "uGradientEnabled")
+        uGradientColor1Loc = GLES20.glGetUniformLocation(program, "uGradientColor1")
+        uGradientColor2Loc = GLES20.glGetUniformLocation(program, "uGradientColor2")
+        uGradientAngleLoc = GLES20.glGetUniformLocation(program, "uGradientAngle")
         
         vPositionOESLoc = GLES20.glGetAttribLocation(programOES, "vPosition")
         vTexCoordOESLoc = GLES20.glGetAttribLocation(programOES, "vTexCoord")
@@ -394,21 +437,23 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         uBendingAmountOESLoc = GLES20.glGetUniformLocation(programOES, "uBendingAmount")
         uWipeProgressOESLoc = GLES20.glGetUniformLocation(programOES, "uWipeProgress")
         uWipeTypeOESLoc = GLES20.glGetUniformLocation(programOES, "uWipeType")
+        uWipeIntensityLoc = GLES20.glGetUniformLocation(program, "uWipeIntensity")
+        uWipeIntensityOESLoc = GLES20.glGetUniformLocation(programOES, "uWipeIntensity")
         uReflectionOffsetOESLoc = GLES20.glGetUniformLocation(programOES, "uReflectionOffset")
         uReflectionOpacityOESLoc = GLES20.glGetUniformLocation(programOES, "uReflectionOpacity")
         uReflectionColorOESLoc = GLES20.glGetUniformLocation(programOES, "uReflectionColor")
+        uGradientEnabledOESLoc = GLES20.glGetUniformLocation(programOES, "uGradientEnabled")
+        uGradientColor1OESLoc = GLES20.glGetUniformLocation(programOES, "uGradientColor1")
+        uGradientColor2OESLoc = GLES20.glGetUniformLocation(programOES, "uGradientColor2")
+        uGradientAngleOESLoc = GLES20.glGetUniformLocation(programOES, "uGradientAngle")
 
         GLES20.glEnable(GLES20.GL_BLEND)
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
     }
 
-    private var currentActiveProgram: Int = -1
     private fun useProgram(isOES: Boolean) {
         val p = if (isOES) programOES else program
-        if (p != currentActiveProgram) {
-            GLES20.glUseProgram(p)
-            currentActiveProgram = p
-        }
+        GLES20.glUseProgram(p)
     }
 
     private fun loadShader(type: Int, shaderCode: String): Int {
@@ -529,6 +574,8 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId)
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
             GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bitmap, 0)
             
             bitmap.recycle()
@@ -590,10 +637,33 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         }
         // Loop animation can also drive the wave
         if (clip.loopAnimation.type == AnimationType.WAVY_BEND) wipeType = 3
+        if (clip.loopAnimation.type == AnimationType.RIPPLE) wipeType = 4
         
         GLES20.glUniform1i(uWipeTypeLoc, wipeType)
+        
+        GLES20.glUniform1i(uGradientEnabledLoc, if (clip.isGradientEnabled) 1 else 0)
+        if (clip.isGradientEnabled) {
+            GLES20.glUniform4f(uGradientColor1Loc, 
+                android.graphics.Color.red(clip.gradientColor1) / 255f,
+                android.graphics.Color.green(clip.gradientColor1) / 255f,
+                android.graphics.Color.blue(clip.gradientColor1) / 255f,
+                android.graphics.Color.alpha(clip.gradientColor1) / 255f)
+            GLES20.glUniform4f(uGradientColor2Loc, 
+                android.graphics.Color.red(clip.gradientColor2) / 255f,
+                android.graphics.Color.green(clip.gradientColor2) / 255f,
+                android.graphics.Color.blue(clip.gradientColor2) / 255f,
+                android.graphics.Color.alpha(clip.gradientColor2) / 255f)
+            GLES20.glUniform1f(uGradientAngleLoc, clip.gradientAngle)
+        }
         GLES20.glUniform1f(uWipeProgressLoc, animState.typewriterProgress)
+        GLES20.glUniform1f(uWipeIntensityLoc, if (clip.loopAnimation.type != AnimationType.NONE) clip.loopAnimation.intensity else clip.entranceAnimation.intensity)
         GLES20.glUniform2f(uTexelSizeLoc, 1f / bmpWidth, 1f / bmpHeight)
+
+        GLES20.glUniform4f(vColorLoc, 
+            android.graphics.Color.red(clip.color) / 255f,
+            android.graphics.Color.green(clip.color) / 255f,
+            android.graphics.Color.blue(clip.color) / 255f,
+            (android.graphics.Color.alpha(clip.color) / 255f) * animState.opacity * clip.textOpacity)
 
         GLES20.glUniformMatrix4fv(uMVPMatrixLoc, 1, false, mvpMatrix, 0)
         
@@ -836,6 +906,10 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         val uWipeT = if (isOES) uWipeTypeOESLoc else uWipeTypeLoc
         val uReflO = if (isOES) uReflectionOpacityOESLoc else uReflectionOpacityLoc
         val uReflC = if (isOES) uReflectionColorOESLoc else uReflectionColorLoc
+        val uGradE = if (isOES) uGradientEnabledOESLoc else uGradientEnabledLoc
+        val uGradC1 = if (isOES) uGradientColor1OESLoc else uGradientColor1Loc
+        val uGradC2 = if (isOES) uGradientColor2OESLoc else uGradientColor2Loc
+        val uGradA = if (isOES) uGradientAngleOESLoc else uGradientAngleLoc
 
         GLES20.glUniform2f(uTSize, 1f / bmpWidth, 1f / bmpHeight)
         
@@ -849,9 +923,26 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         }
         // Loop animation can also drive the wave
         if (clip.loopAnimation.type == AnimationType.WAVY_BEND) wipeType = 3
+        if (clip.loopAnimation.type == AnimationType.RIPPLE) wipeType = 4
         
         GLES20.glUniform1i(uWipeT, wipeType)
         GLES20.glUniform1f(uWipeP, animState.typewriterProgress)
+        GLES20.glUniform1f(if (isOES) uWipeIntensityOESLoc else uWipeIntensityLoc, if (clip.loopAnimation.type != AnimationType.NONE) clip.loopAnimation.intensity else clip.entranceAnimation.intensity)
+        
+        GLES20.glUniform1i(uGradE, if (clip.isGradientEnabled) 1 else 0)
+        if (clip.isGradientEnabled) {
+            GLES20.glUniform4f(uGradC1, 
+                android.graphics.Color.red(clip.gradientColor1) / 255f,
+                android.graphics.Color.green(clip.gradientColor1) / 255f,
+                android.graphics.Color.blue(clip.gradientColor1) / 255f,
+                android.graphics.Color.alpha(clip.gradientColor1) / 255f)
+            GLES20.glUniform4f(uGradC2, 
+                android.graphics.Color.red(clip.gradientColor2) / 255f,
+                android.graphics.Color.green(clip.gradientColor2) / 255f,
+                android.graphics.Color.blue(clip.gradientColor2) / 255f,
+                android.graphics.Color.alpha(clip.gradientColor2) / 255f)
+            GLES20.glUniform1f(uGradA, clip.gradientAngle)
+        }
         
         if (!isOES) {
             GLES20.glUniform2f(uBlurVectorLoc, 0f, 0f) 

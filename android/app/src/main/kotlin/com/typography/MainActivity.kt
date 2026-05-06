@@ -74,7 +74,7 @@ class MainActivity : FlutterActivity() {
                 }
                 "updateProjectSettings" -> {
                     val ratio = (call.argument<Number>("aspectRatio"))?.toDouble() ?: (16.0/9.0)
-                    val bgColor = (call.argument<Number>("backgroundColor"))?.toInt() ?: 0xFF000000.toInt()
+                    val bgColor = (call.argument<Number>("backgroundColor"))?.toInt() ?: 0xFFFFFFFF.toInt()
                     val imagePath = call.argument<String>("backgroundImagePath")
                     val width = (call.argument<Number>("width"))?.toInt()
                     val height = (call.argument<Number>("height"))?.toInt()
@@ -123,7 +123,7 @@ class MainActivity : FlutterActivity() {
                             val itemUri = resolver.insert(collection, values)
 
                             if (itemUri != null) {
-                                val bgColor = (call.argument<Number>("backgroundColor"))?.toInt() ?: 0xFF000000.toInt()
+                                val bgColor = (call.argument<Number>("backgroundColor"))?.toInt() ?: 0xFFFFFFFF.toInt()
                                 val imagePath = call.argument<String>("backgroundImagePath")
                                 val bgScale = (call.argument<Number>("bgScale"))?.toFloat() ?: 1f
                                 val bgRotation = (call.argument<Number>("bgRotation"))?.toFloat() ?: 0f
@@ -283,6 +283,32 @@ class MainActivity : FlutterActivity() {
                     freeWhisper(ptr)
                     result.success(null)
                 }
+                "openVideoFile" -> {
+                    val path = call.argument<String>("path") ?: ""
+                    if (path.isNotEmpty()) {
+                        try {
+                            val uri = if (path.startsWith("content://")) {
+                                android.net.Uri.parse(path)
+                            } else {
+                                val file = java.io.File(path)
+                                androidx.core.content.FileProvider.getUriForFile(
+                                    this,
+                                    "$packageName.fileprovider",
+                                    file
+                                )
+                            }
+                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW)
+                            intent.setDataAndType(uri, "video/*")
+                            intent.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            startActivity(intent)
+                            result.success(null)
+                        } catch (e: Exception) {
+                            result.error("OPEN_ERROR", e.message, null)
+                        }
+                    } else {
+                        result.error("PATH_EMPTY", "Path is empty", null)
+                    }
+                }
                 "getVideoDuration" -> {
                     val path = call.argument<String>("path") ?: ""
                     if (path.isEmpty()) {
@@ -341,6 +367,13 @@ class MainActivity : FlutterActivity() {
                     setAudioClips(paths, starts, ends, vols)
                     result.success(null)
                 }
+                "decodeAudioToPcm" -> {
+                    val path = call.argument<String>("audioPath") ?: ""
+                    Thread {
+                        val pcm = decodeAudioToPcm(path)
+                        runOnUiThread { result.success(pcm) }
+                    }.start()
+                }
                 else -> result.notImplemented()
             }
         }
@@ -392,7 +425,11 @@ class MainActivity : FlutterActivity() {
                 imagePath = it["imagePath"] as? String,
                 isText = it["isText"] as? Boolean ?: (it["imagePath"] == null),
                 isBackground = it["isBackground"] as? Boolean ?: false,
-                fillMode = (it["fillMode"] as? Number)?.toInt() ?: 0
+                fillMode = (it["fillMode"] as? Number)?.toInt() ?: 0,
+                isGradientEnabled = it["isGradientEnabled"] as? Boolean ?: false,
+                gradientColor1 = (it["gradientColor1"] as? Number)?.toLong()?.toInt() ?: 0xFFFFFFFF.toInt(),
+                gradientColor2 = (it["gradientColor2"] as? Number)?.toLong()?.toInt() ?: 0xFF000000.toInt(),
+                gradientAngle = (it["gradientAngle"] as? Number)?.toFloat() ?: 0f
             )
         }
     }

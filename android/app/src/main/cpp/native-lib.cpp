@@ -329,7 +329,7 @@ Java_com_typography_MainActivity_muxVideoAudio(
     AVStream* out_a_stream = avformat_new_stream(ofmt_ctx, nullptr);
     AVCodecContext* a_enc_ctx = avcodec_alloc_context3(a_codec);
     a_enc_ctx->sample_fmt = a_codec->sample_fmts[0];
-    a_enc_ctx->bit_rate = 128000;
+    a_enc_ctx->bit_rate = 256000;
     a_enc_ctx->sample_rate = sample_rate;
     av_channel_layout_default(&a_enc_ctx->ch_layout, 2);
     avcodec_open2(a_enc_ctx, a_codec, nullptr);

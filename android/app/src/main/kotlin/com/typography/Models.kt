@@ -29,7 +29,8 @@ enum class AnimationType {
     GRADIENT_WIPE,
     RADIAL_WIPE,
     THROWBACK,
-    WAVY_BEND;
+    WAVY_BEND,
+    RIPPLE;
 
     companion object {
         fun fromIndex(index: Int): AnimationType = entries.getOrElse(index) { NONE }
@@ -73,7 +74,8 @@ enum class CustomBlendMode {
 data class ClipAnimation(
     val type: AnimationType = AnimationType.NONE,
     val easing: EasingType = EasingType.EASE_OUT,
-    val durationMs: Int = 500
+    val durationMs: Int = 500,
+    val intensity: Float = 1.0f
 ) {
     companion object {
         fun fromMap(map: Map<String, Any>?): ClipAnimation {
@@ -81,7 +83,8 @@ data class ClipAnimation(
             return ClipAnimation(
                 type = AnimationType.fromIndex((map["type"] as? Number)?.toInt() ?: 0),
                 easing = EasingType.fromIndex((map["easing"] as? Number)?.toInt() ?: 0),
-                durationMs = (map["durationMs"] as? Number)?.toInt() ?: 500
+                durationMs = (map["durationMs"] as? Number)?.toInt() ?: 500,
+                intensity = (map["intensity"] as? Number)?.toFloat() ?: 1.0f
             )
         }
     }
@@ -165,7 +168,11 @@ data class SubtitleClip(
     val imagePath: String? = null,
     val isText: Boolean = true,
     val isBackground: Boolean = false,
-    val fillMode: Int = 0 // 0: cover, 1: fit, 2: center
+    val fillMode: Int = 0, // 0: cover, 1: fit, 2: center
+    val isGradientEnabled: Boolean = false,
+    val gradientColor1: Int = 0xFFFFFFFF.toInt(),
+    val gradientColor2: Int = 0xFF000000.toInt(),
+    val gradientAngle: Float = 0f
 )
 
 /**

@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/services.dart';
 
 class NativeBridge {
@@ -168,5 +169,14 @@ class NativeBridge {
       'ends': ends,
       'vols': vols,
     });
+  }
+
+  Future<Float32List?> decodeAudioToPcm(String audioPath) async {
+    final result = await _channel.invokeMethod<Float32List>('decodeAudioToPcm', {'audioPath': audioPath});
+    return result;
+  }
+
+  Future<void> openVideoFile(String path) async {
+    await _channel.invokeMethod('openVideoFile', {'path': path});
   }
 }

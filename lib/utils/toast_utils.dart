@@ -3,10 +3,9 @@ import '../main.dart';
 
 class ToastUtils {
   static void show(String message, {bool isError = false}) {
-    final context = navigatorKey.currentContext;
-    if (context == null) return;
+    final overlay = navigatorKey.currentState?.overlay;
+    if (overlay == null) return;
 
-    final overlay = Overlay.of(context);
     final overlayEntry = OverlayEntry(
       builder: (context) => _ToastWidget(
         message: message,

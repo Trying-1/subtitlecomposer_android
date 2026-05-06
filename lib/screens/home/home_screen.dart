@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/editor_provider.dart';
 import '../editor_screen.dart';
 import 'tutorials_page.dart';
+import 'assets_library_screen.dart';
 import '../profile/profile_screen.dart';
 import '../video_player/video_player_screen.dart';
 import '../../config/app_config.dart';
@@ -64,6 +65,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const EditorScreen()));
                 },
                 primary: true,
+              ),
+              const SizedBox(height: 20),
+              _buildActionCard(
+                context,
+                title: 'Asset Library',
+                subtitle: 'Manage your overlays and sounds',
+                icon: Icons.auto_awesome_motion_rounded,
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const AssetsLibraryScreen()));
+                },
               ),
               const SizedBox(height: 20),
             ],

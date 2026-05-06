@@ -880,6 +880,16 @@ class _TimelineEditorState extends State<TimelineEditor> {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
+          // Waveform for Audio Clips
+          if (clip is AudioClip && clip.waveform != null)
+            Positioned.fill(
+              child: CustomPaint(
+                painter: WaveformPainter(
+                  waveform: clip.waveform!,
+                  color: isSelected ? Colors.white.withOpacity(0.2) : Color(widget.audioTimelineColor).withOpacity(0.3),
+                ),
+              ),
+            ),
           Center(
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -1196,4 +1206,44 @@ class DottedLinePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class WaveformPainter extends CustomPainter {
+  final List<double> waveform;
+  final Color color;
+
+  WaveformPainter({required this.waveform, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (waveform.isEmpty) return;
+
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+
+    final double width = size.width;
+    final double height = size.height;
+    final double midY = height / 2;
+    
+    final int totalPoints = waveform.length;
+    final double spacing = width / totalPoints;
+
+    for (int i = 0; i < totalPoints; i++) {
+      final double amplitude = waveform[i].clamp(0.0, 1.0);
+      final double barHeight = amplitude * height * 0.8;
+      final double x = i * spacing;
+      
+      canvas.drawLine(
+        Offset(x, midY - barHeight / 2),
+        Offset(x, midY + barHeight / 2),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant WaveformPainter oldDelegate) => 
+    oldDelegate.waveform != waveform || oldDelegate.color != color;
 }

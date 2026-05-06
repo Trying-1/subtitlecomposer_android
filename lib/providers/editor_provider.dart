@@ -100,11 +100,12 @@ class EditorProvider extends ChangeNotifier {
   List<Track> _audioTracks = [];
   Duration _currentTime = Duration.zero;
   Duration _totalDuration = Duration.zero;
+  Duration _mainMediaDuration = Duration.zero;
   bool _isPlaying = false;
   bool _isExporting = false;
   Set<String> _selectedClipIds = {};
   bool _isMultiSelectMode = false;
-  double _zoomLevel = 1.0; // 1.0 = 50 pixels per second
+  double _zoomLevel = 10.0; // 10.0 = max zoom (500 pixels per second)
   String? _audioPath;
   String? get audioPath => _audioPath;
   double _mainAudioVolume = 1.0;
@@ -142,6 +143,9 @@ class EditorProvider extends ChangeNotifier {
   bool _isControlPanelCollapsed = true; // Start collapsed by default
   int _activeTabIndex = 0;
   
+  List<double> _customAspectRatios = [];
+  List<double> get customAspectRatios => _customAspectRatios;
+
   final ValueNotifier<Duration> playbackTime = ValueNotifier(Duration.zero);
 
   final List<HistoryState> _undoStack = [];
@@ -322,7 +326,7 @@ class EditorProvider extends ChangeNotifier {
       _projectId = project.id;
       _projectName = project.name;
       _aspectRatio = project.aspectRatio;
-      _backgroundColor = project.backgroundColor;
+      _backgroundColor = project.backgroundColor == 0xFF000000 ? 0xFFFFFFFF : project.backgroundColor;
       _backgroundImagePath = project.backgroundImagePath;
       _backgroundScale = project.backgroundScale;
       _backgroundRotation = project.backgroundRotation;
@@ -361,8 +365,26 @@ class EditorProvider extends ChangeNotifier {
       }
       
       syncToNative();
+      _repairWaveforms(); // Run in background
       notifyListeners();
     }
+  }
+
+  Future<void> _repairWaveforms() async {
+    bool changed = false;
+    for (var track in _audioTracks) {
+      for (int i = 0; i < track.audioClips.length; i++) {
+        final clip = track.audioClips[i];
+        if (clip.waveform == null || clip.waveform!.isEmpty) {
+          final waveform = await _generateWaveform(clip.audioPath);
+          if (waveform.isNotEmpty) {
+            track.audioClips[i] = clip.copyWith(waveform: waveform);
+            changed = true;
+          }
+        }
+      }
+    }
+    if (changed) notifyListeners();
   }
 
   void createNewProject() {
@@ -380,7 +402,7 @@ class EditorProvider extends ChangeNotifier {
     _redoStack.clear();
     
     _aspectRatio = 16 / 9;
-    _backgroundColor = 0xFF000000;
+    _backgroundColor = 0xFFFFFFFF;
     _backgroundImagePath = null;
     _backgroundScale = 1.0;
     _backgroundRotation = 0.0;
@@ -528,6 +550,57 @@ class EditorProvider extends ChangeNotifier {
       width: width,
       height: height,
     );
+  }
+
+  Future<List<double>> _generateWaveform(String path) async {
+    try {
+      debugPrint('Generating waveform for: $path');
+      final rawPcm = await _bridge.decodeAudioToPcm(path);
+      if (rawPcm == null || rawPcm.isEmpty) {
+        debugPrint('Waveform generation failed: PCM is null or empty');
+        return [];
+      }
+      debugPrint('PCM decoded: ${rawPcm.length} samples');
+      const int sampleRate = 16000; // Native side decodes to 16kHz mono
+      const int pointsPerSecond = 50; 
+      final durationSec = rawPcm.length / sampleRate.toDouble();
+      final totalPoints = (durationSec * pointsPerSecond).toInt().clamp(50, 2000);
+      
+      if (totalPoints <= 0) return [];
+      
+      final int samplesPerBucket = (rawPcm.length / totalPoints).floor();
+      if (samplesPerBucket <= 0) return [];
+
+      final List<double> waveform = [];
+      for (int i = 0; i < totalPoints; i++) {
+        double max = 0;
+        final start = i * samplesPerBucket;
+        final end = (i + 1) * samplesPerBucket;
+        for (int j = start; j < end && j < rawPcm.length; j++) {
+          final val = rawPcm[j].abs();
+          if (val > max) max = val;
+        }
+        waveform.add(max);
+      }
+
+      // Normalize waveform to ensure visibility
+      if (waveform.isNotEmpty) {
+        double peak = 0;
+        for (var v in waveform) {
+          if (v > peak) peak = v;
+        }
+        if (peak > 0) {
+          for (int i = 0; i < waveform.length; i++) {
+            waveform[i] = waveform[i] / peak;
+          }
+        }
+      }
+
+      return waveform;
+    } catch (e) {
+      debugPrint('Error generating waveform: $e');
+      return [];
+    }
   }
 
   void saveState() {
@@ -822,6 +895,7 @@ class EditorProvider extends ChangeNotifier {
     String? imagePath,
     int? fillMode,
     CustomBlendMode? blendMode,
+    bool silent = false,
   }) {
     updateClips([id],
       text: text,
@@ -852,6 +926,7 @@ class EditorProvider extends ChangeNotifier {
       imagePath: imagePath,
       fillMode: fillMode,
       blendMode: blendMode,
+      silent: silent,
     );
   }
 
@@ -873,7 +948,7 @@ class EditorProvider extends ChangeNotifier {
         return text;
     }
   }
-  void moveClips(Iterable<String> ids, double dx, double dy) {
+  void moveClips(Iterable<String> ids, double dx, double dy, {bool silent = false}) {
     if (ids.isEmpty) return;
     final idSet = ids.toSet();
 
@@ -901,8 +976,31 @@ class EditorProvider extends ChangeNotifier {
       }
     }
 
-    syncToNative();
-    notifyListeners();
+    for (var track in _backgroundTracks) {
+      for (int i = 0; i < track.backgrounds.length; i++) {
+        final clip = track.backgrounds[i];
+        if (idSet.contains(clip.id)) {
+          track.backgrounds[i] = clip.copyWith(
+            x: (clip.x + dx).clamp(-0.5, 1.5),
+            y: (clip.y + dy).clamp(-0.5, 1.5),
+          );
+        }
+      }
+    }
+
+    if (!silent) {
+      syncToNative();
+      notifyListeners();
+    } else {
+      _bridge.updateClips(getAllClipsJson());
+    }
+  }
+
+  List<Map<String, dynamic>> getAllClipsJson() {
+    final allClips = _tracks.expand((t) => t.clips).map((c) => c.toJson()).toList();
+    final allOverlays = _overlayTracks.expand((t) => t.overlays).map((c) => c.toJson()).toList();
+    final allBackgrounds = _backgroundTracks.expand((t) => t.backgrounds).map((c) => c.toJson()).toList();
+    return [...allBackgrounds, ...allOverlays, ...allClips];
   }
 
 
@@ -947,6 +1045,11 @@ class EditorProvider extends ChangeNotifier {
     double? reflectionOffset,
     double? reflectionOpacity,
     int? reflectionColor,
+    bool? isGradientEnabled,
+    int? gradientColor1,
+    int? gradientColor2,
+    double? gradientAngle,
+    bool silent = false,
   }) {
     final idSet = ids.toSet();
     final isPropertyUpdate = x != null || y != null || scale != null || rotation != null || opacity != null;
@@ -1016,6 +1119,10 @@ class EditorProvider extends ChangeNotifier {
             entranceAnimation: entranceAnimation,
             exitAnimation: exitAnimation,
             loopAnimation: loopAnimation,
+            isGradientEnabled: isGradientEnabled,
+            gradientColor1: gradientColor1,
+            gradientColor2: gradientColor2,
+            gradientAngle: gradientAngle,
             keyframes: updatedKeyframes,
           );
         }
@@ -1142,9 +1249,13 @@ class EditorProvider extends ChangeNotifier {
       }
     }
     
-    syncToNative();
-    _markDirty();
-    notifyListeners();
+    if (!silent) {
+      syncToNative();
+      _markDirty();
+      notifyListeners();
+    } else {
+      _bridge.updateClips(getAllClipsJson());
+    }
   }
 
   void applyPreset(String clipId, AnimationPreset preset) {
@@ -1242,7 +1353,7 @@ class EditorProvider extends ChangeNotifier {
         final Map<String, dynamic> state = Map<String, dynamic>.from(data);
         
         _aspectRatio = state['aspectRatio'] ?? 16 / 9;
-        _backgroundColor = state['backgroundColor'] ?? 0xFF000000;
+        _backgroundColor = state['backgroundColor'] ?? 0xFFFFFFFF;
         _backgroundImagePath = state['backgroundImagePath'];
         _backgroundScale = (state['backgroundScale'] as num?)?.toDouble() ?? 1.0;
         _backgroundRotation = (state['backgroundRotation'] as num?)?.toDouble() ?? 0.0;
@@ -1268,7 +1379,43 @@ class EditorProvider extends ChangeNotifier {
 
   void _init() async {
     await _bridge.initAudioEngine();
+    _loadSettings();
     await _loadPersistedProject();
+  }
+
+  void _loadSettings() {
+    try {
+      final box = Hive.box('settings_box');
+      final ratios = box.get('custom_aspect_ratios');
+      if (ratios != null) {
+        _customAspectRatios = List<double>.from(ratios);
+      }
+    } catch (e) {
+      debugPrint("Error loading settings: $e");
+    }
+  }
+
+  void addCustomAspectRatio(double ratio) {
+    if (!_customAspectRatios.any((r) => (r - ratio).abs() < 0.001)) {
+      _customAspectRatios.add(ratio);
+      _saveSettings();
+      notifyListeners();
+    }
+  }
+
+  void removeCustomAspectRatio(double ratio) {
+    _customAspectRatios.removeWhere((r) => (r - ratio).abs() < 0.001);
+    _saveSettings();
+    notifyListeners();
+  }
+
+  void _saveSettings() {
+    try {
+      final box = Hive.box('settings_box');
+      box.put('custom_aspect_ratios', _customAspectRatios);
+    } catch (e) {
+      debugPrint("Error saving settings: $e");
+    }
   }
 
   Future<void> loadAudio(String path) async {
@@ -1277,11 +1424,15 @@ class EditorProvider extends ChangeNotifier {
     
     final durationMs = await _bridge.getVideoDuration(path);
     final duration = Duration(milliseconds: durationMs);
+    _mainMediaDuration = duration;
     _totalDuration = duration;
     
     for (var track in _audioTracks) {
       track.audioClips.removeWhere((c) => c.isMainAudio);
     }
+    
+    // Generate waveform data
+    final waveform = await _generateWaveform(path);
     
     final mainClip = AudioClip(
       id: 'main_audio_${DateTime.now().millisecondsSinceEpoch}',
@@ -1290,6 +1441,7 @@ class EditorProvider extends ChangeNotifier {
       endTime: duration,
       isMainAudio: true,
       sourceDurationMs: durationMs,
+      waveform: waveform,
     );
     
     if (_audioTracks.isEmpty) {
@@ -2406,14 +2558,19 @@ class EditorProvider extends ChangeNotifier {
         }),
       ];
       
-      final int w, h;
-      if (_aspectRatio > 1.2) {
-        w = 1920; h = 1080;
-      } else if (_aspectRatio < 0.8) {
-        w = 1080; h = 1920;
+      int w, h;
+      if (_aspectRatio >= 1.0) {
+        // Landscape or Square: width is the larger dimension
+        w = 1920;
+        h = (1920 / _aspectRatio).round();
       } else {
-        w = 1080; h = 1080;
+        // Portrait: height is the larger dimension
+        h = 1920;
+        w = (1920 * _aspectRatio).round();
       }
+      // Ensure even dimensions for encoder compatibility
+      if (w % 2 != 0) w -= 1;
+      if (h % 2 != 0) h -= 1;
 
       final result = await _bridge.exportVideo(
         width: w,
@@ -2581,12 +2738,16 @@ class EditorProvider extends ChangeNotifier {
     final durationMs = await _bridge.getVideoDuration(path);
     final duration = durationMs > 0 ? Duration(milliseconds: durationMs) : const Duration(seconds: 5);
     
+    // Generate waveform data
+    final waveform = await _generateWaveform(path);
+    
     final clip = AudioClip(
       id: id,
       audioPath: path,
       startTime: _clampTime(_currentTime),
       endTime: _clampTime(_currentTime + duration),
       sourceDurationMs: durationMs,
+      waveform: waveform,
     );
 
     // Find a track without collision or create new
@@ -2720,6 +2881,121 @@ class EditorProvider extends ChangeNotifier {
   void setActiveTabIndex(int index) {
     _activeTabIndex = index;
     _isControlPanelCollapsed = false;
+    notifyListeners();
+  }
+
+  void _recalculateTotalDuration() {
+    Duration maxEnd = _mainMediaDuration;
+    for (var track in _tracks) {
+      for (var clip in track.clips) if (clip.endTime > maxEnd) maxEnd = clip.endTime;
+    }
+    for (var track in _overlayTracks) {
+      for (var clip in track.overlays) if (clip.endTime > maxEnd) maxEnd = clip.endTime;
+    }
+    for (var track in _audioTracks) {
+      for (var clip in track.audioClips) if (clip.endTime > maxEnd) maxEnd = clip.endTime;
+    }
+    for (var track in _backgroundTracks) {
+      for (var clip in track.backgrounds) if (clip.endTime > maxEnd) maxEnd = clip.endTime;
+    }
+    
+    _totalDuration = maxEnd;
+    if (_totalDuration < const Duration(seconds: 1)) {
+      _totalDuration = const Duration(seconds: 5);
+    }
+  }
+
+  void applyOverlayMotionPreset(String clipId, String presetId) {
+    saveState();
+    _recalculateTotalDuration();
+    final totalSec = _totalDuration.inMilliseconds / 1000.0;
+    final endKeyframeTime = (totalSec - 0.001).clamp(0.0, totalSec);
+    
+    for (var track in _overlayTracks) {
+      final index = track.overlays.indexWhere((c) => c.id == clipId);
+      if (index != -1) {
+        var clip = track.overlays[index];
+        
+        List<Keyframe> keyframes = [];
+        
+        switch (presetId) {
+          case 'left_to_right':
+            keyframes = [
+              Keyframe(timeOffset: 0, x: -0.05),
+              Keyframe(timeOffset: endKeyframeTime, x: 1.05),
+            ];
+            break;
+          case 'right_to_left':
+            keyframes = [
+              Keyframe(timeOffset: 0, x: 1.05),
+              Keyframe(timeOffset: endKeyframeTime, x: -0.05),
+            ];
+            break;
+          case 'top_to_bottom':
+            keyframes = [
+              Keyframe(timeOffset: 0, y: -0.05),
+              Keyframe(timeOffset: endKeyframeTime, y: 1.05),
+            ];
+            break;
+          case 'bottom_to_top':
+            keyframes = [
+              Keyframe(timeOffset: 0, y: 1.05),
+              Keyframe(timeOffset: endKeyframeTime, y: -0.05),
+            ];
+            break;
+          case 'zoom_in':
+            keyframes = [
+              Keyframe(timeOffset: 0, scale: 0.1),
+              Keyframe(timeOffset: endKeyframeTime, scale: 1.5),
+            ];
+            break;
+          case 'zoom_out':
+            keyframes = [
+              Keyframe(timeOffset: 0, scale: 2.0),
+              Keyframe(timeOffset: endKeyframeTime, scale: 1.0),
+            ];
+            break;
+          case 'diagonal_tl_br':
+            keyframes = [
+              Keyframe(timeOffset: 0, x: -0.05, y: -0.05),
+              Keyframe(timeOffset: endKeyframeTime, x: 1.05, y: 1.05),
+            ];
+            break;
+          case 'diagonal_bl_tr':
+            keyframes = [
+              Keyframe(timeOffset: 0, x: -0.05, y: 1.05),
+              Keyframe(timeOffset: endKeyframeTime, x: 1.05, y: -0.05),
+            ];
+            break;
+        }
+        
+        if (keyframes.isNotEmpty) {
+          track.overlays[index] = clip.copyWith(
+            startTime: Duration.zero,
+            endTime: _totalDuration,
+            keyframes: keyframes,
+            entranceAnimation: const ClipAnimation(),
+            exitAnimation: const ClipAnimation(),
+          );
+        }
+        break;
+      }
+    }
+    syncToNative();
+    notifyListeners();
+  }
+    
+  void replaceOverlayAsset(String clipId, String newPath) {
+    saveState();
+    for (var track in _overlayTracks) {
+      final index = track.overlays.indexWhere((c) => c.id == clipId);
+      if (index != -1) {
+        var clip = track.overlays[index];
+        track.overlays[index] = clip.copyWith(imagePath: newPath);
+        break;
+      }
+    }
+    syncToNative();
     notifyListeners();
   }
 }

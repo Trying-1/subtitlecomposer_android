@@ -248,8 +248,35 @@ yes, if that more smooth and professional level then offcourse we  need that
 [good but now the issue is that segment duration adjustment  drag is conflicting with timeline scroll man. this is bad]
 [it working now, next clean up the unused track. like I drag segment to new track but again I move it back to orinal track then clean up the newly created tracks that are unsed or else they are unecessarliy taking up the timeline space, understood]
 
-
-
+================version13==============
+[alright next, the audio quality is soo poor, it like too different from original audio. kind of feels radio ]
+[the bulk sfx toast notifier is not showing]
+[next the postion drag adjust of elements in the preview window is not smooth, like not realtime, explain the reason, plan and then execute]
+[default background white instead of black]
+[next lets show the audio waveform in the audio segment, understood. how to achieve this]
+[good, for the scale slider instead of having upper and lower limit lets have dial based scrubber, like I can swipe left to decrease and right to increase, from the current state, keeping the reset button as it is, understood, what I mean]
+[in the keyframes lets add some preset keyframes, like I want one in which overlay moves from the left most to the right during the entire video. understood. so when i chose this preset, set the overlay duration from 0, to the end time. and add position keyframe to it, something like this understood]
+[also add for diagonal pan]
+[cool, but there are few bugs and improvement needed, first that the overlay started too late and  reached the end 5s before the actual video end. i don't want that, ]
+[next I want update the y postion fion of this L->R overlay then how should I do that. ]
+[good, but there issue in the keyframe adding, the end keyframe is outside the segment ends. why is that, and even the overlay reach the right end too early before the the video end, this doesnt look good understand]
+[lets add overlay replace feature, like keeping the the same property and animation, just replace the overlay asset, understood. ]
+[after successfull export show a success dialog showing the saved path with a preview button which opens that video, create new widget file for this understood and wire it properly]
+[next lets add  assets management screen accessible from home screen where we can add our assets like overlays, sound and sfx, which we can use inside the editor. undertood. ]
+[theres critical bug in the the background transfromation, like on scaling background in the background tab affecting the text, overlay as well. wtf is that]
+[good next issue is in the rotation quick buttons,  lets keep only the increment buttons,  0 and +15, +45, understood. ]
+[in the background fill mode new new buttons like scale to match the the height of canvas, and width of canvas, not streching, just scale, understood. ]
+[next lets add custom aspect ratios as well. in the aspect ratio tab]
+[save those aspect ratios, so that we don't have to fill it again and again]
+[and man there issue, I set the aspect ration 1080x400, but still the ouput was 1080x1920, though the preview was correctly showing 1080x400]
+[good, next in the home screen asset library add fonts management as well]
+[in asset library audio sfx, allow to rename, play to listen as well. got it]
+[in the overlay and background video picking is not working, only image working]
+[allow gifs as well]
+[good next in the colors, text colors lets allow gradient colors as well, understood, right now we only have solid colors. lets add method to choose/create gradient understood]
+[yo the texts are not at all visble.]
+[and in the home screen assets library for image and videos use image picker instead of file picker, just like we have done inside the editor understood]
+[still text are not visible, nor the overlays, nor the backround]
 
 
 

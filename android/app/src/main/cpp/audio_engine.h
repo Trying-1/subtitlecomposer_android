@@ -40,6 +40,13 @@ public:
     // Internal callback
     void processAudio(float* buffer, int numFrames);
 
+    // Double-buffering: OpenSL callback needs direct access
+    static constexpr int mBufferSizeFrames = 1024;
+    int16_t mBufferA[mBufferSizeFrames * 2];
+    int16_t mBufferB[mBufferSizeFrames * 2];
+    int mCurrentBuffer = 0;
+    float mFloatBuf[mBufferSizeFrames * 2];
+
 private:
     void setupOpenSL();
     void shutdownOpenSL();
@@ -62,7 +69,6 @@ private:
 
     static constexpr int mSampleRate = 44100;
     static constexpr int mNumChannels = 2;
-    static constexpr int mBufferSizeFrames = 1024;
 
     float* mOutputBuffer = nullptr;
 };

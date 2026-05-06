@@ -20,7 +20,7 @@ class TypographyRenderer(
     private var currentTimeMs = 0L
     private var subtitleRenderer: SubtitleRenderer? = null
     private var backgroundRenderer: BackgroundRenderer? = null
-    private var bgColor: Int = 0xFF000000.toInt()
+    private var bgColor: Int = 0xFFFFFFFF.toInt()
     private var backgroundImagePath: String? = null
     private var bgScale: Float = 1f
     private var bgRotation: Float = 0f
@@ -209,20 +209,21 @@ class TypographyRenderer(
             viewportY = (currentHeight - viewportHeight) / 2
         }
 
-        // 1. Clear the WHOLE surface with black (or bg color)
+        // 1. Clear the WHOLE surface with bg color
         GLES20.glViewport(0, 0, currentWidth, currentHeight)
-        GLES20.glClearColor(0f, 0f, 0f, 1f) // Black bars
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
-
-        // 2. Setup the logical viewport for content
-        GLES20.glViewport(viewportX, viewportY, viewportWidth, viewportHeight)
         
         val r = (bgColor shr 16 and 0xFF) / 255f
         val g = (bgColor shr 8 and 0xFF) / 255f
         val b = (bgColor and 0xFF) / 255f
         val a = (bgColor shr 24 and 0xFF) / 255f
+        
+        GLES20.glClearColor(r, g, b, a)
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
 
-        // Fill background color within viewport
+        // 2. Setup the logical viewport for content
+        GLES20.glViewport(viewportX, viewportY, viewportWidth, viewportHeight)
+        
+        // Clearing again within viewport (optional if scissoring is used, but safe)
         GLES20.glClearColor(r, g, b, a)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
 

@@ -28,6 +28,7 @@ enum AnimationType {
   radialWipe,
   throwback,
   wavyBend,
+  ripple,
 }
 
 enum EasingType {
@@ -74,33 +75,39 @@ class ClipAnimation {
   final AnimationType type;
   final EasingType easing;
   final int durationMs;
+  final double intensity;
 
   const ClipAnimation({
     this.type = AnimationType.none,
     this.easing = EasingType.easeOut,
     this.durationMs = 500,
+    this.intensity = 1.0,
   });
 
   Map<String, dynamic> toJson() => {
     'type': type.index,
     'easing': easing.index,
     'durationMs': durationMs,
+    'intensity': intensity,
   };
 
   factory ClipAnimation.fromJson(Map<String, dynamic> json) => ClipAnimation(
     type: AnimationType.values[json['type'] as int? ?? 0],
     easing: EasingType.values[json['easing'] as int? ?? 0],
     durationMs: json['durationMs'] as int? ?? 500,
+    intensity: (json['intensity'] as num? ?? 1.0).toDouble(),
   );
 
   ClipAnimation copyWith({
     AnimationType? type,
     EasingType? easing,
     int? durationMs,
+    double? intensity,
   }) => ClipAnimation(
     type: type ?? this.type,
     easing: easing ?? this.easing,
     durationMs: durationMs ?? this.durationMs,
+    intensity: intensity ?? this.intensity,
   );
 }
 
@@ -258,6 +265,10 @@ class SubtitleClip implements TimelineClip {
   final double reflectionOpacity;
   final int reflectionColor;
   final CustomBlendMode blendMode;
+  final bool isGradientEnabled;
+  final int gradientColor1;
+  final int gradientColor2;
+  final double gradientAngle;
   @override
   final Duration originalStartTime;
   @override
@@ -312,6 +323,10 @@ class SubtitleClip implements TimelineClip {
     this.reflectionOpacity = 0.5,
     this.reflectionColor = 0xFFFFFFFF,
     this.blendMode = CustomBlendMode.normal,
+    this.isGradientEnabled = false,
+    this.gradientColor1 = 0xFFFFFFFF,
+    this.gradientColor2 = 0xFF000000,
+    this.gradientAngle = 0.0,
     this.fontFamily = 'Poppins',
     this.entranceAnimation = const ClipAnimation(),
     this.exitAnimation = const ClipAnimation(),
@@ -359,6 +374,10 @@ class SubtitleClip implements TimelineClip {
     'reflectionOpacity': reflectionOpacity,
     'reflectionColor': reflectionColor,
     'blendMode': blendMode.index,
+    'isGradientEnabled': isGradientEnabled,
+    'gradientColor1': gradientColor1,
+    'gradientColor2': gradientColor2,
+    'gradientAngle': gradientAngle,
     'fontFamily': fontFamily,
     'entranceAnimation': entranceAnimation.toJson(),
     'exitAnimation': exitAnimation.toJson(),
@@ -398,6 +417,10 @@ class SubtitleClip implements TimelineClip {
     isGlowEnabled: json['isGlowEnabled'] as bool? ?? false,
     isBendingEnabled: json['isBendingEnabled'] as bool? ?? false,
     isReflectionEnabled: json['isReflectionEnabled'] as bool? ?? false,
+    isGradientEnabled: json['isGradientEnabled'] as bool? ?? false,
+    gradientColor1: json['gradientColor1'] as int? ?? 0xFFFFFFFF,
+    gradientColor2: json['gradientColor2'] as int? ?? 0xFF000000,
+    gradientAngle: (json['gradientAngle'] as num?)?.toDouble() ?? 0.0,
     glowColor: json['glowColor'] as int? ?? 0xFFFF0000,
     glowSize: (json['glowSize'] as num?)?.toDouble() ?? 0.0,
     bendingAmount: (json['bendingAmount'] as num?)?.toDouble() ?? 0.0,
@@ -451,6 +474,10 @@ class SubtitleClip implements TimelineClip {
     double? reflectionOpacity,
     int? reflectionColor,
     CustomBlendMode? blendMode,
+    bool? isGradientEnabled,
+    int? gradientColor1,
+    int? gradientColor2,
+    double? gradientAngle,
     String? fontFamily,
     ClipAnimation? entranceAnimation,
     ClipAnimation? exitAnimation,
@@ -492,7 +519,12 @@ class SubtitleClip implements TimelineClip {
     bendingAmount: bendingAmount ?? this.bendingAmount,
     reflectionOffset: reflectionOffset ?? this.reflectionOffset,
     reflectionOpacity: reflectionOpacity ?? this.reflectionOpacity,
+    reflectionColor: reflectionColor ?? this.reflectionColor,
     blendMode: blendMode ?? this.blendMode,
+    isGradientEnabled: isGradientEnabled ?? this.isGradientEnabled,
+    gradientColor1: gradientColor1 ?? this.gradientColor1,
+    gradientColor2: gradientColor2 ?? this.gradientColor2,
+    gradientAngle: gradientAngle ?? this.gradientAngle,
     fontFamily: fontFamily ?? this.fontFamily,
     entranceAnimation: entranceAnimation ?? this.entranceAnimation,
     exitAnimation: exitAnimation ?? this.exitAnimation,
@@ -928,6 +960,7 @@ class AudioClip implements TimelineClip {
   @override
   final int sourceDurationMs;
   final bool isMainAudio;
+  final List<double>? waveform;
   @override
   Duration get duration => endTime - startTime;
 
@@ -939,6 +972,7 @@ class AudioClip implements TimelineClip {
     this.volume = 1.0,
     this.sourceDurationMs = 0,
     this.isMainAudio = false,
+    this.waveform,
     Duration? originalStartTime,
     Duration? originalEndTime,
     this.originalTrackId,
@@ -954,6 +988,7 @@ class AudioClip implements TimelineClip {
     'volume': volume,
     'sourceDurationMs': sourceDurationMs,
     'isMainAudio': isMainAudio,
+    'waveform': waveform,
     'originalStartTime': originalStartTime.inMilliseconds,
     'originalEndTime': originalEndTime.inMilliseconds,
     'originalTrackId': originalTrackId,
@@ -967,6 +1002,7 @@ class AudioClip implements TimelineClip {
     volume: (json['volume'] as num?)?.toDouble() ?? 1.0,
     sourceDurationMs: json['sourceDurationMs'] as int? ?? 0,
     isMainAudio: json['isMainAudio'] as bool? ?? false,
+    waveform: (json['waveform'] as List?)?.map((e) => (e as num).toDouble()).toList(),
     originalStartTime: Duration(milliseconds: json['originalStartTime'] ?? json['startTime']),
     originalEndTime: Duration(milliseconds: json['originalEndTime'] ?? json['endTime']),
     originalTrackId: json['originalTrackId'],
@@ -980,6 +1016,7 @@ class AudioClip implements TimelineClip {
     double? volume,
     int? sourceDurationMs,
     bool? isMainAudio,
+    List<double>? waveform,
     Duration? originalStartTime,
     Duration? originalEndTime,
     String? originalTrackId,
@@ -991,6 +1028,7 @@ class AudioClip implements TimelineClip {
     volume: volume ?? this.volume,
     sourceDurationMs: sourceDurationMs ?? this.sourceDurationMs,
     isMainAudio: isMainAudio ?? this.isMainAudio,
+    waveform: waveform ?? this.waveform,
     originalStartTime: originalStartTime ?? this.originalStartTime,
     originalEndTime: originalEndTime ?? this.originalEndTime,
     originalTrackId: originalTrackId ?? this.originalTrackId,
@@ -1083,7 +1121,7 @@ class Project {
     this.videoWidth = 1920,
     this.videoHeight = 1080,
     this.aspectRatio = 16 / 9,
-    this.backgroundColor = 0xFF000000,
+    this.backgroundColor = 0xFFFFFFFF,
     this.backgroundImagePath,
     this.backgroundScale = 1.0,
     this.backgroundRotation = 0.0,
@@ -1127,7 +1165,7 @@ class Project {
     videoWidth: (json['videoWidth'] as num?)?.toDouble() ?? 1920,
     videoHeight: (json['videoHeight'] as num?)?.toDouble() ?? 1080,
     aspectRatio: (json['aspectRatio'] as num?)?.toDouble() ?? 16 / 9,
-    backgroundColor: json['backgroundColor'] ?? 0xFF000000,
+    backgroundColor: json['backgroundColor'] ?? 0xFFFFFFFF,
     backgroundImagePath: json['backgroundImagePath'],
     backgroundScale: (json['backgroundScale'] as num?)?.toDouble() ?? 1.0,
     backgroundRotation: (json['backgroundRotation'] as num?)?.toDouble() ?? 0.0,

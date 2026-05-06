@@ -121,16 +121,24 @@ class _OverlayTabState extends State<OverlayTab> {
             itemCount: assetProvider.assets.length,
             itemBuilder: (context, index) {
               final path = assetProvider.assets[index];
+              final isReplacing = widget.selectedOverlay != null;
+              
               return Stack(
                 children: [
                   InkWell(
-                    onTap: () => widget.onAddOverlay(path),
+                    onTap: () {
+                      if (isReplacing) {
+                        context.read<EditorProvider>().replaceOverlayAsset(widget.selectedOverlay!.id, path);
+                      } else {
+                        widget.onAddOverlay(path);
+                      }
+                    },
                     onLongPress: () => _showRenameDialog(context, assetProvider, path),
                     borderRadius: BorderRadius.circular(8),
                     child: Container(
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.white.withOpacity(0.1)),
+                        border: Border.all(color: isReplacing ? Colors.greenAccent.withOpacity(0.5) : Colors.white.withOpacity(0.1), width: isReplacing ? 2 : 1),
                         image: path.toLowerCase().endsWith('.mp4') || path.toLowerCase().endsWith('.mov') || path.toLowerCase().endsWith('.mkv') || path.toLowerCase().endsWith('.webm')
                           ? null
                           : DecorationImage(
@@ -138,28 +146,42 @@ class _OverlayTabState extends State<OverlayTab> {
                               fit: BoxFit.cover,
                             ),
                       ),
-                      child: path.toLowerCase().endsWith('.mp4') || path.toLowerCase().endsWith('.mov') || path.toLowerCase().endsWith('.mkv') || path.toLowerCase().endsWith('.webm')
-                        ? Center(child: Icon(Icons.videocam_rounded, color: Colors.deepPurpleAccent.withOpacity(0.5), size: 32))
-                        : Stack(
-                            children: [
-                              Positioned(
-                                bottom: 0, left: 0, right: 0,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black54,
-                                    borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)),
-                                  ),
-                                  child: Text(
-                                    assetProvider.getAssetName(path),
-                                    style: const TextStyle(color: Colors.white, fontSize: 8),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
+                      child: Stack(
+                        children: [
+                          if (path.toLowerCase().endsWith('.mp4') || path.toLowerCase().endsWith('.mov') || path.toLowerCase().endsWith('.mkv') || path.toLowerCase().endsWith('.webm'))
+                            Center(child: Icon(Icons.videocam_rounded, color: Colors.deepPurpleAccent.withOpacity(0.5), size: 32)),
+                          
+                          if (isReplacing)
+                            Container(
+                              alignment: Alignment.center,
+                              color: Colors.greenAccent.withOpacity(0.2),
+                              child: const Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.swap_horiz_rounded, color: Colors.white, size: 24),
+                                  Text('REPLACE', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+                                ],
                               ),
-                            ],
+                            ),
+
+                          Positioned(
+                            bottom: 0, left: 0, right: 0,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.black54,
+                                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)),
+                              ),
+                              child: Text(
+                                assetProvider.getAssetName(path),
+                                style: const TextStyle(color: Colors.white, fontSize: 8),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
                           ),
+                        ],
+                      ),
                     ),
                   ),
                   Positioned(
@@ -340,7 +362,7 @@ class _OverlayTabState extends State<OverlayTab> {
             children: [
               const Text('OVERLAY TRANSFORM', style: TextStyle(fontSize: 8, color: Colors.deepPurpleAccent, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
               const SizedBox(height: 12),
-              CommonControls.buildSlider(
+              CommonControls.buildDialScrubber(
                 context,
                 'Scale',
                 widget.selectedOverlay!.scale,
@@ -357,7 +379,7 @@ class _OverlayTabState extends State<OverlayTab> {
                 (v) => widget.onUpdate(opacity: v),
               ),
               const SizedBox(height: 12),
-              CommonControls.buildSlider(
+              CommonControls.buildDialScrubber(
                 context,
                 'Rotation',
                 widget.selectedOverlay!.rotation,
@@ -372,21 +394,24 @@ class _OverlayTabState extends State<OverlayTab> {
               const SizedBox(height: 16),
               const Text('POSITION', style: TextStyle(fontSize: 8, color: Colors.deepPurpleAccent, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
               const SizedBox(height: 12),
-              CommonControls.buildSlider(
+              CommonControls.buildDialScrubber(
                 context,
                 'X Position',
                 widget.selectedOverlay!.x,
                 -0.5,
                 1.5,
                 (v) => widget.onUpdate(x: v),
+                onReset: () => widget.onUpdate(x: 0.5),
               ),
-              CommonControls.buildSlider(
+              const SizedBox(height: 12),
+              CommonControls.buildDialScrubber(
                 context,
                 'Y Position',
                 widget.selectedOverlay!.y,
                 -0.5,
                 1.5,
                 (v) => widget.onUpdate(y: v),
+                onReset: () => widget.onUpdate(y: 0.5),
               ),
             ],
           )
@@ -449,6 +474,84 @@ class _OverlayTabState extends State<OverlayTab> {
           AnimationLibrary.loopAnimations,
           overlay.loopAnimation,
           (type) => widget.onUpdate(loopAnimation: overlay.loopAnimation.copyWith(type: type)),
+        ),
+        if (overlay.loopAnimation.type != AnimationType.none) ...[
+          const SizedBox(height: 12),
+          CommonControls.buildDialScrubber(
+            context, 
+            'Loop Speed', 
+            1000 / overlay.loopAnimation.durationMs.toDouble(), 
+            0.01, 
+            5.0, 
+            (v) => widget.onUpdate(loopAnimation: overlay.loopAnimation.copyWith(durationMs: (1000 / v).toInt())),
+            onReset: () => widget.onUpdate(loopAnimation: overlay.loopAnimation.copyWith(durationMs: 1000)),
+          ),
+          const SizedBox(height: 12),
+          CommonControls.buildDialScrubber(
+            context, 
+            'Loop Intensity', 
+            overlay.loopAnimation.intensity, 
+            0.1, 
+            5.0, 
+            (v) => widget.onUpdate(loopAnimation: overlay.loopAnimation.copyWith(intensity: v)),
+            onReset: () => widget.onUpdate(loopAnimation: overlay.loopAnimation.copyWith(intensity: 1.0)),
+          ),
+        ],
+        const SizedBox(height: 24),
+        _buildMotionPresets(),
+      ],
+    );
+  }
+
+  Widget _buildMotionPresets() {
+    final provider = context.read<EditorProvider>();
+    final presets = [
+      {'id': 'left_to_right', 'label': 'L -> R', 'icon': Icons.arrow_forward_rounded},
+      {'id': 'right_to_left', 'label': 'R -> L', 'icon': Icons.arrow_back_rounded},
+      {'id': 'top_to_bottom', 'label': 'T -> B', 'icon': Icons.arrow_downward_rounded},
+      {'id': 'bottom_to_top', 'label': 'B -> T', 'icon': Icons.arrow_upward_rounded},
+      {'id': 'zoom_in', 'label': 'Zoom In', 'icon': Icons.zoom_in_rounded},
+      {'id': 'zoom_out', 'label': 'Zoom Out', 'icon': Icons.zoom_out_rounded},
+      {'id': 'diagonal_tl_br', 'label': 'TL -> BR', 'icon': Icons.south_east_rounded},
+      {'id': 'diagonal_bl_tr', 'label': 'BL -> TR', 'icon': Icons.north_east_rounded},
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('MOTION PRESETS (FULL DURATION)', style: TextStyle(fontSize: 8, color: Colors.amberAccent, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 50,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: presets.length,
+            itemBuilder: (context, index) {
+              final preset = presets[index];
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: InkWell(
+                  onTap: () => provider.applyOverlayMotionPreset(widget.selectedOverlay!.id, preset['id'] as String),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.white.withOpacity(0.1)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(preset['icon'] as IconData, size: 14, color: Colors.amberAccent),
+                        const SizedBox(width: 8),
+                        Text(preset['label'] as String, style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
         ),
       ],
     );

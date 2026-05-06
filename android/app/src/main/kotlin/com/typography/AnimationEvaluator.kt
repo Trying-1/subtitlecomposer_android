@@ -68,6 +68,11 @@ object AnimationEvaluator {
             scale *= state.scale
             scaleX *= state.scaleX
             scaleY *= state.scaleY
+            
+            // For wavy bend or ripple loop, we need the typewriterProgress (used as phase)
+            if (loop.type == AnimationType.WAVY_BEND || loop.type == AnimationType.RIPPLE) {
+                typewriterProgress = state.typewriterProgress
+            }
         }
  
         return AnimatedTextState(
@@ -210,7 +215,13 @@ object AnimationEvaluator {
  
     private fun evaluateLoop(type: AnimationType, timeMs: Long, durationMs: Int): AnimatedTextState {
         val t = timeMs.toFloat() / 1000f
-        val angle = (t * 2f * PI.toFloat())
+        // Map durationMs to speed factor. 
+        // 1000ms = normal speed (1.0x)
+        // 2000ms = half speed (0.5x)
+        // 500ms = double speed (2.0x)
+        val speedFactor = 1000f / durationMs.coerceAtLeast(100).toFloat()
+        val angle = (t * 2f * PI.toFloat() * speedFactor)
+        
         return when (type) {
             AnimationType.SHAKE -> {
                 val freq = 15f
@@ -245,11 +256,12 @@ object AnimationEvaluator {
                 AnimatedTextState(rotation = sin(angle * freq) * rotIntensity)
             }
             AnimationType.SPIN -> {
-                val freq = 1f // 1 rotation per second
-                AnimatedTextState(rotation = (timeMs % 1000) / 1000f * 360f)
+                // For spin, durationMs is the time for ONE full rotation
+                val progress = (timeMs % durationMs.coerceAtLeast(100)).toFloat() / durationMs.coerceAtLeast(100).toFloat()
+                AnimatedTextState(rotation = progress * 360f)
             }
             AnimationType.HEARTBEAT -> {
-                val freq = 1.2f
+                val freq = 1.2f * speedFactor
                 val localT = (t * freq) % 1.0f
                 val s = if (localT < 0.2f) {
                     1f + sin(localT * 5f * PI.toFloat()) * 0.2f
@@ -271,8 +283,13 @@ object AnimationEvaluator {
                 )
             }
             AnimationType.WAVY_BEND -> {
-                // Continuously advance the wave phase using time
-                val phase = (timeMs % 2000) / 2000f  // 2-second cycle
+                // Continuously advance the wave phase using time and duration
+                val phase = (timeMs % durationMs.coerceAtLeast(100)) / durationMs.coerceAtLeast(100).toFloat()
+                AnimatedTextState(typewriterProgress = phase)
+            }
+            AnimationType.RIPPLE -> {
+                // Ripple phase
+                val phase = (timeMs % durationMs.coerceAtLeast(100)) / durationMs.coerceAtLeast(100).toFloat()
                 AnimatedTextState(typewriterProgress = phase)
             }
             else -> AnimatedTextState()

@@ -11,6 +11,10 @@ class StyleTab extends StatefulWidget {
     ClipAnimation? entranceAnimation,
     ClipAnimation? exitAnimation,
     ClipAnimation? loopAnimation,
+    bool? isGradientEnabled,
+    int? gradientColor1,
+    int? gradientColor2,
+    double? gradientAngle,
   }) onUpdate;
 
   const StyleTab({
@@ -36,10 +40,21 @@ class _StyleTabState extends State<StyleTab> {
         const SizedBox(height: 16),
         if (_activeSubTabIndex == 0)
           Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CommonControls.buildColorPicker(context, 'Text Color', widget.clip.color, (c) => widget.onUpdate(color: c)),
+              CommonControls.buildToggleRow('Enable Gradient', widget.clip.isGradientEnabled, (v) => widget.onUpdate(isGradientEnabled: v)),
               const SizedBox(height: 16),
-              CommonControls.buildSlider(context, 'Text Opacity', widget.clip.textOpacity, 0, 1, (v) => widget.onUpdate(textOpacity: v)),
+              if (widget.clip.isGradientEnabled) ...[
+                CommonControls.buildColorPicker(context, 'Color 1', widget.clip.gradientColor1, (c) => widget.onUpdate(gradientColor1: c)),
+                const SizedBox(height: 16),
+                CommonControls.buildColorPicker(context, 'Color 2', widget.clip.gradientColor2, (c) => widget.onUpdate(gradientColor2: c)),
+                const SizedBox(height: 16),
+                CommonControls.buildDialScrubber(context, 'Gradient Angle', widget.clip.gradientAngle, -180, 180, (v) => widget.onUpdate(gradientAngle: v), onReset: () => widget.onUpdate(gradientAngle: 0.0)),
+              ] else ...[
+                CommonControls.buildColorPicker(context, 'Text Color', widget.clip.color, (c) => widget.onUpdate(color: c)),
+              ],
+              const SizedBox(height: 16),
+              CommonControls.buildDialScrubber(context, 'Text Opacity', widget.clip.textOpacity, 0, 1, (v) => widget.onUpdate(textOpacity: v), onReset: () => widget.onUpdate(textOpacity: 1.0)),
             ],
           )
         else
@@ -72,6 +87,28 @@ class _StyleTabState extends State<StyleTab> {
           widget.clip.loopAnimation,
           (type) => widget.onUpdate(loopAnimation: widget.clip.loopAnimation.copyWith(type: type)),
         ),
+        if (widget.clip.loopAnimation.type != AnimationType.none) ...[
+          const SizedBox(height: 12),
+          CommonControls.buildDialScrubber(
+            context, 
+            'Loop Speed', 
+            1000 / widget.clip.loopAnimation.durationMs.toDouble(), 
+            0.01, 
+            5.0, 
+            (v) => widget.onUpdate(loopAnimation: widget.clip.loopAnimation.copyWith(durationMs: (1000 / v).toInt())),
+            onReset: () => widget.onUpdate(loopAnimation: widget.clip.loopAnimation.copyWith(durationMs: 1000)),
+          ),
+          const SizedBox(height: 12),
+          CommonControls.buildDialScrubber(
+            context, 
+            'Loop Intensity', 
+            widget.clip.loopAnimation.intensity, 
+            0.1, 
+            5.0, 
+            (v) => widget.onUpdate(loopAnimation: widget.clip.loopAnimation.copyWith(intensity: v)),
+            onReset: () => widget.onUpdate(loopAnimation: widget.clip.loopAnimation.copyWith(intensity: 1.0)),
+          ),
+        ],
       ],
     );
   }

@@ -391,13 +391,14 @@ class _AudioTabState extends State<AudioTab> {
             children: [
               const Text('AUDIO SETTINGS', style: TextStyle(fontSize: 8, color: Colors.cyanAccent, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
               const SizedBox(height: 12),
-              CommonControls.buildSlider(
+              CommonControls.buildDialScrubber(
                 context,
                 'Volume',
                 widget.selectedAudio!.volume,
                 0.0,
                 5.0,
                 (v) => widget.onUpdate(volume: v),
+                onReset: () => widget.onUpdate(volume: 1.0),
               ),
               const SizedBox(height: 16),
               const Text('INFO', style: TextStyle(fontSize: 8, color: Colors.cyanAccent, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
@@ -421,13 +422,14 @@ class _AudioTabState extends State<AudioTab> {
         else ...[
           const Text('GLOBAL AUDIO', style: TextStyle(fontSize: 8, color: Colors.cyanAccent, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
           const SizedBox(height: 12),
-          CommonControls.buildSlider(
+          CommonControls.buildDialScrubber(
             context,
             'Video Volume',
             context.watch<EditorProvider>().mainAudioVolume,
             0.0,
             5.0,
             (v) => context.read<EditorProvider>().setMainAudioVolume(v),
+            onReset: () => context.read<EditorProvider>().setMainAudioVolume(1.0),
           ),
           const SizedBox(height: 24),
           _buildAssetsView(context, assetProvider),

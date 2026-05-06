@@ -120,13 +120,9 @@ class BackgroundRenderer {
         sTextureOESLoc = GLES20.glGetUniformLocation(programOES, "sTexture")
     }
 
-    private var currentActiveProgram: Int = -1
     private fun useProgram(isOES: Boolean) {
         val p = if (isOES) programOES else program
-        if (p != currentActiveProgram) {
-            GLES20.glUseProgram(p)
-            currentActiveProgram = p
-        }
+        GLES20.glUseProgram(p)
     }
     
     private fun getVPPos(isOES: Boolean) = if (isOES) vPositionOESLoc else vPositionLoc
@@ -302,6 +298,14 @@ class BackgroundRenderer {
                         baseScaleX = imageWidth.toFloat() / baselineHeight
                         baseScaleY = imageHeight.toFloat() / baselineHeight
                     }
+                    3 -> { // Match Width
+                        baseScaleX = aspect
+                        baseScaleY = aspect / imgRatio
+                    }
+                    4 -> { // Match Height
+                        baseScaleX = imgRatio
+                        baseScaleY = 1f
+                    }
                 }
                 android.opengl.Matrix.scaleM(model, 0, baseScaleX * scale, baseScaleY * scale, 1f)
             } else {
@@ -325,8 +329,10 @@ class BackgroundRenderer {
 
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
 
-        GLES20.glDisableVertexAttribArray(vPositionLoc)
-        GLES20.glDisableVertexAttribArray(vTexCoordLoc)
+        val vPos = getVPPos(isVideo)
+        val vTex = getVTexPos(isVideo)
+        GLES20.glDisableVertexAttribArray(vPos)
+        GLES20.glDisableVertexAttribArray(vTex)
     }
 
     private fun loadShader(type: Int, shaderCode: String): Int {
