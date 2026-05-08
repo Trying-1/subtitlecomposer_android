@@ -355,18 +355,6 @@ class _TimelineEditorState extends State<TimelineEditor> {
                 physics: const BouncingScrollPhysics(),
                 child: Row(
                   children: [
-                    // Visibility Toggles
-                    if (AppConfig.showTimelineVisibilityToggles) ...[
-                      _buildVerticalToggle("TEXT", widget.showTextTracks, widget.onToggleTextTracks, icon: widget.showTextTracks ? Icons.visibility_rounded : Icons.visibility_off_rounded),
-                      const SizedBox(width: 16),
-                      _buildVerticalToggle("OVERLAY", widget.showOverlayTracks, widget.onToggleOverlayTracks, icon: widget.showOverlayTracks ? Icons.layers_rounded : Icons.layers_clear_rounded),
-                      const SizedBox(width: 16),
-                      _buildVerticalToggle("BG", widget.showBackgroundTracks, widget.onToggleBackgroundTracks, icon: widget.showBackgroundTracks ? Icons.wallpaper_rounded : Icons.image_not_supported_rounded),
-                      const SizedBox(width: 16),
-                      _buildVerticalToggle("AUDIO", widget.showAudioTracks, widget.onToggleAudioTracks, icon: widget.showAudioTracks ? Icons.audiotrack_rounded : Icons.music_off_rounded),
-                      const SizedBox(width: 16),
-                    ],
-
                     if (AppConfig.showTimelineUndo) ...[
                       _buildVerticalToggle("UNDO", false, widget.onUndo, icon: Icons.undo_rounded, color: widget.canUndo ? Colors.white : Colors.white10),
                       const SizedBox(width: 16),
@@ -377,17 +365,6 @@ class _TimelineEditorState extends State<TimelineEditor> {
                       const SizedBox(width: 16),
                     ],
 
-                    if (AppConfig.showTimelineMarkers) ...[
-                      _buildVerticalToggle("MARK", false, widget.onAddMarker, icon: Icons.bookmark_add_rounded, color: Colors.amberAccent),
-                      const SizedBox(width: 16),
-                      _buildVerticalToggle("CLR MK", false, widget.onClearMarkers, icon: Icons.bookmark_remove_outlined),
-                      const SizedBox(width: 16),
-                    ],
-
-                    if (AppConfig.showTimelineUndo || AppConfig.showTimelineRedo || AppConfig.showTimelineMarkers)
-                      Container(width: 1, height: 16, color: Colors.white10),
-                    const SizedBox(width: 16),
-                    
                     if (AppConfig.showTimelineSplit) ...[
                       _buildVerticalToggle("SPLIT", false, widget.onSplit, icon: Icons.content_cut_rounded),
                       const SizedBox(width: 16),
@@ -437,24 +414,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
                       color: widget.isMultiSelectMode && widget.selectedClipIds.length > 1 ? Colors.amberAccent : Colors.white10
                     ),
                     const SizedBox(width: 16),
-                    
-                    if (AppConfig.showTimelineKeyframes) ...[
-                      if (widget.onAddKeyframe != null) ...[
-                        _buildVerticalToggle(
-                          widget.isKeyframeAtCurrentTime ? "REMOVE" : "KEYFRAME", 
-                          widget.isKeyframeAtCurrentTime, 
-                          widget.onAddKeyframe!, 
-                          icon: widget.isKeyframeAtCurrentTime ? Icons.diamond_outlined : Icons.diamond_rounded
-                        ),
-                        const SizedBox(width: 16),
-                      ],
-                      if (widget.onClearKeyframes != null) ...[
-                        _buildVerticalToggle("CLR CLIP", false, widget.onClearKeyframes!, icon: Icons.layers_clear_rounded),
-                        const SizedBox(width: 16),
-                      ],
-                    ],
 
-                    const SizedBox(width: 40), // Spacing before multi-select tools
                     _buildVerticalToggle("ALL", widget.isAllSelected, widget.onToggleSelectAll),
                     const SizedBox(width: 16),
                     
@@ -486,6 +446,45 @@ class _TimelineEditorState extends State<TimelineEditor> {
 
                     if (AppConfig.showTimelineMultiSelect) ...[
                       _buildVerticalToggle("MULTI", widget.isMultiSelectMode, widget.onToggleMultiSelect),
+                      const SizedBox(width: 16),
+                    ],
+
+                    Container(width: 1, height: 16, color: Colors.white10),
+                    const SizedBox(width: 16),
+
+                    // Visibility Toggles
+                    if (AppConfig.showTimelineVisibilityToggles) ...[
+                      _buildVerticalToggle("TEXT", widget.showTextTracks, widget.onToggleTextTracks, icon: widget.showTextTracks ? Icons.visibility_rounded : Icons.visibility_off_rounded),
+                      const SizedBox(width: 16),
+                      _buildVerticalToggle("OVERLAY", widget.showOverlayTracks, widget.onToggleOverlayTracks, icon: widget.showOverlayTracks ? Icons.layers_rounded : Icons.layers_clear_rounded),
+                      const SizedBox(width: 16),
+                      _buildVerticalToggle("BG", widget.showBackgroundTracks, widget.onToggleBackgroundTracks, icon: widget.showBackgroundTracks ? Icons.wallpaper_rounded : Icons.image_not_supported_rounded),
+                      const SizedBox(width: 16),
+                      _buildVerticalToggle("AUDIO", widget.showAudioTracks, widget.onToggleAudioTracks, icon: widget.showAudioTracks ? Icons.audiotrack_rounded : Icons.music_off_rounded),
+                      const SizedBox(width: 16),
+                    ],
+
+                    if (AppConfig.showTimelineMarkers) ...[
+                      _buildVerticalToggle("MARK", false, widget.onAddMarker, icon: Icons.bookmark_add_rounded, color: Colors.amberAccent),
+                      const SizedBox(width: 16),
+                      _buildVerticalToggle("CLR MK", false, widget.onClearMarkers, icon: Icons.bookmark_remove_outlined),
+                      const SizedBox(width: 16),
+                    ],
+                    
+                    if (AppConfig.showTimelineKeyframes) ...[
+                      if (widget.onAddKeyframe != null) ...[
+                        _buildVerticalToggle(
+                          widget.isKeyframeAtCurrentTime ? "REMOVE" : "KEYFRAME", 
+                          widget.isKeyframeAtCurrentTime, 
+                          widget.onAddKeyframe!, 
+                          icon: widget.isKeyframeAtCurrentTime ? Icons.diamond_outlined : Icons.diamond_rounded
+                        ),
+                        const SizedBox(width: 16),
+                      ],
+                      if (widget.onClearKeyframes != null) ...[
+                        _buildVerticalToggle("CLR CLIP", false, widget.onClearKeyframes!, icon: Icons.layers_clear_rounded),
+                        const SizedBox(width: 16),
+                      ],
                     ],
                   ],
                 ),

@@ -278,6 +278,20 @@ yes, if that more smooth and professional level then offcourse we  need that
 [and in the home screen assets library for image and videos use image picker instead of file picker, just like we have done inside the editor understood]
 [still text are not visible, nor the overlays, nor the backround]
 
+[in the asset library fonts. remoce the Tt icon, remove the separate preview text and instead use the font name as preview text. ]
+[inside editor the imported fonts card are not same as the in built font fix them, to use same card style]
+[in the loop animation lets have control over over the animation speed, right they are animating too fast, I want slow animation, for some animations, so having speed control for these will good. understood]
+[for the overlay animation as well]
+[man how is this dial working, setting  loop speed minimum(100) is moving too fast, and loop speed 5000 is moving slow. man wtf is this logic, ]
+[and I want more slower than what we have till now. ]
+[the wavy bend loop animation is not working on overlay image]
+[also lets add new ripple animation as well]
+[good but there's some bug in this, that the bottom part of overlay is kind of showin up on top, whats that]
+[okay next also lets have control for the intensity of ripple]
+[reorder the timeline control tools, move the visiblity, marking, keyframe controls to last. understood]
+
+
+
 
 
 
