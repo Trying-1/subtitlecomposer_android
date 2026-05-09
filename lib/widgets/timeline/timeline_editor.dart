@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../config/app_config.dart';
 import '../../models/editor_models.dart';
+import 'dart:async';
 
 class LockableScrollPhysics extends AlwaysScrollableScrollPhysics {
   final bool Function() isLocked;
@@ -50,6 +51,7 @@ class TimelineEditor extends StatefulWidget {
   final VoidCallback onSplit;
   final VoidCallback onMerge;
   final VoidCallback onSplitToWords;
+  final VoidCallback onBurstSelected;
   final VoidCallback onDelete;
   final VoidCallback onActionStart; // For undo saving
   final bool isPlaying;
@@ -113,6 +115,7 @@ class TimelineEditor extends StatefulWidget {
     required this.onSplit,
     required this.onMerge,
     required this.onSplitToWords,
+    required this.onBurstSelected,
     required this.onDelete,
     required this.onActionStart,
     required this.onUndo,
@@ -162,6 +165,9 @@ class _TimelineEditorState extends State<TimelineEditor> {
   bool? _activeEdgeIsLeft;
   double _baseZoomLevel = 1.0;
   DateTime _lastUpdateTime = DateTime.now();
+  Timer? _autoScrollTimer;
+  double _currentScrollDelta = 0;
+  String? _draggingClipId;
   
   late ScrollController _horizontalScrollController;
   bool _isManualScrolling = false;
@@ -178,8 +184,54 @@ class _TimelineEditorState extends State<TimelineEditor> {
   @override
   void dispose() {
     widget.playbackTime?.removeListener(_onPlaybackTimeChanged);
+    _autoScrollTimer?.cancel();
     _horizontalScrollController.dispose();
     super.dispose();
+  }
+
+  void _startAutoScroll(double speed, {Function(double)? onScroll}) {
+    _autoScrollTimer?.cancel();
+    _autoScrollTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
+      if (!_horizontalScrollController.hasClients) return;
+      final currentOffset = _horizontalScrollController.offset;
+      final maxOffset = _horizontalScrollController.position.maxScrollExtent;
+      final newOffset = (currentOffset + speed).clamp(0.0, maxOffset);
+      
+      if (newOffset != currentOffset) {
+        final delta = newOffset - currentOffset;
+        _horizontalScrollController.jumpTo(newOffset);
+        if (onScroll != null) onScroll(delta);
+      }
+    });
+  }
+
+  void _stopAutoScroll() {
+    _autoScrollTimer?.cancel();
+    _autoScrollTimer = null;
+  }
+
+  void _handleAutoScroll(double globalX, {Function(double)? onScroll}) {
+    if (!mounted) return;
+    final RenderBox? box = context.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    
+    final Offset localOffset = box.globalToLocal(Offset(globalX, 0));
+    final double viewportWidth = box.size.width;
+    
+    const double edgeThreshold = 60.0;
+    const double maxSpeed = 15.0;
+
+    if (localOffset.dx < edgeThreshold) {
+      // Near left edge
+      final speedFactor = ((edgeThreshold - localOffset.dx) / edgeThreshold).clamp(0.0, 1.0);
+      _startAutoScroll(-maxSpeed * speedFactor, onScroll: onScroll);
+    } else if (localOffset.dx > viewportWidth - edgeThreshold) {
+      // Near right edge
+      final speedFactor = ((localOffset.dx - (viewportWidth - edgeThreshold)) / edgeThreshold).clamp(0.0, 1.0);
+      _startAutoScroll(maxSpeed * speedFactor, onScroll: onScroll);
+    } else {
+      _stopAutoScroll();
+    }
   }
 
   @override
@@ -188,6 +240,10 @@ class _TimelineEditorState extends State<TimelineEditor> {
     if (oldWidget.playbackTime != widget.playbackTime) {
       oldWidget.playbackTime?.removeListener(_onPlaybackTimeChanged);
       widget.playbackTime?.addListener(_onPlaybackTimeChanged);
+    }
+    // Safety: if tracks change significantly or selection is cleared, reset dragging state
+    if (widget.selectedClipIds.isEmpty) {
+      _draggingClipId = null;
     }
   }
 
@@ -392,12 +448,23 @@ class _TimelineEditorState extends State<TimelineEditor> {
                       const SizedBox(width: 16),
                     ],
 
+                    if (AppConfig.showTimelineBurst) ...[
+                      _buildVerticalToggle(
+                        "BURST", 
+                        false, 
+                        widget.onBurstSelected, 
+                        icon: Icons.flare_rounded,
+                        color: widget.selectedClipIds.length == 1 ? Colors.white : Colors.white10
+                      ),
+                      const SizedBox(width: 16),
+                    ],
+
                     if (AppConfig.showTimelineDelete) ...[
                       _buildVerticalToggle("DEL", false, widget.onDelete, icon: Icons.delete_outline_rounded),
                       const SizedBox(width: 16),
                     ],
 
-                    if (AppConfig.showTimelineSplit || AppConfig.showTimelineMerge || AppConfig.showTimelineDivide || AppConfig.showTimelineDelete)
+                    if (AppConfig.showTimelineSplit || AppConfig.showTimelineMerge || AppConfig.showTimelineDivide || AppConfig.showTimelineBurst || AppConfig.showTimelineDelete)
                       Container(width: 1, height: 16, color: Colors.white10),
                     const SizedBox(width: 16),
                     
@@ -636,7 +703,10 @@ class _TimelineEditorState extends State<TimelineEditor> {
               final RenderBox box = trackKey.currentContext!.findRenderObject() as RenderBox;
               final localPos = box.globalToLocal(details.offset);
               final startTime = Duration(milliseconds: (localPos.dx / _pixelsPerSecond * 1000).toInt());
-              _isScrollingLocked = false; // Reset before rebuild
+              setState(() {
+                _isScrollingLocked = false;
+                _draggingClipId = null;
+              });
               widget.onMoveClip(details.data, track.id, startTime);
             },
             builder: (context, candidateData, rejectedData) {
@@ -679,30 +749,46 @@ class _TimelineEditorState extends State<TimelineEditor> {
       child: LongPressDraggable<Object>(
         data: clip,
         onDragStarted: () {
-          setState(() => _isScrollingLocked = true);
+          setState(() {
+            _isScrollingLocked = true;
+            _draggingClipId = clip.id;
+          });
           widget.onActionStart();
         },
+        onDragUpdate: (details) {
+          _handleAutoScroll(details.globalPosition.dx);
+        },
         onDragEnd: (_) {
-          setState(() => _isScrollingLocked = false);
+          _stopAutoScroll();
+          setState(() {
+            _isScrollingLocked = false;
+            _draggingClipId = null;
+          });
           widget.onResolveCollisions(clip.id);
         },
         onDraggableCanceled: (_, __) {
-          setState(() => _isScrollingLocked = false);
+          _stopAutoScroll();
+          setState(() {
+            _isScrollingLocked = false;
+            _draggingClipId = null;
+          });
         },
         feedback: Material(
           color: Colors.transparent,
           child: SizedBox(
             height: 40,
-            child: _buildClipContent(clip, isSelected, true),
+            child: _buildDraggingFeedback(clip),
           ),
         ),
         childWhenDragging: const SizedBox.shrink(),
-        child: Stack(
-          children: [
-            GestureDetector(
-              onTap: () => widget.onSelect(clip.id),
-              child: _buildClipContent(clip, isSelected, false),
-            ),
+        child: Opacity(
+          opacity: _shouldHideClip(clip) ? 0.0 : 1.0,
+          child: Stack(
+            children: [
+              GestureDetector(
+                onTap: () => widget.onSelect(clip.id),
+                child: _buildClipContent(clip, isSelected, false),
+              ),
             // Trimming Handles - Only show when single selection
             if (isSelected && widget.selectedClipIds.length == 1) ...[
               Positioned(
@@ -723,7 +809,14 @@ class _TimelineEditorState extends State<TimelineEditor> {
                 },
                 onPointerMove: (event) {
                   if (_initialClipStartTime == null || _activeEdgeClipId != clip.id) return;
+                  
                   _dragAccumulatedDelta += event.delta.dx;
+                  
+                  // Handle auto-scroll during trimming
+                  _handleAutoScroll(event.position.dx, onScroll: (delta) {
+                    _dragAccumulatedDelta += delta;
+                  });
+
                   final totalDeltaSeconds = _dragAccumulatedDelta / _pixelsPerSecond;
                   final newStart = _initialClipStartTime! + Duration(microseconds: (totalDeltaSeconds * 1000000).toInt());
                   if (newStart < clip.endTime && newStart >= Duration.zero) {
@@ -732,6 +825,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
                   }
                 },
                 onPointerUp: (_) {
+                  _stopAutoScroll();
                   final clipId = _activeEdgeClipId;
                   setState(() {
                     _activeEdgeClipId = null;
@@ -742,6 +836,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
                   if (clipId != null) widget.onResolveCollisions(clipId);
                 },
                 onPointerCancel: (_) {
+                  _stopAutoScroll();
                   setState(() {
                     _activeEdgeClipId = null;
                     _activeEdgeIsLeft = null;
@@ -777,7 +872,14 @@ class _TimelineEditorState extends State<TimelineEditor> {
                 },
                 onPointerMove: (event) {
                   if (_initialClipEndTime == null || _activeEdgeClipId != clip.id) return;
+                  
                   _dragAccumulatedDelta += event.delta.dx;
+
+                  // Handle auto-scroll during trimming
+                  _handleAutoScroll(event.position.dx, onScroll: (delta) {
+                    _dragAccumulatedDelta += delta;
+                  });
+
                   final totalDeltaSeconds = _dragAccumulatedDelta / _pixelsPerSecond;
                   final newEnd = _initialClipEndTime! + Duration(microseconds: (totalDeltaSeconds * 1000000).toInt());
                   if (newEnd > clip.startTime) {
@@ -786,6 +888,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
                   }
                 },
                 onPointerUp: (_) {
+                  _stopAutoScroll();
                   final clipId = _activeEdgeClipId;
                   setState(() {
                     _activeEdgeClipId = null;
@@ -796,6 +899,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
                   if (clipId != null) widget.onResolveCollisions(clipId);
                 },
                 onPointerCancel: (_) {
+                  _stopAutoScroll();
                   setState(() {
                     _activeEdgeClipId = null;
                     _activeEdgeIsLeft = null;
@@ -818,8 +922,113 @@ class _TimelineEditorState extends State<TimelineEditor> {
         ],
       ),
     ),
-  );
+  ),
+);
 }
+
+  bool _shouldHideClip(dynamic clip) {
+    if (_draggingClipId == null) return false;
+    if (_draggingClipId == clip.id) return true;
+    
+    // If we are dragging a selected clip, hide all other selected clips
+    if (widget.selectedClipIds.contains(_draggingClipId) && widget.selectedClipIds.contains(clip.id)) {
+      return true;
+    }
+    
+    return false;
+  }
+
+  Widget _buildDraggingFeedback(dynamic clip) {
+    final isSelected = widget.selectedClipIds.contains(clip.id);
+    final count = isSelected ? widget.selectedClipIds.length : 1;
+    
+    if (count <= 1) {
+      return _buildClipContent(clip, isSelected, true);
+    }
+    
+    // Multi-select ghost feedback
+    final primaryClip = clip as TimelineClip;
+    final primaryStartPos = _calculatePosition(primaryClip.startTime);
+    final allTracks = [...widget.tracks, ...widget.overlayTracks, ...widget.backgroundTracks, ...widget.audioTracks];
+    
+    int primaryTrackIdx = -1;
+    for (int i = 0; i < allTracks.length; i++) {
+      if (allTracks[i].clips.contains(primaryClip) || 
+          allTracks[i].overlays.contains(primaryClip) ||
+          allTracks[i].backgrounds.contains(primaryClip) ||
+          allTracks[i].audioClips.contains(primaryClip)) {
+        primaryTrackIdx = i;
+        break;
+      }
+    }
+
+    final List<TimelineClip> selectedClips = [];
+    final Map<String, int> clipToTrackIdx = {};
+    
+    for (int i = 0; i < allTracks.length; i++) {
+      final List<TimelineClip> trackClips = [
+        ...allTracks[i].clips,
+        ...allTracks[i].overlays,
+        ...allTracks[i].backgrounds,
+        ...allTracks[i].audioClips,
+      ];
+      for (var c in trackClips) {
+        if (widget.selectedClipIds.contains(c.id)) {
+          selectedClips.add(c);
+          clipToTrackIdx[c.id] = i;
+        }
+      }
+    }
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        // Base child (Primary clip) defines the main size/position of feedback
+        _buildClipContent(primaryClip, true, true),
+        
+        // Ghost elements for other selected clips
+        ...selectedClips.where((c) => c.id != primaryClip.id).map((c) {
+          final relX = _calculatePosition(c.startTime) - primaryStartPos;
+          final cTrackIdx = clipToTrackIdx[c.id] ?? primaryTrackIdx;
+          final relY = (cTrackIdx - primaryTrackIdx) * 48.0;
+
+          return Positioned(
+            left: relX,
+            top: relY,
+            height: 40, // Maintain consistent height for all ghosts
+            child: Opacity(
+              opacity: 0.4,
+              child: _buildClipContent(c, true, true),
+            ),
+          );
+        }).toList(),
+        
+        // Count Badge on top of primary
+        Positioned(
+          right: -8,
+          top: -8,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.amberAccent,
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 4, offset: const Offset(0, 2))
+              ],
+            ),
+            child: Text(
+              "+${count - 1}",
+              style: const TextStyle(
+                color: Colors.black, 
+                fontSize: 9, 
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
   Widget _buildClipContent(TimelineClip clip, bool isSelected, bool isFeedback) {
     final hasEntrance = clip.entranceAnimation.type != AnimationType.none;

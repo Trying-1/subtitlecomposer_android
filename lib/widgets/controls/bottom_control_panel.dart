@@ -16,6 +16,7 @@ import 'tabs/project_tab.dart';
 import 'tabs/font_tab.dart';
 import 'tabs/audio_tab.dart';
 import 'tabs/keyframe_manager_tab.dart';
+import 'tabs/layout_tab.dart';
 
 class BottomControlPanel extends StatefulWidget {
   final TimelineClip? clip;
@@ -129,6 +130,7 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
     {'name': 'Font', 'icon': Icons.font_download_rounded},
     {'name': 'Style', 'icon': Icons.palette_rounded},
     {'name': 'Effects', 'icon': Icons.auto_awesome_rounded},
+    {'name': 'Layout', 'icon': Icons.grid_view_rounded},
     {'name': 'Animation', 'icon': Icons.animation_rounded},
     {'name': 'Keyframes', 'icon': Icons.diamond_rounded},
     {'name': 'Transform', 'icon': Icons.transform_rounded},
@@ -167,7 +169,7 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
   }
 
   Widget _buildActiveTabContentWrapper(int activeTabIndex) {
-    if (activeTabIndex >= 8) {
+    if (activeTabIndex >= 9) {
       return SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         child: _buildGlobalTabContent(activeTabIndex),
@@ -302,12 +304,17 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
       case 3: 
         if (clip is SubtitleClip || clip is OverlayClip) return EffectsTab(clip: clip, onUpdate: ({isShadowEnabled, shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY, isBackgroundEnabled, backgroundColor, backgroundRadius, isStrokeEnabled, strokeColor, strokeWidth, isGlowEnabled, glowColor, glowSize, isBendingEnabled, bendingAmount, isReflectionEnabled, reflectionOffset, reflectionOpacity, reflectionColor}) => widget.onUpdate(isShadowEnabled: isShadowEnabled, shadowColor: shadowColor, shadowBlur: shadowBlur, shadowOffsetX: shadowOffsetX, shadowOffsetY: shadowOffsetY, isBackgroundEnabled: isBackgroundEnabled, backgroundColor: backgroundColor, backgroundRadius: backgroundRadius, isStrokeEnabled: isStrokeEnabled, strokeColor: strokeColor, strokeWidth: strokeWidth, isGlowEnabled: isGlowEnabled, glowColor: glowColor, glowSize: glowSize, isBendingEnabled: isBendingEnabled, bendingAmount: bendingAmount, isReflectionEnabled: isReflectionEnabled, reflectionOffset: reflectionOffset, reflectionOpacity: reflectionOpacity, reflectionColor: reflectionColor));
         return _buildWrongClipTypeMessage("EFFECTS");
-      case 4: 
+      case 4:
+        return LayoutTab(
+          onApplyPreset: (preset) => context.read<EditorProvider>().applyLayoutPreset(preset),
+          selectedClipCount: widget.selectedClipIds.length,
+        );
+      case 5: 
         if (clip is SubtitleClip) return AnimationTab(clip: clip, onUpdate: widget.onUpdate, onApplyPreset: widget.onApplyPreset);
         return _buildWrongClipTypeMessage("ANIMATION");
-      case 5: return KeyframeManagerTab(clip: clip, currentPosition: widget.currentTime, onUpdate: widget.onUpdate);
-      case 6: return TransformTab(clip: clip, onUpdate: widget.onUpdate);
-      case 7: return PositionTab(clip: clip, onUpdate: widget.onUpdate);
+      case 6: return KeyframeManagerTab(clip: clip, currentPosition: widget.currentTime, onUpdate: widget.onUpdate);
+      case 7: return TransformTab(clip: clip, onUpdate: widget.onUpdate);
+      case 8: return PositionTab(clip: clip, onUpdate: widget.onUpdate);
       default: return const SizedBox();
     }
   }
@@ -330,19 +337,19 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
 
   Widget _buildGlobalTabContent(int activeTabIndex) {
     switch (activeTabIndex) {
-      case 8: return OverlayTab(
+      case 9: return OverlayTab(
         selectedOverlay: widget.selectedOverlay,
         onAddOverlay: widget.onAddOverlay,
         onUpdate: widget.onUpdate,
       );
-      case 9: return const BackgroundTab();
-      case 10: return AudioTab(
+      case 10: return const BackgroundTab();
+      case 11: return AudioTab(
         selectedAudio: widget.selectedAudio,
         onAddAudio: widget.onAddAudioClip,
         onUpdate: ({volume}) => widget.onUpdate(volume: volume),
       );
-      case 11: return const AspectTab();
-      case 12: return ProjectTab(
+      case 12: return const AspectTab();
+      case 13: return ProjectTab(
         onImportAudio: widget.onImportAudio,
         onImportSubtitles: widget.onImportSubtitles,
         onImportPlainText: widget.onImportPlainText,

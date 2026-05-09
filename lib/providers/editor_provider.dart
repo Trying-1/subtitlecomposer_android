@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import '../utils/transliteration_utils.dart';
@@ -144,6 +145,8 @@ class EditorProvider extends ChangeNotifier {
   int _activeTabIndex = 0;
   
   List<double> _customAspectRatios = [];
+  List<CustomLayout> _customLayouts = [];
+  List<CustomLayout> get customLayouts => _customLayouts;
   List<double> get customAspectRatios => _customAspectRatios;
 
   final ValueNotifier<Duration> playbackTime = ValueNotifier(Duration.zero);
@@ -1390,6 +1393,11 @@ class EditorProvider extends ChangeNotifier {
       if (ratios != null) {
         _customAspectRatios = List<double>.from(ratios);
       }
+      final layouts = box.get('custom_layouts');
+      if (layouts != null) {
+        final List<dynamic> list = layouts;
+        _customLayouts = list.map((l) => CustomLayout.fromJson(Map<String, dynamic>.from(l))).toList();
+      }
     } catch (e) {
       debugPrint("Error loading settings: $e");
     }
@@ -1413,6 +1421,7 @@ class EditorProvider extends ChangeNotifier {
     try {
       final box = Hive.box('settings_box');
       box.put('custom_aspect_ratios', _customAspectRatios);
+      box.put('custom_layouts', _customLayouts.map((l) => l.toJson()).toList());
     } catch (e) {
       debugPrint("Error saving settings: $e");
     }
@@ -1637,6 +1646,50 @@ class EditorProvider extends ChangeNotifier {
     
     if (currentStart > _totalDuration) {
       _totalDuration = currentStart;
+    }
+
+    syncToNative();
+    notifyListeners();
+  }
+
+  Future<void> generateSentencesFromText(String content) async {
+    saveState();
+    // Split by newlines; each line is one segment
+    final lines = content.split(RegExp(r'\n')).map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
+    
+    _tracks = [];
+    Duration currentStart = Duration.zero;
+    const duration = Duration(milliseconds: 2000);
+
+    for (int i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      final clipId = DateTime.now().millisecondsSinceEpoch.toString() + i.toString();
+      final startTime = currentStart;
+      final endTime = startTime + duration;
+
+      final clip = SubtitleClip(
+        id: clipId,
+        text: line,
+        startTime: startTime,
+        endTime: endTime,
+        x: 0.5,
+        y: 0.5,
+        originalTrackId: 'track_$i',
+        originalStartTime: startTime,
+        originalEndTime: endTime,
+      );
+
+      _tracks.add(Track(
+        id: 'track_$i',
+        name: 'Track ${i + 1}',
+        clips: [clip],
+      ));
+
+      currentStart += duration;
+      
+      if (endTime > _totalDuration) {
+        _totalDuration = endTime;
+      }
     }
 
     syncToNative();
@@ -1920,6 +1973,78 @@ class EditorProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void burstSelectedClipToStackedWords() {
+    final clip = selectedTimelineClip;
+    if (clip == null || clip is! SubtitleClip) return;
+    
+    final subtitleClip = clip as SubtitleClip;
+    final words = subtitleClip.text.trim().split(RegExp(r'\s+'));
+    if (words.length <= 1) return;
+    
+    saveState();
+    
+    Track? targetTrack;
+    int baseTrackIndex = 999;
+    for (int i = 0; i < _tracks.length; i++) {
+      if (_tracks[i].clips.any((c) => c.id == subtitleClip.id)) {
+        targetTrack = _tracks[i];
+        baseTrackIndex = i;
+        break;
+      }
+    }
+    if (targetTrack == null) return;
+
+    final List<SubtitleClip> newClips = [];
+    
+    const double gap = 0.12;
+    final double totalHeight = (words.length - 1) * gap;
+    final double startY = (1.0 - totalHeight) / 2;
+    
+    final totalDuration = subtitleClip.duration;
+    final durationPerWord = Duration(microseconds: (totalDuration.inMicroseconds / words.length).toInt());
+    var currentStart = subtitleClip.startTime;
+    
+    for (var i = 0; i < words.length; i++) {
+      final isLast = i == words.length - 1;
+      final endTime = isLast ? subtitleClip.endTime : currentStart + durationPerWord;
+      
+      newClips.add(subtitleClip.copyWith(
+        id: "burst_${DateTime.now().millisecondsSinceEpoch}_$i",
+        text: words[i],
+        x: 0.5,
+        y: startY + (i * gap),
+        startTime: currentStart,
+        endTime: endTime,
+        keyframes: [], 
+      ));
+      
+      currentStart = endTime;
+    }
+    
+    // Replace old clip with new clips in vertically stacked tracks
+    targetTrack.clips.removeWhere((c) => c.id == clip.id);
+    
+    for (int i = 0; i < newClips.length; i++) {
+        int targetTrackIdx = baseTrackIndex + (newClips.length - 1 - i);
+
+        while (_tracks.length <= targetTrackIdx) {
+            _tracks.add(Track(
+                id: DateTime.now().millisecondsSinceEpoch.toString() + _tracks.length.toString(),
+                name: 'Track ${_tracks.length + 1}',
+                clips: [],
+            ));
+        }
+
+        _resolveCollisions(newClips[i], targetTrackIdx);
+    }
+    
+    // Select all the new words so they can be laid out
+    _selectedClipIds = newClips.map((c) => c.id).toSet();
+    
+    syncToNative();
+    notifyListeners();
+  }
+
   void addNewTrack(TrackType type) {
     saveState();
     if (type == TrackType.text) {
@@ -2177,6 +2302,182 @@ class EditorProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void applyLayoutPreset(LayoutPreset preset) {
+    if (_selectedClipIds.isEmpty) return;
+    saveState();
+
+    List<SubtitleClip> selectedClips = [];
+    for (var track in _tracks) {
+      for (var clip in track.clips) {
+        if (_selectedClipIds.contains(clip.id)) {
+          selectedClips.add(clip);
+        }
+      }
+    }
+
+    if (selectedClips.isEmpty) return;
+    
+    // Sort by original Y to maintain some order
+    selectedClips.sort((a, b) => a.y.compareTo(b.y));
+
+    final int count = selectedClips.length;
+
+    switch (preset) {
+      case LayoutPreset.column:
+        const double gap = 0.12;
+        final double totalHeight = (count - 1) * gap;
+        final double startY = (1.0 - totalHeight) / 2;
+        for (int i = 0; i < count; i++) {
+          updateClip(selectedClips[i].id, x: 0.5, y: startY + (i * gap));
+        }
+        break;
+      case LayoutPreset.grid:
+        final int cols = count <= 4 ? 2 : (count <= 9 ? 3 : 4);
+        final int rows = (count / cols).ceil();
+        final double cellW = 1.0 / cols;
+        final double cellH = 0.7 / rows; 
+        for (int i = 0; i < count; i++) {
+          final int r = i ~/ cols;
+          final int c = i % cols;
+          updateClip(selectedClips[i].id, 
+            x: (c + 0.5) * cellW, 
+            y: 0.15 + (r + 0.5) * cellH
+          );
+        }
+        break;
+      case LayoutPreset.bento:
+        final List<Map<String, double>> bentoOffsets = [
+          {'x': 0.3, 'y': 0.3}, {'x': 0.7, 'y': 0.35},
+          {'x': 0.25, 'y': 0.65}, {'x': 0.65, 'y': 0.7},
+          {'x': 0.5, 'y': 0.5}, {'x': 0.15, 'y': 0.45},
+          {'x': 0.85, 'y': 0.55}, {'x': 0.4, 'y': 0.8},
+        ];
+        for (int i = 0; i < count; i++) {
+          final offset = bentoOffsets[i % bentoOffsets.length];
+          updateClip(selectedClips[i].id, x: offset['x'], y: offset['y']);
+        }
+        break;
+      case LayoutPreset.random:
+        final random = DateTime.now().millisecondsSinceEpoch;
+        for (int i = 0; i < count; i++) {
+          final rx = (((random + i * 789) % 70) + 15) / 100.0;
+          final ry = (((random + i * 321) % 70) + 15) / 100.0;
+          updateClip(selectedClips[i].id, x: rx, y: ry);
+        }
+        break;
+      case LayoutPreset.staggered:
+        for (int i = 0; i < count; i++) {
+          final offset = (i % 2 == 0) ? -0.2 : 0.2;
+          updateClip(selectedClips[i].id, x: 0.5 + offset, y: 0.15 + (i * (0.7 / count)));
+        }
+        break;
+      case LayoutPreset.stairs:
+        for (int i = 0; i < count; i++) {
+          final stepX = 0.2 + (i * (0.6 / (count > 1 ? count - 1 : 1)));
+          final stepY = 0.2 + (i * (0.6 / (count > 1 ? count - 1 : 1)));
+          updateClip(selectedClips[i].id, x: stepX, y: stepY);
+        }
+        break;
+      case LayoutPreset.wave:
+        for (int i = 0; i < count; i++) {
+          final px = 0.15 + (i * (0.7 / (count > 1 ? count - 1 : 1)));
+          final py = 0.5 + math.sin(i * 0.8) * 0.25;
+          updateClip(selectedClips[i].id, x: px, y: py);
+        }
+        break;
+      case LayoutPreset.circle:
+        final double radius = 0.3;
+        for (int i = 0; i < count; i++) {
+          final angle = (i / count) * 2.0 * math.pi;
+          updateClip(selectedClips[i].id, 
+            x: 0.5 + math.cos(angle) * radius, 
+            y: 0.5 + math.sin(angle) * radius
+          );
+        }
+        break;
+      case LayoutPreset.spiral:
+        for (int i = 0; i < count; i++) {
+          final r = 0.05 + (i * 0.35 / count);
+          final angle = i * 0.8;
+          updateClip(selectedClips[i].id, 
+            x: 0.5 + math.cos(angle) * r, 
+            y: 0.5 + math.sin(angle) * r
+          );
+        }
+        break;
+      default:
+        break;
+    }
+
+    syncToNative();
+    notifyListeners();
+  }
+
+  void saveCurrentLayoutAsPreset(String name) {
+    if (_selectedClipIds.isEmpty) return;
+    
+    List<SubtitleClip> selectedClips = [];
+    for (var track in _tracks) {
+      for (var clip in track.clips) {
+        if (_selectedClipIds.contains(clip.id)) {
+          selectedClips.add(clip);
+        }
+      }
+    }
+    
+    if (selectedClips.isEmpty) return;
+    
+    // Sort to maintain logical order
+    selectedClips.sort((a, b) => a.y.compareTo(b.y));
+    
+    final positions = selectedClips.map((c) => LayoutPosition(x: c.x, y: c.y)).toList();
+    
+    final layout = CustomLayout(
+      id: const Uuid().v4(),
+      name: name,
+      positions: positions,
+    );
+    
+    _customLayouts.add(layout);
+    _saveSettings();
+    notifyListeners();
+    ToastUtils.show("Layout '$name' saved!");
+  }
+
+  void deleteCustomLayout(String id) {
+    _customLayouts.removeWhere((l) => l.id == id);
+    _saveSettings();
+    notifyListeners();
+  }
+
+  void applyCustomLayout(CustomLayout layout) {
+    if (_selectedClipIds.isEmpty) return;
+    saveState();
+
+    List<SubtitleClip> selectedClips = [];
+    for (var track in _tracks) {
+      for (var clip in track.clips) {
+        if (_selectedClipIds.contains(clip.id)) {
+          selectedClips.add(clip);
+        }
+      }
+    }
+
+    if (selectedClips.isEmpty) return;
+    
+    selectedClips.sort((a, b) => a.y.compareTo(b.y));
+
+    for (int i = 0; i < selectedClips.length; i++) {
+      if (i < layout.positions.length) {
+        final pos = layout.positions[i];
+        updateClip(selectedClips[i].id, x: pos.x, y: pos.y);
+      }
+    }
+
+    syncToNative();
+    notifyListeners();
+  }
+
   void resetSelectedClips() {
     if (_selectedClipIds.isEmpty) return;
 
@@ -2378,9 +2679,7 @@ class EditorProvider extends ChangeNotifier {
     } else {
         trackList[targetTrackIdx].clips.add(clip as SubtitleClip);
     }
-    syncToNative();
     _markDirty();
-    notifyListeners();
   }
 
   void moveClip(dynamic clip, String targetTrackId, Duration? newStartTime) {

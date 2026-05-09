@@ -29,6 +29,7 @@ class AppConfig {
   static const bool showTimelineSplit = true;
   static const bool showTimelineMerge = true;
   static const bool showTimelineDivide = true;
+  static const bool showTimelineBurst = true;
   static const bool showTimelineDelete = true;
   static const bool showTimelineAddText = true;
   static const bool showTimelineKeyframes = true;

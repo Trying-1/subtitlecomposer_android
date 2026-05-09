@@ -290,8 +290,23 @@ yes, if that more smooth and professional level then offcourse we  need that
 [okay next also lets have control for the intensity of ripple]
 [reorder the timeline control tools, move the visiblity, marking, keyframe controls to last. understood]
 
-
-
+===============version14==============
+[okay next I want to improve the text postion layout, like when we have selected multiple word segment, and then stacked them, right now we are aligning them in single column right.  so lets make it more customizable lets have a new bottom control tab to set preset layout, like some cool grid based, bento grid style subtitle positioning, okay,  understood the plan?]
+[good next lets add more layouts, ]
+[also lets allow users to create and save layout as their presets. ]
+[cool, next right we are breaking everything into word, lets add new feature to break subtitle into sentences, undertood.  like in the paste subtile lets add feature and new button one for breaking into words, and another breaking into sentences, for sentence like each line as one segment, understood the plan. ]
+[awesome next  Persistent Text: The text you pasted in the input field will stay there. If you open the "Paste Subtitles" dialog again, your text will still be exactly as you left it. This means you can quickly swap between "Words" and "Sentences" without ever needing to re-paste your paragraph!]
+[good next, now that we can have a whole sentence as one, till now we have the divide method that breaks sentece into words, and stack method that stack word segment into stair case in timeline,  now I want a new button that combines this two, that we can apply on the sentence segments.  this way we can havel all the words in the sentence in one frame posible, understood. ]
+[gives every single word the exact same start and end time as the original sentence,  no we don't need this use the just like divide does, but keeping the overall duration of each word segment within the sentence duration undestood
+[a quick improvement while we break text into sentence instead auto aligning them in sequentialy in timeline, lets stack them in the in separate track understood, this was users can comfortably drag the sentence segment to the right time and do the further process, understood, only for the sentence not for word understood the idea]
+[okay more imrovement keep the sequential like before but in seprate track]
+[next when drag segments, beyond the screen size auto scroll the timeline, or else I am having to drag and scroll and drag again and scroll to right place, undertood the problem]
+[also alllow multi segment drag as well, when multple text segment are selected and dragged. got it]
+[critcal issue, segments are disappear from the track after drag, ]
+[still segment is getting lost, but when another segment is dragged previous one show up and next one dissapears]
+[okay, but while dragging multiple segments, during the drag only one segment is visible others are not, that is bad if we can't see where other segment will be placed. understood]
+[yo why its shrinking height though, show it just like the single segment drag works, ]
+[no keep all the segment similar not shrinking for the ghosts as well]
 
 
 

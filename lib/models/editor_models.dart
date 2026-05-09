@@ -71,6 +71,19 @@ enum CustomBlendMode {
   exclusion,
 }
 
+enum LayoutPreset {
+  none,
+  column,
+  grid,
+  bento,
+  random,
+  staggered,
+  stairs,
+  wave,
+  circle,
+  spiral,
+}
+
 class ClipAnimation {
   final AnimationType type;
   final EasingType easing;
@@ -1220,5 +1233,42 @@ class Project {
     overlayTimelineColor: overlayTimelineColor ?? this.overlayTimelineColor,
     backgroundTimelineColor: backgroundTimelineColor ?? this.backgroundTimelineColor,
     lastModified: lastModified ?? this.lastModified,
+  );
+}
+
+class LayoutPosition {
+  final double x;
+  final double y;
+
+  const LayoutPosition({required this.x, required this.y});
+
+  Map<String, dynamic> toJson() => {'x': x, 'y': y};
+  factory LayoutPosition.fromJson(Map<String, dynamic> json) => LayoutPosition(
+    x: (json['x'] as num).toDouble(),
+    y: (json['y'] as num).toDouble(),
+  );
+}
+
+class CustomLayout {
+  final String id;
+  final String name;
+  final List<LayoutPosition> positions;
+
+  const CustomLayout({
+    required this.id,
+    required this.name,
+    required this.positions,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'positions': positions.map((p) => p.toJson()).toList(),
+  };
+
+  factory CustomLayout.fromJson(Map<String, dynamic> json) => CustomLayout(
+    id: json['id'] as String,
+    name: json['name'] as String,
+    positions: (json['positions'] as List).map((p) => LayoutPosition.fromJson(p)).toList(),
   );
 }

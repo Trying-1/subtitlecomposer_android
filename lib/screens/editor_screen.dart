@@ -21,6 +21,7 @@ class EditorScreen extends StatefulWidget {
 
 class _EditorScreenState extends State<EditorScreen> {
   final AudioService _audioService = AudioService();
+  String _pastedSubtitlesText = '';
 
   Future<void> _pickAudio(BuildContext context, EditorProvider provider) async {
     final result = await FilePicker.pickFiles(type: FileType.audio);
@@ -67,7 +68,7 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   void _showPasteSubtitlesDialog(BuildContext context, EditorProvider provider) {
-    final controller = TextEditingController();
+    final controller = TextEditingController(text: _pastedSubtitlesText);
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
@@ -98,6 +99,11 @@ class _EditorScreenState extends State<EditorScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const Text('Paste Subtitles', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Paste your text below, then choose how to split it into segments.',
+                    style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11),
+                  ),
                   const SizedBox(height: 16),
                   TextField(
                     controller: controller,
@@ -105,7 +111,7 @@ class _EditorScreenState extends State<EditorScreen> {
                     autofocus: true,
                     style: const TextStyle(color: Colors.white, fontSize: 13),
                     decoration: InputDecoration(
-                      hintText: 'Paste your paragraph here...',
+                      hintText: 'Paste your paragraph or lyrics here...\nEach line = one sentence segment',
                       hintStyle: TextStyle(color: Colors.white.withOpacity(0.2)),
                       filled: true,
                       fillColor: Colors.white.withOpacity(0.05),
@@ -122,16 +128,38 @@ class _EditorScreenState extends State<EditorScreen> {
                           child: const Text('CANCEL', style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold)),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 8),
                       Expanded(
-                        flex: 2,
-                        child: ElevatedButton(
+                        child: OutlinedButton.icon(
                           onPressed: () {
+                            _pastedSubtitlesText = controller.text;
+                            if (controller.text.trim().isNotEmpty) {
+                              provider.generateSentencesFromText(controller.text.trim());
+                            }
+                            Navigator.pop(context);
+                          },
+                          icon: const Icon(Icons.segment_rounded, size: 16),
+                          label: const Text('SENTENCES', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.amberAccent,
+                            side: const BorderSide(color: Colors.amberAccent),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            _pastedSubtitlesText = controller.text;
                             if (controller.text.trim().isNotEmpty) {
                               provider.generateSubtitlesFromText(controller.text.trim());
                             }
                             Navigator.pop(context);
                           },
+                          icon: const Icon(Icons.text_fields_rounded, size: 16),
+                          label: const Text('WORDS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.deepPurpleAccent,
                             foregroundColor: Colors.white,
@@ -139,7 +167,6 @@ class _EditorScreenState extends State<EditorScreen> {
                             elevation: 0,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           ),
-                          child: const Text('GENERATE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                         ),
                       ),
                     ],
@@ -977,6 +1004,7 @@ class _EditorScreenState extends State<EditorScreen> {
                           onSplit: () => provider.selectedClipIds.isNotEmpty ? provider.splitClip(provider.selectedClipIds.first) : null,
                           onMerge: () => provider.mergeSelectedClips(),
                           onSplitToWords: () => provider.splitSelectedClipToWords(),
+                          onBurstSelected: () => provider.burstSelectedClipToStackedWords(),
                           onDelete: () => provider.deleteSelectedClips(),
                           onActionStart: () => provider.saveState(),
                           onUndo: () => provider.undo(),
@@ -1041,6 +1069,7 @@ class _EditorScreenState extends State<EditorScreen> {
                             onSplit: () => provider.selectedClipIds.isNotEmpty ? provider.splitClip(provider.selectedClipIds.first) : null,
                             onMerge: () => provider.mergeSelectedClips(),
                             onSplitToWords: () => provider.splitSelectedClipToWords(),
+                            onBurstSelected: () => provider.burstSelectedClipToStackedWords(),
                             onDelete: () => provider.deleteSelectedClips(),
                             onActionStart: () => provider.saveState(),
                             onUndo: () => provider.undo(),
