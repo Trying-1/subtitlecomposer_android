@@ -192,18 +192,15 @@ class CommonControls {
         color: Colors.white.withOpacity(0.04),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: List.generate(labels.length, (index) {
-            final isSelected = current == index;
-            return GestureDetector(
+      child: Row(
+        children: List.generate(labels.length, (index) {
+          final isSelected = current == index;
+          return Expanded(
+            child: GestureDetector(
               onTap: () => onChanged(index),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                margin: const EdgeInsets.only(right: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                margin: EdgeInsets.only(right: index == labels.length - 1 ? 0 : 4),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: isSelected ? Colors.deepPurpleAccent : Colors.transparent,
@@ -219,9 +216,9 @@ class CommonControls {
                   ),
                 ),
               ),
-            );
-          }),
-        ),
+            ),
+          );
+        }),
       ),
     );
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/native_bridge.dart';
+import '../../screens/video_player_screen.dart';
 
 class ExportSuccessDialog extends StatelessWidget {
   final String videoPath;
@@ -10,6 +11,13 @@ class ExportSuccessDialog extends StatelessWidget {
     required this.videoPath,
   });
 
+  String _getFriendlyPath(String path) {
+    if (path.startsWith('content://')) {
+      return "Gallery / Movies / TypographyEditor";
+    }
+    return path;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -17,12 +25,12 @@ class ExportSuccessDialog extends StatelessWidget {
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF15151F),
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
+          color: const Color(0xFF111116),
+          borderRadius: BorderRadius.circular(32),
+          border: Border.all(color: Colors.white.withOpacity(0.08)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.5),
+              color: Colors.black.withOpacity(0.4),
               blurRadius: 40,
               offset: const Offset(0, 20),
             ),
@@ -31,31 +39,21 @@ class ExportSuccessDialog extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Header with Gradient Icon
+            // Header with Monochrome Icon
             Container(
-              padding: const EdgeInsets.symmetric(vertical: 32),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.deepPurpleAccent.withOpacity(0.1),
-                    Colors.transparent,
-                  ],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-              ),
+              padding: const EdgeInsets.symmetric(vertical: 40),
               child: Center(
                 child: Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: Colors.greenAccent.withOpacity(0.1),
+                    color: Colors.white.withOpacity(0.03),
                     shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white.withOpacity(0.05)),
                   ),
                   child: const Icon(
-                    Icons.check_circle_rounded,
-                    color: Colors.greenAccent,
-                    size: 48,
+                    Icons.check_rounded,
+                    color: Colors.white,
+                    size: 40,
                   ),
                 ),
               ),
@@ -87,23 +85,24 @@ class ExportSuccessDialog extends StatelessWidget {
                   
                   // Path Container
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.03),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: Colors.white.withOpacity(0.05)),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.folder_open_rounded, color: Colors.amberAccent, size: 16),
+                        Icon(Icons.folder_outlined, color: Colors.white.withOpacity(0.5), size: 14),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            videoPath,
-                            style: const TextStyle(
-                              color: Colors.white38,
+                            _getFriendlyPath(videoPath),
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.4),
                               fontSize: 10,
-                              fontFamily: 'monospace',
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.5,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -142,29 +141,25 @@ class ExportSuccessDialog extends StatelessWidget {
                       Expanded(
                         child: Container(
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(14),
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF8B5CF6), Color(0xFF6366F1)],
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFF8B5CF6).withOpacity(0.3),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
+                            borderRadius: BorderRadius.circular(16),
+                            color: Colors.white,
                           ),
                           child: ElevatedButton(
                             onPressed: () {
-                              NativeBridge().openVideoFile(videoPath);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => VideoPlayerScreen(videoPath: videoPath),
+                                ),
+                              );
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.transparent,
-                              foregroundColor: Colors.white,
+                              foregroundColor: Colors.black,
                               shadowColor: Colors.transparent,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              padding: const EdgeInsets.symmetric(vertical: 18),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
+                                borderRadius: BorderRadius.circular(16),
                               ),
                             ),
                             child: const Row(
