@@ -299,12 +299,9 @@ Java_com_typography_MainActivity_muxVideoAudio(
     size_t total_samples = (size_t)((duration_ms / 1000.0) * sample_rate);
     std::vector<float> mixed_pcm(total_samples * 2, 0.0f);
 
-    // Mix Main Audio if exists
-    if (strlen(in_a) > 0) {
-        std::vector<float> main_pcm = decodeAudioFile(in_a, sample_rate);
-        size_t to_copy = std::min(mixed_pcm.size(), main_pcm.size());
-        for (size_t i = 0; i < to_copy; i++) mixed_pcm[i] += main_pcm[i];
-    }
+    // Note: We skip mixing 'in_a' here because the main audio is already 
+    // included in the 'clips' vector passed from Dart. 
+    // Mixing it here would cause double-audio and clipping.
 
     // Mix supplementary clips
     for (const auto& clip : clips) {
@@ -691,7 +688,7 @@ Java_com_typography_MainActivity_getAudioPosition(JNIEnv *env, jobject thiz) {
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_typography_MainActivity_setAudioClips(JNIEnv *env, jobject thiz, jobjectArray paths, jlongArray starts, jlongArray ends, jfloatArray vols) {
+Java_com_typography_MainActivity_setAudioClips(JNIEnv *env, jobject thiz, jobjectArray ids, jobjectArray paths, jlongArray starts, jlongArray ends, jfloatArray vols) {
     if (!gAudioEngine) return;
 
     int count = env->GetArrayLength(paths);
@@ -701,18 +698,22 @@ Java_com_typography_MainActivity_setAudioClips(JNIEnv *env, jobject thiz, jobjec
 
     std::vector<PreviewAudioClip> clips;
     for (int i = 0; i < count; i++) {
+        jstring id_str = (jstring)env->GetObjectArrayElement(ids, i);
         jstring path_str = (jstring)env->GetObjectArrayElement(paths, i);
-        const char* p = env->GetStringUTFChars(path_str, nullptr);
+        
+        const char* id_ptr = env->GetStringUTFChars(id_str, nullptr);
+        const char* path_ptr = env->GetStringUTFChars(path_str, nullptr);
         
         PreviewAudioClip clip;
-        clip.id = std::to_string(i);
-        clip.path = p;
+        clip.id = id_ptr;
+        clip.path = path_ptr;
         clip.startTime = (long)s[i];
         clip.endTime = (long)e[i];
         clip.volume = v[i];
         clips.push_back(clip);
 
-        env->ReleaseStringUTFChars(path_str, p);
+        env->ReleaseStringUTFChars(id_str, id_ptr);
+        env->ReleaseStringUTFChars(path_str, path_ptr);
     }
 
     gAudioEngine->setClips(clips);

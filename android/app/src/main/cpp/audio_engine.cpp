@@ -107,6 +107,9 @@ static void bqPlayerCallback(SLAndroidSimpleBufferQueueItf bq, void *context) {
 
 AudioEngine::AudioEngine() {
     mMainAudio.volume = 1.0f;
+    std::fill(mBufferA, mBufferA + mBufferSizeFrames * 2, 0);
+    std::fill(mBufferB, mBufferB + mBufferSizeFrames * 2, 0);
+    std::fill(mFloatBuf, mFloatBuf + mBufferSizeFrames * 2, 0.0f);
 }
 
 AudioEngine::~AudioEngine() {
@@ -158,9 +161,10 @@ void AudioEngine::setupOpenSL() {
 
     (*mBufferQueue)->RegisterCallback(mBufferQueue, bqPlayerCallback, this);
     
-    int16_t silence[mBufferSizeFrames * 2] = {0};
-    (*mBufferQueue)->Enqueue(mBufferQueue, silence, sizeof(silence));
-    (*mBufferQueue)->Enqueue(mBufferQueue, silence, sizeof(silence));
+    // Use our persistent member buffers to prime the queue. 
+    // They were zeroed in the constructor.
+    (*mBufferQueue)->Enqueue(mBufferQueue, mBufferA, sizeof(mBufferA));
+    (*mBufferQueue)->Enqueue(mBufferQueue, mBufferB, sizeof(mBufferB));
 
     (*mPlayerPlay)->SetPlayState(mPlayerPlay, SL_PLAYSTATE_PLAYING);
 }
@@ -184,6 +188,7 @@ void AudioEngine::shutdownOpenSL() {
 void AudioEngine::setMainAudioVolume(float volume) {
     std::lock_guard<std::mutex> lock(mClipMutex);
     mMainAudio.volume = volume;
+    LOGD("Main audio volume set to: %.2f", volume);
 }
 
 void AudioEngine::setMainAudio(const std::string& path) {
@@ -196,47 +201,91 @@ void AudioEngine::setMainAudio(const std::string& path) {
         }
         
         LOGD("Decoding main audio asynchronously: %s", path.c_str());
-        auto pcm = decodeToPcm(path.c_str(), mSampleRate);
+        auto pcm = std::make_shared<std::vector<float>>(decodeToPcm(path.c_str(), mSampleRate));
         
         std::lock_guard<std::mutex> lock(mClipMutex);
         mMainAudioPath = path;
         mMainAudio.path = path;
         mMainAudio.pcmData = std::move(pcm);
-        mMainAudio.isLoaded = !mMainAudio.pcmData.empty();
-        LOGD("Main audio loaded asynchronously: %zu samples", mMainAudio.pcmData.size());
+        mMainAudio.isLoaded = !mMainAudio.pcmData->empty();
+        LOGD("Main audio loaded asynchronously: %zu samples", mMainAudio.pcmData->size());
     }).detach();
 }
 
 void AudioEngine::setClips(const std::vector<PreviewAudioClip>& clips) {
-    // We need to decode missing ones in background
-    std::thread([this, clips]() {
-        std::vector<PreviewAudioClip> updatedClips = clips;
-        for (auto& clip : updatedClips) {
-            // Check if we already have this clip loaded (basic cache)
-            bool found = false;
-            {
-                std::lock_guard<std::mutex> lock(mClipMutex);
-                for (const auto& existing : mClips) {
-                    if (existing.path == clip.path && existing.isLoaded) {
-                        clip.pcmData = existing.pcmData;
-                        clip.isLoaded = true;
-                        found = true;
-                        break;
-                    }
-                }
-            }
-
-            if (!found && !clip.path.empty()) {
-                LOGD("Decoding clip asynchronously: %s", clip.path.c_str());
-                clip.pcmData = decodeToPcm(clip.path.c_str(), mSampleRate);
-                clip.isLoaded = !clip.pcmData.empty();
+    std::unique_lock<std::mutex> lock(mClipMutex);
+    
+    // 1. Immediately update clips that we already have (matched by ID or Path)
+    // This makes volume changes feel instant
+    std::vector<PreviewAudioClip> updatedClips = clips;
+    bool needsDecoding = false;
+    
+    for (auto& newClip : updatedClips) {
+        // First try to match by ID for exact property update (volume, timing)
+        bool found = false;
+        for (const auto& existing : mClips) {
+            if (existing.id == newClip.id && existing.isLoaded) {
+                newClip.pcmData = existing.pcmData; // Cheap shared_ptr copy
+                newClip.isLoaded = true;
+                found = true;
+                break;
             }
         }
-
-        std::lock_guard<std::mutex> lock(mClipMutex);
-        mClips = std::move(updatedClips);
-        LOGD("Clips updated asynchronously: %zu clips", mClips.size());
-    }).detach();
+        
+        // If not found by ID, try matching by Path (it might be the same file on a new track)
+        if (!found) {
+            for (const auto& existing : mClips) {
+                if (existing.path == newClip.path && existing.isLoaded) {
+                    newClip.pcmData = existing.pcmData;
+                    newClip.isLoaded = true;
+                    found = true;
+                    break;
+                }
+            }
+        }
+        
+        if (!found && !newClip.path.empty()) {
+            needsDecoding = true;
+        }
+    }
+    
+    // Apply the updates immediately
+    mClips = updatedClips;
+    
+    if (needsDecoding) {
+        // Spawn a thread ONLY if we need to decode new files
+        std::thread([this]() {
+            std::unique_lock<std::mutex> threadLock(mClipMutex);
+            std::vector<PreviewAudioClip> backgroundClips = mClips; // Copy current state
+            threadLock.unlock();
+            
+            bool changed = false;
+            for (auto& clip : backgroundClips) {
+                if (!clip.isLoaded && !clip.path.empty()) {
+                    LOGD("Decoding clip asynchronously: %s", clip.path.c_str());
+                    clip.pcmData = std::make_shared<std::vector<float>>(decodeToPcm(clip.path.c_str(), mSampleRate));
+                    clip.isLoaded = !clip.pcmData->empty();
+                    changed = true;
+                }
+            }
+            
+            if (changed) {
+                threadLock.lock();
+                // Merge loaded data back into mClips
+                for (auto& clip : backgroundClips) {
+                    if (clip.isLoaded) {
+                        for (auto& target : mClips) {
+                            if (target.id == clip.id) {
+                                target.pcmData = clip.pcmData;
+                                target.isLoaded = true;
+                            }
+                        }
+                    }
+                }
+                LOGD("Clips background decoding finished.");
+            }
+        }).detach();
+    }
 }
 
 void AudioEngine::start() {
@@ -271,18 +320,9 @@ void AudioEngine::processAudio(float* buffer, int numFrames) {
     }
     
     long currentSamples = mCurrentPositionSamples.load();
-
-    if (mMainAudio.isLoaded) {
-        size_t startIdx = currentSamples * 2;
-        size_t endIdx = startIdx + numFrames * 2;
-        
-        for (int i = 0; i < numFrames * 2; i++) {
-            size_t idx = startIdx + i;
-            if (idx < mMainAudio.pcmData.size()) {
-                buffer[i] += mMainAudio.pcmData[idx] * mMainAudio.volume;
-            }
-        }
-    }
+    
+    // Main audio is now mixed via the mClips loop below if it's in the tracks,
+    // so we don't mix it here to avoid double-mixing and distortion.
 
     for (const auto& clip : mClips) {
         if (!clip.isLoaded) continue;
@@ -296,9 +336,10 @@ void AudioEngine::processAudio(float* buffer, int numFrames) {
                 if (absoluteSample >= clipStartSample && absoluteSample < clipEndSample) {
                     long relativeSample = absoluteSample - clipStartSample;
                     size_t pcmIdx = relativeSample * 2;
-                    if (pcmIdx + 1 < clip.pcmData.size()) {
-                        buffer[i * 2] += clip.pcmData[pcmIdx] * clip.volume;
-                        buffer[i * 2 + 1] += clip.pcmData[pcmIdx + 1] * clip.volume;
+                    if (clip.pcmData && pcmIdx + 1 < clip.pcmData->size()) {
+                        float vol = clip.volume;
+                        buffer[i * 2] += (*clip.pcmData)[pcmIdx] * vol;
+                        buffer[i * 2 + 1] += (*clip.pcmData)[pcmIdx + 1] * vol;
                     }
                 }
             }

@@ -32,6 +32,7 @@ class HistoryState {
   final double backgroundY;
   final int backgroundFillMode;
   final List<Duration> markers;
+  final double mainAudioVolume;
 
   HistoryState({
     required this.tracks,
@@ -47,6 +48,7 @@ class HistoryState {
     required this.backgroundY,
     required this.backgroundFillMode,
     required this.markers,
+    required this.mainAudioVolume,
   });
 
   HistoryState clone() {
@@ -64,6 +66,7 @@ class HistoryState {
       backgroundY: backgroundY,
       backgroundFillMode: backgroundFillMode,
       markers: List.from(markers),
+      mainAudioVolume: mainAudioVolume,
     );
   }
 }
@@ -540,18 +543,24 @@ class EditorProvider extends ChangeNotifier {
     }
   }
 
+  int lastRenderWidth = 0;
+  int lastRenderHeight = 0;
+
   void updateProjectSync({int? width, int? height}) {
+    if (width != null) lastRenderWidth = width;
+    if (height != null) lastRenderHeight = height;
+    
     _bridge.updateProjectSettings(
       aspectRatio: _aspectRatio,
-      backgroundColor: _backgroundColor, 
-      backgroundImagePath: _backgroundImagePath, 
-      bgScale: _backgroundScale,
-      bgRotation: _backgroundRotation,
-      bgX: _backgroundX,
-      bgY: _backgroundY,
-      bgFillMode: _backgroundFillMode,
+      backgroundColor: backgroundColor,
+      backgroundImagePath: backgroundImagePath,
       width: width,
       height: height,
+      bgScale: backgroundScale,
+      bgRotation: backgroundRotation,
+      bgX: backgroundX,
+      bgY: backgroundY,
+      bgFillMode: backgroundFillMode,
     );
   }
 
@@ -613,6 +622,7 @@ class EditorProvider extends ChangeNotifier {
     }
     _redoStack.clear();
     _markDirty();
+    _saveProject();
     notifyListeners();
   }
 
@@ -631,6 +641,7 @@ class EditorProvider extends ChangeNotifier {
       backgroundY: _backgroundY,
       backgroundFillMode: _backgroundFillMode,
       markers: List.from(_markers),
+      mainAudioVolume: _mainAudioVolume,
     );
   }
 
@@ -675,6 +686,8 @@ class EditorProvider extends ChangeNotifier {
     _backgroundFillMode = state.backgroundFillMode;
     _markers.clear();
     _markers.addAll(state.markers);
+    _mainAudioVolume = state.mainAudioVolume;
+    _bridge.setMainAudioVolume(_mainAudioVolume);
   }
 
   bool get canUndo => _undoStack.isNotEmpty;
@@ -685,29 +698,24 @@ class EditorProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  TimelineClip? get selectedTimelineClip {
-    if (_selectedClipIds.isEmpty) return null;
-    try {
-      final firstId = _selectedClipIds.first;
-      for (var track in _tracks) {
-        for (var clip in track.clips) {
-          if (clip.id == firstId) return clip;
-        }
-      }
-      for (var track in _overlayTracks) {
-        for (var clip in track.overlays) {
-          if (clip.id == firstId) return clip;
-        }
-      }
-      for (var track in _backgroundTracks) {
-        for (var clip in track.backgrounds) {
-          if (clip.id == firstId) return clip;
-        }
-      }
-      return null;
-    } catch (_) {
-      return null;
+  List<TimelineClip> get selectedTimelineClips {
+    if (_selectedClipIds.isEmpty) return [];
+    final List<TimelineClip> selected = [];
+    for (var track in _tracks) {
+      selected.addAll(track.clips.where((c) => _selectedClipIds.contains(c.id)));
     }
+    for (var track in _overlayTracks) {
+      selected.addAll(track.overlays.where((c) => _selectedClipIds.contains(c.id)));
+    }
+    for (var track in _backgroundTracks) {
+      selected.addAll(track.backgrounds.where((c) => _selectedClipIds.contains(c.id)));
+    }
+    return selected;
+  }
+
+  TimelineClip? get selectedTimelineClip {
+    final clips = selectedTimelineClips;
+    return clips.isNotEmpty ? clips.first : null;
   }
 
   SubtitleClip? get selectedClip {
@@ -1245,6 +1253,10 @@ class EditorProvider extends ChangeNotifier {
       for (int i = 0; i < track.audioClips.length; i++) {
         final clip = track.audioClips[i];
         if (idSet.contains(clip.id)) {
+          if (clip.isMainAudio && volume != null) {
+            _mainAudioVolume = volume;
+            _bridge.setMainAudioVolume(volume);
+          }
           track.audioClips[i] = clip.copyWith(
             volume: volume,
           );
@@ -1286,11 +1298,18 @@ class EditorProvider extends ChangeNotifier {
     final allBackgrounds = _backgroundTracks.expand((t) => t.backgrounds).map((c) {
       final map = c.toJson();
       map['isBackground'] = true;
-      map['isText'] = false; 
+      map['isText'] = false;
+      map['isOverlay'] = false;
       return map;
     }).toList();
 
-    _bridge.updateClips([...allBackgrounds, ...allOverlays, ...allClips]);
+    // Combine all and ensure unique clips (by ID) to prevent native engine glitches
+    final Map<String, Map<String, dynamic>> uniqueClips = {};
+    for (var m in [...allBackgrounds, ...allOverlays, ...allClips]) {
+      uniqueClips[m['id']] = m;
+    }
+
+    _bridge.updateClips(uniqueClips.values.toList());
     _bridge.updateProjectSettings(
       aspectRatio: _aspectRatio,
       backgroundColor: backgroundColor,
@@ -1305,6 +1324,7 @@ class EditorProvider extends ChangeNotifier {
   }
 
   void _pushAudioToNative() {
+    final List<String> ids = [];
     final List<String> paths = [];
     final List<int> starts = [];
     final List<int> ends = [];
@@ -1312,9 +1332,7 @@ class EditorProvider extends ChangeNotifier {
 
     for (var track in _audioTracks) {
       for (var clip in track.audioClips) {
-        // Main audio is handled separately in the C++ engine for convenience
-        // or we can just include it if we want it mixed the same way.
-        // For now, let's include everything that should be playing.
+        ids.add(clip.id);
         paths.add(clip.audioPath);
         starts.add(clip.startTime.inMilliseconds);
         ends.add(clip.endTime.inMilliseconds);
@@ -1323,6 +1341,7 @@ class EditorProvider extends ChangeNotifier {
     }
 
     _bridge.setAudioClips(
+      ids: ids,
       paths: paths,
       starts: starts,
       ends: ends,
@@ -1333,7 +1352,19 @@ class EditorProvider extends ChangeNotifier {
 
   void setMainAudioVolume(double volume) {
     _mainAudioVolume = volume;
+    
+    // Update the volume of the main audio clip in the tracks as well
+    for (var track in _audioTracks) {
+      for (int i = 0; i < track.audioClips.length; i++) {
+        if (track.audioClips[i].isMainAudio) {
+          track.audioClips[i] = track.audioClips[i].copyWith(volume: volume);
+        }
+      }
+    }
+    
     _bridge.setMainAudioVolume(_mainAudioVolume);
+    _pushAudioToNative(); // This pushes the updated clip volumes to C++
+    _saveProject();
     notifyListeners();
   }
 
@@ -1365,10 +1396,12 @@ class EditorProvider extends ChangeNotifier {
         _backgroundFillMode = state['backgroundFillMode'] ?? 0;
         _whisperModelPath = state['whisperModelPath'];
         _audioPath = state['audioPath'];
+        _mainAudioVolume = (state['mainAudioVolume'] as num?)?.toDouble() ?? 1.0;
 
         _tracks = (state['tracks'] as List? ?? []).map((t) => Track.fromJson(Map<String, dynamic>.from(t))).toList();
         _overlayTracks = (state['overlayTracks'] as List? ?? []).map((t) => Track.fromJson(Map<String, dynamic>.from(t))).toList();
         _backgroundTracks = (state['backgroundTracks'] as List? ?? []).map((t) => Track.fromJson(Map<String, dynamic>.from(t))).toList();
+        _audioTracks = (state['audioTracks'] as List? ?? []).map((t) => Track.fromJson(Map<String, dynamic>.from(t))).toList();
       }
     } catch (e) {
       print("Error loading project: $e");
@@ -1384,6 +1417,32 @@ class EditorProvider extends ChangeNotifier {
     await _bridge.initAudioEngine();
     _loadSettings();
     await _loadPersistedProject();
+  }
+
+  void _saveProject() {
+    try {
+      final box = Hive.box('project_box');
+      final Map<String, dynamic> state = {
+        'aspectRatio': _aspectRatio,
+        'backgroundColor': _backgroundColor,
+        'backgroundImagePath': _backgroundImagePath,
+        'backgroundScale': _backgroundScale,
+        'backgroundRotation': _backgroundRotation,
+        'backgroundX': _backgroundX,
+        'backgroundY': _backgroundY,
+        'backgroundFillMode': _backgroundFillMode,
+        'whisperModelPath': _whisperModelPath,
+        'audioPath': _audioPath,
+        'mainAudioVolume': _mainAudioVolume,
+        'tracks': _tracks.map((t) => t.toJson()).toList(),
+        'overlayTracks': _overlayTracks.map((t) => t.toJson()).toList(),
+        'backgroundTracks': _backgroundTracks.map((t) => t.toJson()).toList(),
+        'audioTracks': _audioTracks.map((t) => t.toJson()).toList(),
+      };
+      box.put('project_state', state);
+    } catch (e) {
+      print("Error saving project: $e");
+    }
   }
 
   void _loadSettings() {
@@ -1449,6 +1508,7 @@ class EditorProvider extends ChangeNotifier {
       startTime: Duration.zero,
       endTime: duration,
       isMainAudio: true,
+      volume: _mainAudioVolume,
       sourceDurationMs: durationMs,
       waveform: waveform,
     );
@@ -1821,7 +1881,9 @@ class EditorProvider extends ChangeNotifier {
     }
     
     _resolveCollisions(newOverlay, 0);
+    syncToNative();
     selectClip(newOverlay.id);
+    notifyListeners();
   }
 
   Future<void> addBackgroundClip({String? imagePath, int color = 0xFFFFFFFF}) async {
@@ -1846,7 +1908,9 @@ class EditorProvider extends ChangeNotifier {
     }
     
     _resolveCollisions(newClip, 0);
+    syncToNative();
     selectClip(newClip.id);
+    notifyListeners();
   }
 
   void mergeSelectedClips() {
@@ -2814,6 +2878,7 @@ class EditorProvider extends ChangeNotifier {
   void seek(Duration pos) {
     if (_isPlayheadLocked) return;
     _currentTime = pos;
+    playbackTime.value = pos;
     
     _bridge.seekTo(pos.inMilliseconds);
     _bridge.seekAudioEngine(pos.inMilliseconds);

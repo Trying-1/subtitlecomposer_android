@@ -5,6 +5,7 @@
 #include <SLES/OpenSLES_Android.h>
 #include <string>
 #include <vector>
+#include <memory>
 #include <mutex>
 #include <atomic>
 
@@ -14,7 +15,7 @@ struct PreviewAudioClip {
     long startTime; // ms
     long endTime;   // ms
     float volume;
-    std::vector<float> pcmData;
+    std::shared_ptr<std::vector<float>> pcmData;
     bool isLoaded = false;
 };
 

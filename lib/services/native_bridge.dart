@@ -158,12 +158,14 @@ class NativeBridge {
   }
 
   Future<void> setAudioClips({
+    required List<String> ids,
     required List<String> paths,
     required List<int> starts,
     required List<int> ends,
     required List<double> vols,
   }) async {
     await _channel.invokeMethod('setAudioClips', {
+      'ids': ids,
       'paths': paths,
       'starts': starts,
       'ends': ends,

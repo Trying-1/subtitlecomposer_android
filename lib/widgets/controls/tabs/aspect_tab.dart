@@ -106,58 +106,99 @@ class AspectTab extends StatelessWidget {
     final widthController = TextEditingController(text: '1080');
     final heightController = TextEditingController(text: '1920');
 
+    String getSimplifiedRatio(String wStr, String hStr) {
+      final w = double.tryParse(wStr);
+      final h = double.tryParse(hStr);
+      if (w == null || h == null || h == 0) return "Invalid";
+      
+      final ratio = w / h;
+      
+      // Try to get simple fraction
+      int gcd(int a, int b) => b == 0 ? a : gcd(b, a % b);
+      try {
+        final common = gcd(w.toInt(), h.toInt());
+        if (common > 0) {
+          return "${(w / common).toInt()}:${(h / common).toInt()} (${ratio.toStringAsFixed(2)})";
+        }
+      } catch (_) {}
+      
+      return ratio.toStringAsFixed(2);
+    }
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A23),
-        title: const Text('Custom Aspect Ratio', style: TextStyle(color: Colors.white, fontSize: 16)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: widthController,
-              keyboardType: TextInputType.number,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                labelText: 'Width',
-                labelStyle: TextStyle(color: Colors.white38),
-                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white10)),
-                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.deepPurpleAccent)),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => AlertDialog(
+          backgroundColor: const Color(0xFF1A1A23),
+          title: const Text('Custom Aspect Ratio', style: TextStyle(color: Colors.white, fontSize: 16)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: widthController,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(color: Colors.white),
+                onChanged: (_) => setModalState(() {}),
+                decoration: const InputDecoration(
+                  labelText: 'Width',
+                  labelStyle: TextStyle(color: Colors.white38),
+                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white10)),
+                  focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.deepPurpleAccent)),
+                ),
               ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: heightController,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(color: Colors.white),
+                onChanged: (_) => setModalState(() {}),
+                decoration: const InputDecoration(
+                  labelText: 'Height',
+                  labelStyle: TextStyle(color: Colors.white38),
+                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white10)),
+                  focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.deepPurpleAccent)),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.03),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('PREVIEW RATIO', style: TextStyle(color: Colors.white24, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                    Text(
+                      getSimplifiedRatio(widthController.text, heightController.text),
+                      style: const TextStyle(color: Colors.deepPurpleAccent, fontSize: 12, fontWeight: FontWeight.bold, fontFamily: 'monospace'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('CANCEL', style: TextStyle(color: Colors.white38)),
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: heightController,
-              keyboardType: TextInputType.number,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                labelText: 'Height',
-                labelStyle: TextStyle(color: Colors.white38),
-                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white10)),
-                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.deepPurpleAccent)),
-              ),
+            TextButton(
+              onPressed: () {
+                final w = double.tryParse(widthController.text);
+                final h = double.tryParse(heightController.text);
+                if (w != null && h != null && h != 0) {
+                  final ratio = w / h;
+                  provider.setAspectRatio(ratio);
+                  provider.addCustomAspectRatio(ratio);
+                }
+                Navigator.pop(context);
+              },
+              child: const Text('APPLY', style: TextStyle(color: Colors.deepPurpleAccent)),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('CANCEL', style: TextStyle(color: Colors.white38)),
-          ),
-          TextButton(
-            onPressed: () {
-              final w = double.tryParse(widthController.text);
-              final h = double.tryParse(heightController.text);
-              if (w != null && h != null && h != 0) {
-                final ratio = w / h;
-                provider.setAspectRatio(ratio);
-                provider.addCustomAspectRatio(ratio);
-              }
-              Navigator.pop(context);
-            },
-            child: const Text('APPLY', style: TextStyle(color: Colors.deepPurpleAccent)),
-          ),
-        ],
       ),
     );
   }

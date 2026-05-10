@@ -315,6 +315,28 @@ yes, if that more smooth and professional level then offcourse we  need that
 [export preview is black, spinning endless]
 [good, next improve the video player design, keep it monochorome, minimalistic., and also the successfull export dialog, and show the user understanable path instead of content://.....]
 
+[okay, next lets keep the playhead fixed at center and the timeline move behind it, like capcut does understood. ]
+[good but the track label are on the right of the 0s, fix that. it should be on the left of 0s start got it]
+[good make the scrubing more smooth, right it sometime lags a bit]
+[alright next in the custom aspect ratio, show the ratio as well. make it dynamic as user input vaule of height and width.  got it]
+[next show the selection box in the preview window, like which element is selected. got it lets remove the direct drag method that we have right, first select and then drag, understood. ]
+[remove the corner dot and color from the box]
+[while draging element the box should follow it in realtime, right it not]
+[remove pinch to scale method. ]
+[lets use pinch to zoom in out the  whole preview so that we can work more precisely understood]
+[so remove it from the timeline control panel]
+[the selection box widht is too much kind of its same of all length of texts , it not wrapping the text properly]
+[and the box is staying in the preview even when the selected text is not in the current frame. ]
+[the progress time is not updating while scrubbing]
+reduce the selection box stroke width, make it thinner just visible, and chose grey color for it]
+[when multiple text are selected and then wrap all in one box, understood. ]
+[there is some bug that even being under the playhead, sometime the text are not visible in the preview. specialyy when stacked. ]
+[previously we had that swipe scrubing are below the preview area whe full screen mode, lets remove that and also the full screen mode, since we now drag and adjust the timeline area height. understood]
+[awesome there issue in the selection box for overlays. its not bouding the overlay properly]
+[also overlay are not visible right after they are added, like they are visisble only when some changes like transformation or animation is applied]
+[good next issue in the volume control of main audio, its not workig. even after setting volume to 0 its audible and  even on maxing its alway is same volume, just increasing volume is just breaking the audio quality. ]
+[okay, next while app opening there is weird glitch sound, what is that]
+
 
 
 

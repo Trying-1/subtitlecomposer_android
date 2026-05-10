@@ -56,8 +56,6 @@ class TimelineEditor extends StatefulWidget {
   final VoidCallback onActionStart; // For undo saving
   final bool isPlaying;
   final VoidCallback onTogglePlay;
-  final bool isCollapsed;
-  final VoidCallback onToggleCollapse;
   final bool isKeyframeAtCurrentTime;
   final VoidCallback onUndo;
   final VoidCallback onRedo;
@@ -124,8 +122,6 @@ class TimelineEditor extends StatefulWidget {
     required this.canRedo,
     required this.isPlaying,
     required this.onTogglePlay,
-    required this.isCollapsed,
-    required this.onToggleCollapse,
     this.onAddKeyframe,
     this.onClearKeyframes,
     this.isKeyframeAtCurrentTime = false,
@@ -168,6 +164,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
   Timer? _autoScrollTimer;
   double _currentScrollDelta = 0;
   String? _draggingClipId;
+  DateTime _lastSeekTime = DateTime.now();
   
   late ScrollController _horizontalScrollController;
   bool _isManualScrolling = false;
@@ -179,6 +176,14 @@ class _TimelineEditorState extends State<TimelineEditor> {
     super.initState();
     _horizontalScrollController = ScrollController();
     widget.playbackTime?.addListener(_onPlaybackTimeChanged);
+    
+    // Initial scroll to current time
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_horizontalScrollController.hasClients) {
+        final targetOffset = (widget.currentTime.inMilliseconds / 1000.0) * _pixelsPerSecond;
+        _horizontalScrollController.jumpTo(targetOffset);
+      }
+    });
   }
 
   @override
@@ -241,7 +246,27 @@ class _TimelineEditorState extends State<TimelineEditor> {
       oldWidget.playbackTime?.removeListener(_onPlaybackTimeChanged);
       widget.playbackTime?.addListener(_onPlaybackTimeChanged);
     }
-    // Safety: if tracks change significantly or selection is cleared, reset dragging state
+    
+    // Adjust scroll when zoom changes to keep same time at center
+    if (oldWidget.zoomLevel != widget.zoomLevel && _horizontalScrollController.hasClients) {
+      final time = widget.playbackTime?.value ?? widget.currentTime;
+      // We need to calculate the NEW pps here or wait for next build.
+      // Actually, since build will happen right after this, we can use a post frame callback
+      // or just trust that build will recalculate pps and we can jump then.
+      // Better: jump in build if zoom changed? No, jump in didUpdateWidget with calculated pps.
+      
+      // Calculate new PPS exactly like build does
+      final double availableWidth = MediaQuery.of(context).size.width - 40; 
+      double newPPS = 50.0 * widget.zoomLevel;
+      if (widget.zoomLevel < 0.05) {
+        final totalSeconds = widget.totalDuration.inMilliseconds / 1000.0;
+        if (totalSeconds > 0) newPPS = availableWidth / totalSeconds;
+      }
+      
+      final targetOffset = (time.inMilliseconds / 1000.0) * newPPS;
+      _horizontalScrollController.jumpTo(targetOffset);
+    }
+
     if (widget.selectedClipIds.isEmpty) {
       _draggingClipId = null;
     }
@@ -250,19 +275,19 @@ class _TimelineEditorState extends State<TimelineEditor> {
   void _onPlaybackTimeChanged() {
     if (!widget.isPlaying || _isManualScrolling) return;
     
-    // Auto-scroll to keep playhead at center
+    // Auto-scroll to keep current time at center
     final time = widget.playbackTime?.value ?? widget.currentTime;
-    final playheadPos = (time.inMilliseconds / 1000.0) * _pixelsPerSecond;
+    final targetOffset = (time.inMilliseconds / 1000.0) * _pixelsPerSecond;
     
     if (_horizontalScrollController.hasClients) {
-      final viewportWidth = _horizontalScrollController.position.viewportDimension;
-      final targetOffset = (playheadPos - viewportWidth / 2).clamp(
-        0.0, 
-        _horizontalScrollController.position.maxScrollExtent
-      );
-      
       _horizontalScrollController.jumpTo(targetOffset);
     }
+  }
+
+  String _formatDuration(Duration d) {
+    final minutes = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return "$minutes:$seconds";
   }
 
   @override
@@ -280,58 +305,111 @@ class _TimelineEditorState extends State<TimelineEditor> {
         }
         _lastPPS = pps;
 
-        final timelineWidth = (widget.totalDuration.inMilliseconds / 1000) * pps + 100;
+        final double timelineWidth = (widget.totalDuration.inMilliseconds / 1000) * pps;
+        final double halfViewportWidth = constraints.maxWidth / 2;
 
         return Container(
           color: const Color(0xFF16161E),
           child: Column(
             children: [
               _buildControlHeader(context),
-              if (!widget.isCollapsed)
-                Expanded(
-                  child: GestureDetector(
-                    onScaleStart: (details) => _baseZoomLevel = widget.zoomLevel,
-                    onScaleUpdate: (details) {
-                      if (details.pointerCount >= 2) {
-                        final newZoom = (_baseZoomLevel * details.scale).clamp(0.0, 5.0);
-                        widget.onZoomChanged(newZoom);
-                      }
-                    },
-                    child: NotificationListener<ScrollNotification>(
-                      onNotification: (notification) {
-                        if (notification is ScrollStartNotification && notification.dragDetails != null) {
-                          _isManualScrolling = true;
-                          if (widget.isPlaying) widget.onTogglePlay();
-                        } else if (notification is ScrollEndNotification) {
-                          _isManualScrolling = false;
+              Expanded(
+                child: Stack(
+                  children: [
+                    GestureDetector(
+                      onScaleStart: (details) => _baseZoomLevel = widget.zoomLevel,
+                      onScaleUpdate: (details) {
+                        if (details.pointerCount >= 2) {
+                          final newZoom = (_baseZoomLevel * details.scale).clamp(0.0, 5.0);
+                          widget.onZoomChanged(newZoom);
                         }
-                        return false;
                       },
-                      child: SingleChildScrollView(
-                        controller: _horizontalScrollController,
-                        scrollDirection: Axis.horizontal,
-                        physics: LockableScrollPhysics(isLocked: () => _isScrollingLocked),
-                        child: SizedBox(
-                          width: timelineWidth + 40, // Add space for label
-                          child: Column(
-                            children: [
-                              _buildTimeRulerWithOffset(),
-                              Expanded(
-                                child: GestureDetector(
-                                  onTap: () => widget.onSelect(null),
-                                  child: SingleChildScrollView(
-                                    physics: const AlwaysScrollableScrollPhysics(),
-                                    child: _buildTracksColumn(),
+                      child: NotificationListener<ScrollNotification>(
+                        onNotification: (notification) {
+                          if (notification is ScrollStartNotification && notification.dragDetails != null) {
+                            _isManualScrolling = true;
+                            if (widget.isPlaying) widget.onTogglePlay();
+                          } else if (notification is ScrollEndNotification) {
+                            _isManualScrolling = false;
+                          }
+                          
+                          if (notification is ScrollUpdateNotification && _isManualScrolling) {
+                            final now = DateTime.now();
+                            if (now.difference(_lastSeekTime).inMilliseconds >= 16) {
+                              _lastSeekTime = now;
+                              final offset = _horizontalScrollController.offset;
+                              final seconds = offset / _pixelsPerSecond;
+                              final duration = Duration(milliseconds: (seconds * 1000).toInt());
+                              if (duration >= Duration.zero && duration <= widget.totalDuration) {
+                                widget.onSeek(duration);
+                              }
+                            }
+                          }
+                          return false;
+                        },
+                        child: SingleChildScrollView(
+                          controller: _horizontalScrollController,
+                          scrollDirection: Axis.horizontal,
+                          physics: LockableScrollPhysics(isLocked: () => _isScrollingLocked),
+                          child: SizedBox(
+                            width: timelineWidth + (halfViewportWidth * 2),
+                            child: Column(
+                              children: [
+                                _buildTimeRulerWithOffset(halfViewportWidth),
+                                Expanded(
+                                  child: GestureDetector(
+                                    onTap: () => widget.onSelect(null),
+                                    child: SingleChildScrollView(
+                                      physics: const AlwaysScrollableScrollPhysics(),
+                                      child: _buildTracksColumn(halfViewportWidth),
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
+                    // Fixed Playhead Overlay
+                    Positioned(
+                      left: halfViewportWidth,
+                      top: 0,
+                      bottom: 0,
+                      child: IgnorePointer(
+                        child: _buildPlayhead(),
+                      ),
+                    ),
+                    // Fixed Time Progress Indicator (CapCut Style)
+                    Positioned(
+                      left: 12,
+                      top: 4, // Aligned with ruler text
+                      child: ValueListenableBuilder<Duration>(
+                        valueListenable: widget.playbackTime ?? ValueNotifier(widget.currentTime),
+                        builder: (context, time, _) {
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.5),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              "${_formatDuration(time)} / ${_formatDuration(widget.totalDuration)}",
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 8,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'monospace',
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
+              ),
             ],
           ),
         );
@@ -347,25 +425,12 @@ class _TimelineEditorState extends State<TimelineEditor> {
       ),
       child: Column(
         children: [
-          // Row 1: Playback & Zoom
           Padding(
             padding: const EdgeInsets.fromLTRB(8, 1, 16, 1),
             child: Row(
               children: [
-                IconButton(
-                  onPressed: widget.onTogglePlay,
-                  icon: Icon(
-                    widget.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                    size: 20,
-                    color: Colors.deepPurpleAccent,
-                  ),
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
+                 _buildPlaybackControls(),
                 const SizedBox(width: 8),
-                _buildTimeDisplay(),
-                const SizedBox(width: 16),
                 const Icon(Icons.zoom_out, size: 14, color: Colors.white30),
                 Expanded(
                   child: SliderTheme(
@@ -386,24 +451,12 @@ class _TimelineEditorState extends State<TimelineEditor> {
                 ),
                 const Icon(Icons.zoom_in, size: 14, color: Colors.white30),
                 const SizedBox(width: 8),
-                IconButton(
-                  onPressed: widget.onToggleCollapse,
-                  icon: Icon(
-                    widget.isCollapsed ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
-                    size: 18,
-                    color: Colors.white70,
-                  ),
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
               ],
             ),
           ),
-          if (!widget.isCollapsed) ...[
-            const Divider(height: 1, color: Colors.white10),
-            // Row 2: Tools (Scrollable)
-            Container(
+          const Divider(height: 1, color: Colors.white10),
+          // Row 2: Tools (Scrollable)
+          Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
               child: SingleChildScrollView(
@@ -558,27 +611,21 @@ class _TimelineEditorState extends State<TimelineEditor> {
               ),
             ),
           ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTimeDisplay() {
-    String formatDuration(Duration d) {
-      String twoDigits(int n) => n.toString().padLeft(2, '0');
-      final minutes = twoDigits(d.inMinutes.remainder(60));
-      final seconds = twoDigits(d.inSeconds.remainder(60));
-      return "$minutes:$seconds";
+        ),
+      );
     }
 
-    return Text(
-      "${formatDuration(widget.currentTime)} / ${formatDuration(widget.totalDuration)}",
-      style: const TextStyle(
-        fontFamily: 'monospace',
-        fontSize: 11,
-        fontWeight: FontWeight.w600,
-        color: Colors.white38,
+  Widget _buildPlaybackControls() {
+    return IconButton(
+      onPressed: widget.onTogglePlay,
+      icon: Icon(
+        widget.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+        size: 20,
+        color: Colors.deepPurpleAccent,
       ),
+      visualDensity: VisualDensity.compact,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(),
     );
   }
 
@@ -640,17 +687,6 @@ class _TimelineEditorState extends State<TimelineEditor> {
               child: CustomPaint(
                 painter: RulerPainter(widget.totalDuration, _pixelsPerSecond, widget.markers),
               ),
-            ),
-            ValueListenableBuilder<Duration>(
-              valueListenable: widget.playbackTime ?? ValueNotifier(widget.currentTime),
-              builder: (context, time, _) {
-                return Positioned(
-                  left: _calculatePosition(time),
-                  top: 0,
-                  bottom: 0,
-                  child: _buildPlayhead(),
-                );
-              },
             ),
           ],
         ),
@@ -1176,12 +1212,10 @@ class _TimelineEditorState extends State<TimelineEditor> {
 
 
 
-  Widget _buildTimeRulerWithOffset() {
-    return Row(
-      children: [
-        const SizedBox(width: 40), // Offset for track labels
-        Expanded(child: _buildTimeRuler()),
-      ],
+  Widget _buildTimeRulerWithOffset(double padding) {
+    return Padding(
+      padding: EdgeInsets.only(left: padding, right: padding),
+      child: _buildTimeRuler(),
     );
   }
 
@@ -1212,31 +1246,34 @@ class _TimelineEditorState extends State<TimelineEditor> {
     );
   }
 
-  Widget _buildTracksColumn() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (widget.showTextTracks) ...[
-          ...widget.tracks.map((track) => _buildTrackRow(track)),
-          _buildEmptySpaceDragTarget(TrackType.text),
+  Widget _buildTracksColumn(double padding) {
+    return Padding(
+      padding: EdgeInsets.only(left: padding - 40, right: padding),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (widget.showTextTracks) ...[
+            ...widget.tracks.map((track) => _buildTrackRow(track)),
+            _buildEmptySpaceDragTarget(TrackType.text),
+          ],
+          if (widget.showOverlayTracks) ...[
+            const SizedBox(height: 4),
+            ...widget.overlayTracks.map((track) => _buildTrackRow(track)),
+            _buildEmptySpaceDragTarget(TrackType.overlay),
+          ],
+          if (widget.showBackgroundTracks) ...[
+            const SizedBox(height: 4),
+            ...widget.backgroundTracks.map((track) => _buildTrackRow(track)),
+            _buildEmptySpaceDragTarget(TrackType.background),
+          ],
+          if (widget.showAudioTracks) ...[
+            const SizedBox(height: 4),
+            ...widget.audioTracks.map((track) => _buildTrackRow(track)),
+            _buildEmptySpaceDragTarget(TrackType.audio),
+          ],
+          const SizedBox(height: 100),
         ],
-        if (widget.showOverlayTracks) ...[
-          const SizedBox(height: 4),
-          ...widget.overlayTracks.map((track) => _buildTrackRow(track)),
-          _buildEmptySpaceDragTarget(TrackType.overlay),
-        ],
-        if (widget.showBackgroundTracks) ...[
-          const SizedBox(height: 4),
-          ...widget.backgroundTracks.map((track) => _buildTrackRow(track)),
-          _buildEmptySpaceDragTarget(TrackType.background),
-        ],
-        if (widget.showAudioTracks) ...[
-          const SizedBox(height: 4),
-          ...widget.audioTracks.map((track) => _buildTrackRow(track)),
-          _buildEmptySpaceDragTarget(TrackType.audio),
-        ],
-        const SizedBox(height: 100),
-      ],
+      ),
     );
   }
 
@@ -1277,10 +1314,12 @@ class _TimelineEditorState extends State<TimelineEditor> {
         // but for now this just creates the track.
       },
       builder: (context, candidateData, rejectedData) {
-        return Row(
-          children: [
-            _buildEmptySpaceLabel(),
-            Expanded(
+        return Padding(
+          padding: const EdgeInsets.only(left: 0), // Already handled by parent column padding offset
+          child: Row(
+            children: [
+              _buildEmptySpaceLabel(),
+              Expanded(
               child: Container(
                 height: 60,
                 decoration: BoxDecoration(
@@ -1301,11 +1340,12 @@ class _TimelineEditorState extends State<TimelineEditor> {
                         label: Text("ADD ${type == TrackType.text ? 'TEXT' : (type == TrackType.overlay ? 'OVERLAY' : (type == TrackType.background ? 'BACKGROUND' : 'AUDIO'))} TRACK", 
                           style: const TextStyle(fontSize: 8, color: Colors.white24, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
                       ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       },
     );

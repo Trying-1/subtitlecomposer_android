@@ -41,7 +41,7 @@ class MainActivity : FlutterActivity() {
     private external fun setMainAudio(path: String)
     private external fun setMainAudioVolume(volume: Float)
     private external fun getAudioPosition(): Long
-    private external fun setAudioClips(paths: Array<String>, starts: LongArray, ends: LongArray, vols: FloatArray)
+    private external fun setAudioClips(ids: Array<String>, paths: Array<String>, starts: LongArray, ends: LongArray, vols: FloatArray)
     
     private external fun decodeAudioToPcm(audioPath: String): FloatArray?
 
@@ -360,11 +360,12 @@ class MainActivity : FlutterActivity() {
                     result.success(getAudioPosition())
                 }
                 "setAudioClips" -> {
+                    val ids = (call.argument<List<String>>("ids"))?.toTypedArray() ?: emptyArray()
                     val paths = (call.argument<List<String>>("paths"))?.toTypedArray() ?: emptyArray()
                     val starts = (call.argument<List<Long>>("starts"))?.toLongArray() ?: LongArray(0)
                     val ends = (call.argument<List<Long>>("ends"))?.toLongArray() ?: LongArray(0)
                     val vols = (call.argument<List<Double>>("vols"))?.map { it.toFloat() }?.toFloatArray() ?: FloatArray(0)
-                    setAudioClips(paths, starts, ends, vols)
+                    setAudioClips(ids, paths, starts, ends, vols)
                     result.success(null)
                 }
                 "decodeAudioToPcm" -> {
