@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../../models/editor_models.dart';
 import '../../../../utils/animation_presets.dart';
+import '../../../../providers/asset_provider.dart';
 import '../../../common/custom_color_picker.dart';
 
 class CommonControls {
@@ -59,6 +61,7 @@ class CommonControls {
       0xFF0000FF, 0xFFFFFF00, 0xFFFF00FF, 0xFF00FFFF,
       0xFFFF9800, 0xFF9C27B0,
     ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -78,7 +81,7 @@ class CommonControls {
                     height: 26,
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.05),
-                      shape: BoxShape.circle,
+                      borderRadius: BorderRadius.circular(6),
                       border: Border.all(color: Colors.white10, width: 1),
                     ),
                     child: const Icon(Icons.palette_rounded, size: 14, color: Colors.white70),
@@ -94,7 +97,7 @@ class CommonControls {
                     height: 26,
                     decoration: BoxDecoration(
                       color: Color(c),
-                      shape: BoxShape.circle,
+                      borderRadius: BorderRadius.circular(6),
                       border: Border.all(
                         color: current == c ? Colors.deepPurpleAccent : Colors.transparent, 
                         width: 2,
@@ -113,6 +116,73 @@ class CommonControls {
     );
   }
 
+  static Widget buildPalettesOnly(BuildContext context, int current, ValueChanged<int> onChanged) {
+    return Consumer<AssetProvider>(
+      builder: (context, assetProvider, child) {
+        if (assetProvider.palettes.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(40),
+              child: Column(
+                children: [
+                  Icon(Icons.palette_outlined, size: 40, color: Colors.white.withOpacity(0.05)),
+                  const SizedBox(height: 16),
+                  const Text('NO PALETTES YET', style: TextStyle(color: Colors.white10, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                  const SizedBox(height: 8),
+                  const Text('Create them in the Asset Library', style: TextStyle(color: Colors.white10, fontSize: 8)),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('SAVED PALETTES', style: TextStyle(fontSize: 8, color: Colors.deepPurpleAccent, fontWeight: FontWeight.w900, letterSpacing: 0.8)),
+            const SizedBox(height: 16),
+            ...assetProvider.palettes.map((palette) => Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(palette.name.toUpperCase(), style: const TextStyle(fontSize: 8, color: Colors.white38, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 10),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: palette.colors.map((c) => Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: GestureDetector(
+                          onTap: () => onChanged(c),
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: Color(c),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: current == c ? Colors.deepPurpleAccent : Colors.white10, 
+                                width: 2,
+                              ),
+                              boxShadow: [
+                                if (current == c) BoxShadow(color: Colors.deepPurpleAccent.withOpacity(0.3), blurRadius: 10)
+                              ],
+                            ),
+                          ),
+                        ),
+                      )).toList(),
+                    ),
+                  ),
+                ],
+              ),
+            )).toList(),
+          ],
+        );
+      }
+    );
+  }
+
   static void _showCustomColorPicker(BuildContext context, Color initial, ValueChanged<Color> onColorChanged) {
     showModalBottomSheet(
       context: context,
@@ -128,58 +198,92 @@ class CommonControls {
   }
 
   static Widget buildProjectColorPicker(BuildContext context, String label, int current, ValueChanged<int> onChanged) {
-    final colors = [
-      0xFFFFFFFF, 0xFF000000, 0xFFF5F5F5, 0xFFE0E0E0,
-      0xFFFFEBEE, 0xFFE3F2FD, 0xFFF1F8E9, 0xFFFFF3E0,
+     final colors = [
+      0xFFFFFFFF, 0xFF000000, 0xFFFF0000, 0xFF00FF00, 
+      0xFF0000FF, 0xFFFFFF00, 0xFFFF00FF, 0xFF00FFFF,
     ];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(fontSize: 10, color: Colors.white38)),
-        const SizedBox(height: 12),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              // Custom Color Picker Button (Left-most)
-              Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: GestureDetector(
-                  onTap: () => _showCustomColorPicker(context, Color(current), (newColor) => onChanged(newColor.value)),
-                  child: Container(
-                    width: 26,
-                    height: 26,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white10, width: 1),
-                    ),
-                    child: const Icon(Icons.palette_rounded, size: 14, color: Colors.white70),
-                  ),
-                ),
-              ),
-              ...colors.map((c) => Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: GestureDetector(
-                  onTap: () => onChanged(c),
-                  child: Container(
-                    width: 26,
-                    height: 26,
-                    decoration: BoxDecoration(
-                      color: Color(c),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: current == c ? Colors.deepPurpleAccent : Colors.white10, 
-                        width: 2,
+
+    return Consumer<AssetProvider>(
+      builder: (context, assetProvider, child) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: const TextStyle(fontSize: 10, color: Colors.white38, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                   // Custom Color Picker Button
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: GestureDetector(
+                      onTap: () => _showCustomColorPicker(context, Color(current), (newColor) => onChanged(newColor.value)),
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.white10, width: 1),
+                        ),
+                        child: const Icon(Icons.palette_rounded, size: 14, color: Colors.white70),
                       ),
                     ),
                   ),
+                  ...colors.map((c) => Padding(
+                    padding: const EdgeInsets.only(right: 10),
+                    child: GestureDetector(
+                      onTap: () => onChanged(c),
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: Color(c),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: current == c ? Colors.deepPurpleAccent : Colors.white10, 
+                            width: 1.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  )).toList(),
+                ],
+              ),
+            ),
+            
+            if (assetProvider.palettes.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Text('PROJECT PALETTES', style: TextStyle(fontSize: 7, color: Colors.white24, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 10),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: assetProvider.palettes.expand((palette) => palette.colors.map((c) => Padding(
+                    padding: const EdgeInsets.only(right: 10),
+                    child: GestureDetector(
+                      onTap: () => onChanged(c),
+                      child: Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: Color(c),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: current == c ? Colors.deepPurpleAccent : Colors.white10, 
+                            width: 1.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ))).toList(),
                 ),
-              )).toList(),
+              ),
             ],
-          ),
-        ),
-      ],
+          ],
+        );
+      }
     );
   }
 

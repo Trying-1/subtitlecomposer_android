@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import '../models/editor_models.dart';
+import 'package:uuid/uuid.dart';
 
 class AssetProvider extends ChangeNotifier {
   List<String> _overlayAssets = [];
   List<String> _backgroundAssets = [];
   List<String> _audioAssets = [];
+  List<ColorPalette> _palettes = [];
   Map<String, String> _customNames = {};
   bool _isInitialized = false;
 
@@ -12,6 +15,7 @@ class AssetProvider extends ChangeNotifier {
   List<String> get overlayAssets => _overlayAssets;
   List<String> get backgroundAssets => _backgroundAssets;
   List<String> get audioAssets => _audioAssets;
+  List<ColorPalette> get palettes => _palettes;
 
   AssetProvider();
 
@@ -32,6 +36,11 @@ class AssetProvider extends ChangeNotifier {
 
       final audioData = box.get('audio_assets');
       if (audioData != null) _audioAssets = List<String>.from(audioData);
+
+      final palettesData = box.get('palettes');
+      if (palettesData != null) {
+        _palettes = (palettesData as List).map((p) => ColorPalette.fromJson(Map<String, dynamic>.from(p))).toList();
+      }
 
       final namesData = box.get('custom_names');
       if (namesData != null) {
@@ -97,6 +106,39 @@ class AssetProvider extends ChangeNotifier {
     }
   }
 
+  void savePalette(String name, List<int> colors) {
+    if (!_isInitialized) return;
+    final palette = ColorPalette(
+      id: const Uuid().v4(),
+      name: name,
+      colors: colors,
+    );
+    _palettes.add(palette);
+    _persistAssets();
+    notifyListeners();
+  }
+
+  void deletePalette(String id) {
+    if (!_isInitialized) return;
+    _palettes.removeWhere((p) => p.id == id);
+    _persistAssets();
+    notifyListeners();
+  }
+
+  void updatePalette(String id, {String? name, List<int>? colors}) {
+    if (!_isInitialized) return;
+    final index = _palettes.indexWhere((p) => p.id == id);
+    if (index != -1) {
+      _palettes[index] = ColorPalette(
+        id: id,
+        name: name ?? _palettes[index].name,
+        colors: colors ?? _palettes[index].colors,
+      );
+      _persistAssets();
+      notifyListeners();
+    }
+  }
+
   void removeAsset(String path) {
     if (!_isInitialized) return;
     if (_overlayAssets.contains(path)) {
@@ -133,6 +175,7 @@ class AssetProvider extends ChangeNotifier {
       await box.put('overlay_assets', _overlayAssets);
       await box.put('background_assets', _backgroundAssets);
       await box.put('audio_assets', _audioAssets);
+      await box.put('palettes', _palettes.map((p) => p.toJson()).toList());
       await box.put('custom_names', _customNames);
     } catch (e) {
       print("Error persisting assets: $e");

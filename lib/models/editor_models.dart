@@ -1272,3 +1272,26 @@ class CustomLayout {
     positions: (json['positions'] as List).map((p) => LayoutPosition.fromJson(p)).toList(),
   );
 }
+class ColorPalette {
+  final String id;
+  final String name;
+  final List<int> colors;
+
+  ColorPalette({
+    required this.id,
+    required this.name,
+    required this.colors,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'colors': colors,
+  };
+
+  factory ColorPalette.fromJson(Map<String, dynamic> json) => ColorPalette(
+    id: json['id'],
+    name: json['name'] ?? 'Untitled',
+    colors: List<int>.from(json['colors'] ?? []),
+  );
+}

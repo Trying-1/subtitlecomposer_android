@@ -338,6 +338,15 @@ reduce the selection box stroke width, make it thinner just visible, and chose g
 [okay, next while app opening there is weird glitch sound, what is that]
 
 
+===============version17==============
+[alright next lets add custom paletes, like users can create custom color palete for there project so that they quick access the colors they want in the project. understood.   we can add new paletes from the asset library in the homescreen, understood. ]
+[good but show these palettes in the main color tab not inside the custom color picker sheet. ]
+[lets add extractfrom image feature as well for the color palettes]
+[good but it stilll missing important colors from the image, so also allow manula review and pick color from image understood]
+[nah, its how do I add the picked color, also add the offset on where I drag and where the picker is so that I can see wchich color I am picking right now it getting under my finger, so I am unable to pick color precisely understood]
+[lets have separated sub tab for color palette in the style tab,  and keep that as defualt tab. understood. ]
+[also for colors use square box instead of circular]
+[good lets add some presets color palettes as well in the palette library, create new file for this or else the aset libry file will be huge, we will have, huge range of color palettes presets understood. like for all shorts of major colors. think of its a ssub app for color palettes]
 
 
 

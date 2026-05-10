@@ -88,79 +88,79 @@ class _CustomColorPickerState extends State<CustomColorPicker> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: const BoxDecoration(
         color: Color(0xFF111116),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Visual Selection (Left)
-              Expanded(
-                flex: 4,
-                child: Column(
-                  children: [
-                    _buildSaturationValueBoxBetter(),
-                    const SizedBox(height: 12),
-                    _buildHueSliderHorizontal(),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 16),
-              // Inputs (Right)
-              Expanded(
-                flex: 3,
-                child: Column(
-                  children: [
-                    _buildCompactField('HEX', _hexController, isHex: true),
-                    const SizedBox(height: 6),
-                    _buildCompactField('R', _rController, isNumeric: true),
-                    const SizedBox(height: 6),
-                    _buildCompactField('G', _gController, isNumeric: true),
-                    const SizedBox(height: 6),
-                    _buildCompactField('B', _bController, isNumeric: true),
-                    const SizedBox(height: 6),
-                    _buildCompactField('A', _aController, isNumeric: true),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          
-          const SizedBox(height: 12),
-          // Actions
-          Row(
-            children: [
-              Expanded(
-                child: TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('CANCEL', style: TextStyle(fontSize: 10, color: Colors.white24)),
-                ),
-              ),
-              Expanded(
-                flex: 2,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurpleAccent,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Visual Selection (Left)
+                Expanded(
+                  flex: 4,
+                  child: Column(
+                    children: [
+                      _buildSaturationValueBoxBetter(),
+                      const SizedBox(height: 12),
+                      _buildHueSliderHorizontal(),
+                    ],
                   ),
-                  child: const Text('CONFIRM', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
                 ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
+                const SizedBox(width: 16),
+                // Inputs (Right)
+                Expanded(
+                  flex: 3,
+                  child: Column(
+                    children: [
+                      _buildCompactField('HEX', _hexController, isHex: true),
+                      const SizedBox(height: 6),
+                      _buildCompactField('R', _rController, isNumeric: true),
+                      const SizedBox(height: 6),
+                      _buildCompactField('G', _gController, isNumeric: true),
+                      const SizedBox(height: 6),
+                      _buildCompactField('B', _bController, isNumeric: true),
+                      const SizedBox(height: 6),
+                      _buildCompactField('A', _aController, isNumeric: true),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 16),
+            // Actions
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('CANCEL', style: TextStyle(fontSize: 10, color: Colors.white24)),
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.deepPurpleAccent,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    ),
+                    child: const Text('CONFIRM', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
   }
 
   Widget _buildSaturationValueBoxBetter() {
