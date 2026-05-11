@@ -36,6 +36,7 @@ class TypographyRenderer(
     private var isPlaying = false
     private var playbackStartTime = 0L
     private var playbackOffsetTime = 0L
+    private var totalDuration = 5000L
 
     init {
         surfaceTexture.setDefaultBufferSize(width, height)
@@ -46,6 +47,11 @@ class TypographyRenderer(
             clips.clear()
             clips.addAll(newClips)
         }
+        isDirty = true
+    }
+
+    fun setTotalDuration(duration: Long) {
+        this.totalDuration = duration
         isDirty = true
     }
 
@@ -173,6 +179,10 @@ class TypographyRenderer(
         if (isPlaying) {
             val elapsed = System.currentTimeMillis() - playbackStartTime
             currentTimeMs = playbackOffsetTime + elapsed
+            if (currentTimeMs >= totalDuration) {
+                currentTimeMs = totalDuration
+                isPlaying = false
+            }
             isDirty = true
         }
 
@@ -209,21 +219,20 @@ class TypographyRenderer(
             viewportY = (currentHeight - viewportHeight) / 2
         }
 
-        // 1. Clear the WHOLE surface with bg color
+        // 1. Clear the WHOLE surface with black (for bars)
         GLES20.glViewport(0, 0, currentWidth, currentHeight)
-        
+        GLES20.glClearColor(0f, 0f, 0f, 1f)
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
+
         val r = (bgColor shr 16 and 0xFF) / 255f
         val g = (bgColor shr 8 and 0xFF) / 255f
         val b = (bgColor and 0xFF) / 255f
         val a = (bgColor shr 24 and 0xFF) / 255f
         
-        GLES20.glClearColor(r, g, b, a)
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
-
         // 2. Setup the logical viewport for content
         GLES20.glViewport(viewportX, viewportY, viewportWidth, viewportHeight)
         
-        // Clearing again within viewport (optional if scissoring is used, but safe)
+        // Clear the video area with project background color
         GLES20.glClearColor(r, g, b, a)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
 
@@ -246,7 +255,11 @@ class TypographyRenderer(
             clips.toList()
         }
         
-        val activeClips = currentClips.filter { clip: SubtitleClip -> currentTimeMs in clip.startTime..clip.endTime }
+        val activeClips = currentClips.filter { clip: SubtitleClip -> clip.startTime <= currentTimeMs && clip.endTime >= currentTimeMs }
+            .sortedWith(compareBy(
+                { if (it.isBackground) 0 else 1 },
+                { if (it.isText) 1 else 0 }
+            ))
 
         for (clip in activeClips) {
             val animState = AnimationEvaluator.evaluate(clip, currentTimeMs)

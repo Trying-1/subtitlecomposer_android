@@ -84,12 +84,18 @@ class _AudioTabState extends State<AudioTab> {
   }
 
   void _pickAudioFiles(BuildContext context) async {
+    final editorProvider = context.read<EditorProvider>();
     try {
-      final result = await FilePicker.pickFiles(type: FileType.audio, allowMultiple: true);
+      final result = await FilePicker.pickFiles(
+        type: FileType.audio, 
+        allowMultiple: true,
+        initialDirectory: editorProvider.lastUsedDirectory,
+      );
       
       if (result != null && result.files.isNotEmpty) {
         final paths = result.files.map((f) => f.path).whereType<String>().toList();
         if (paths.isNotEmpty && context.mounted) {
+          editorProvider.updateLastUsedDirectory(paths.first);
           context.read<AssetProvider>().addAudioAssets(paths);
         }
       }

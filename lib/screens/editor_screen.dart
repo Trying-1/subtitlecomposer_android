@@ -825,9 +825,13 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   Future<void> _handleImportAudioClip(BuildContext context, EditorProvider provider) async {
-    final result = await FilePicker.pickFiles(type: FileType.audio);
+    final result = await FilePicker.pickFiles(
+      type: FileType.audio,
+      initialDirectory: provider.lastUsedDirectory,
+    );
     if (result != null && result.files.single.path != null && context.mounted) {
       final path = result.files.single.path!;
+      provider.updateLastUsedDirectory(path);
       await provider.addAudioClip(path);
       context.read<AssetProvider>().addAudioAssets([path]);
     }
@@ -1020,6 +1024,7 @@ class _EditorScreenState extends State<EditorScreen> {
                           onZoomChanged: (v) => provider.setZoomLevel(v),
                           onMoveClip: (clip, trackId, startTime) => provider.moveClip(clip, trackId, startTime),
                           onAddTrack: (type) => provider.addNewTrack(type),
+                          onRemoveTrack: (id) => provider.removeTrack(id),
                           onUpdateClipTiming: (clip, start, end, resolve) => provider.updateClipTiming(clip, start, end, resolveCollisions: resolve),
                           onResolveCollisions: (id) => provider.forceResolveCollisions(id),
                           onStackSelected: () => provider.stackSelectedClips(),

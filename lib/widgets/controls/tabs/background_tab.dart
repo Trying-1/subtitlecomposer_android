@@ -158,6 +158,37 @@ class _BackgroundTabState extends State<BackgroundTab> {
               ],
             ),
           ),
+        if (provider.selectedBackground != null && provider.selectedBackground!.imagePath != null && provider.selectedBackground!.assetWidth > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 16),
+            child: Row(
+              children: [
+                const Icon(Icons.photo_size_select_actual_rounded, size: 14, color: Colors.greenAccent),
+                const SizedBox(width: 8),
+                Text(
+                  'RESOLUTION: ${provider.selectedBackground!.assetWidth} x ${provider.selectedBackground!.assetHeight}',
+                  style: const TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white60,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        const Text('DURATION', style: TextStyle(fontSize: 8, color: Colors.deepPurpleAccent, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            _buildDurationItem('Start', provider.selectedBackground!.startTime),
+            const SizedBox(width: 24),
+            _buildDurationItem('End', provider.selectedBackground!.endTime),
+            const SizedBox(width: 24),
+            _buildDurationItem('Total', provider.selectedBackground!.endTime - provider.selectedBackground!.startTime, isTotal: true),
+          ],
+        ),
+        const SizedBox(height: 24),
         const Text('TRANSFORMATIONS', style: TextStyle(fontSize: 8, color: Colors.deepPurpleAccent, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
         const SizedBox(height: 16),
         CommonControls.buildFillModeSelector(
@@ -379,6 +410,31 @@ class _BackgroundTabState extends State<BackgroundTab> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildDurationItem(String label, Duration duration, {bool isTotal = false}) {
+    final minutes = duration.inMinutes;
+    final seconds = duration.inSeconds % 60;
+    final ms = duration.inMilliseconds % 1000;
+    
+    final formatted = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}.${ms.toString().padLeft(3, '0')}';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label.toUpperCase(), style: const TextStyle(fontSize: 7, color: Colors.white38, letterSpacing: 0.5)),
+        const SizedBox(height: 4),
+        Text(
+          formatted,
+          style: TextStyle(
+            fontSize: 11, 
+            color: isTotal ? Colors.cyanAccent : Colors.white70, 
+            fontFamily: 'monospace',
+            fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ],
     );
   }
 }

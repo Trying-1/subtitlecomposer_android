@@ -7,6 +7,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:palette_generator/palette_generator.dart';
 import '../../providers/asset_provider.dart';
 import '../../providers/font_provider.dart';
+import '../../providers/editor_provider.dart';
 import '../../models/editor_models.dart';
 import '../../widgets/common/custom_color_picker.dart';
 import '../../widgets/common/image_color_picker.dart';
@@ -92,14 +93,17 @@ class _AssetsLibraryScreenState extends State<AssetsLibraryScreen> with SingleTi
   }
 
   Future<void> _pickVisualAssets(BuildContext context, AssetProvider provider, {bool isBackground = false}) async {
+    final editorProvider = context.read<EditorProvider>();
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['jpg', 'jpeg', 'png', 'gif', 'mp4', 'mov'],
       allowMultiple: true,
+      initialDirectory: editorProvider.lastUsedDirectory,
     );
     
     if (result != null && result.paths.isNotEmpty) {
       final paths = result.paths.whereType<String>().toList();
+      editorProvider.updateLastUsedDirectory(paths.first);
       if (isBackground) {
         provider.addBackgroundAssets(paths);
       } else {
@@ -218,23 +222,31 @@ class _AssetsLibraryScreenState extends State<AssetsLibraryScreen> with SingleTi
   }
 
   Future<void> _pickAudio(BuildContext context, AssetProvider provider) async {
+    final editorProvider = context.read<EditorProvider>();
     final result = await FilePicker.pickFiles(
       type: FileType.audio,
       allowMultiple: true,
+      initialDirectory: editorProvider.lastUsedDirectory,
     );
     if (result != null && result.paths.isNotEmpty) {
-      provider.addAudioAssets(result.paths.whereType<String>().toList());
+      final paths = result.paths.whereType<String>().toList();
+      editorProvider.updateLastUsedDirectory(paths.first);
+      provider.addAudioAssets(paths);
     }
   }
 
   Future<void> _pickFonts(BuildContext context, FontProvider provider) async {
+    final editorProvider = context.read<EditorProvider>();
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['ttf', 'otf'],
       allowMultiple: true,
+      initialDirectory: editorProvider.lastUsedDirectory,
     );
     if (result != null && result.paths.isNotEmpty) {
-      for (var path in result.paths.whereType<String>()) {
+      final paths = result.paths.whereType<String>().toList();
+      editorProvider.updateLastUsedDirectory(paths.first);
+      for (var path in paths) {
         await provider.importFont(path);
       }
     }

@@ -42,6 +42,10 @@ class NativeBridge {
     await _channel.invokeMethod('seekTo', {'timeMs': timeMs});
   }
 
+  Future<void> setTotalDuration(int ms) async {
+    await _channel.invokeMethod('setTotalDuration', {'duration': ms});
+  }
+
   Future<void> setPlaying(bool playing) async {
     await _channel.invokeMethod('setPlaying', {'playing': playing});
   }
@@ -97,6 +101,12 @@ class NativeBridge {
 
   Future<int> getVideoDuration(String path) async {
     return await _channel.invokeMethod<int>('getVideoDuration', {'path': path}) ?? 0;
+  }
+  
+  Future<Map<String, int>> getAssetResolution(String path) async {
+    final Map? result = await _channel.invokeMethod<Map>('getAssetResolution', {'path': path});
+    if (result == null) return {'width': 0, 'height': 0};
+    return Map<String, int>.from(result);
   }
 
   // Whisper

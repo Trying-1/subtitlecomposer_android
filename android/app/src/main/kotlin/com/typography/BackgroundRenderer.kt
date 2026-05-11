@@ -138,7 +138,7 @@ class BackgroundRenderer {
     private var isVideo: Boolean = false
 
     fun setImage(path: String?) {
-        if (path == lastImagePath) return
+        if (path == lastImagePath && (textureId != -1 || path == null)) return
         lastImagePath = path
 
         movie = null

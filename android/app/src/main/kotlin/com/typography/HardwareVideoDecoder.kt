@@ -130,7 +130,7 @@ class HardwareVideoDecoder {
         synchronized(lock) {
             try {
                 // If seeking (moving backwards or jumping way forward)
-                if (lastRenderedTimeUs == -1L || delta < -33000 || delta > 500000) {
+                if (lastRenderedTimeUs == -1L || delta < -10000 || delta > 500000) {
                     extractor?.seekTo(targetUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
                     codec?.flush()
                     while (bufferPool.isNotEmpty()) {

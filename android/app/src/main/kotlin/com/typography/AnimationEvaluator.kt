@@ -47,7 +47,8 @@ object AnimationEvaluator {
         // Exit
         val exit = clip.exitAnimation
         if (exit.type != AnimationType.NONE && remaining < exit.durationMs) {
-            val t = applyEasing(remaining.toFloat() / exit.durationMs, exit.easing)
+            val exitProgress = (exit.durationMs - remaining).toFloat() / exit.durationMs
+            val t = applyEasing(exitProgress.coerceIn(0f, 1f), exit.easing)
             val state = evaluateExit(exit.type, t)
             opacity *= state.opacity
             offsetX += state.offsetX

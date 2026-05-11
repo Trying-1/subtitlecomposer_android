@@ -96,6 +96,11 @@ class MainActivity : FlutterActivity() {
                     renderer?.seekTo(timeMs)
                     result.success(null)
                 }
+                "setTotalDuration" -> {
+                    val duration = (call.argument<Number>("duration"))?.toLong() ?: 5000L
+                    renderer?.setTotalDuration(duration)
+                    result.success(null)
+                }
                 "exportVideo" -> {
                     val width = (call.argument<Number>("width"))?.toInt() ?: 1280
                     val height = (call.argument<Number>("height"))?.toInt() ?: 720
@@ -323,6 +328,42 @@ class MainActivity : FlutterActivity() {
                         result.success(duration?.toInt() ?: 0)
                     } catch (e: Exception) {
                         result.success(0)
+                    }
+                }
+                "getAssetResolution" -> {
+                    val path = call.argument<String>("path") ?: ""
+                    if (path.isEmpty()) {
+                        result.success(mapOf("width" to 0, "height" to 0))
+                        return@setMethodCallHandler
+                    }
+                    val lowerPath = path.lowercase()
+                    if (lowerPath.endsWith(".mp4") || lowerPath.endsWith(".mov") || lowerPath.endsWith(".m4v") || lowerPath.endsWith(".3gp")) {
+                        val retriever = android.media.MediaMetadataRetriever()
+                        try {
+                            retriever.setDataSource(path)
+                            val width = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toInt() ?: 0
+                            val height = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toInt() ?: 0
+                            val rotation = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toInt() ?: 0
+                            
+                            // Adjust for rotation
+                            if (rotation == 90 || rotation == 270) {
+                                result.success(mapOf("width" to height, "height" to width))
+                            } else {
+                                result.success(mapOf("width" to width, "height" to height))
+                            }
+                        } catch (e: Exception) {
+                            result.success(mapOf("width" to 0, "height" to 0))
+                        } finally {
+                            retriever.release()
+                        }
+                    } else {
+                        try {
+                            val options = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                            android.graphics.BitmapFactory.decodeFile(path, options)
+                            result.success(mapOf("width" to options.outWidth, "height" to options.outHeight))
+                        } catch (e: Exception) {
+                            result.success(mapOf("width" to 0, "height" to 0))
+                        }
                     }
                 }
                 "initAudioEngine" -> {

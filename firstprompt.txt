@@ -348,8 +348,19 @@ reduce the selection box stroke width, make it thinner just visible, and chose g
 [also for colors use square box instead of circular]
 [good lets add some presets color palettes as well in the palette library, create new file for this or else the aset libry file will be huge, we will have, huge range of color palettes presets understood. like for all shorts of major colors. think of its a ssub app for color palettes]
 
+===============version18==============
+[fixing the background issues]
+[looks like its working now, but lets not allow extend the backround beyond the main audio/text duration, understood]
+[show the background assets resolution in the background control for the selected bacground segment]
+[now lets improve the scale to height and scale to width quck button for fill mode, for example I imported an background which has resolution of 675x1200, right now its in potrait mode when I imported, but since I am on the 1920x1080(landscape aspect ratio) i rotated the image, so now the image temprory resolution become 1200x675,  now when I press the fill mode scale to width, I want to scale the background with its center as anchor such that the new width of background matches the project widht(1920), no streching or squahsing, understood, and similar for scale to height, should scale such it matches the height of project(eg here 1080) got it]
 
-
+[and if there are any empty tracks then also add a - button to remove that track(only if its empty) got it]
+[good but buttons design are not good and not in center aligned with tracks]
+[keep the +-  button in row when both are present instead of stacking them in one column got it]
+[good, but by default alway show an extra track for each so that we can drag segement to it]
+[a ux improvement, while importing audio it alway device audio instead of what was the last path I selected, that annoying that I had to browse to that path again and again]
+[always show the track type label even for empty tracks, got it]
+[and also the + button as well]
 
 
 

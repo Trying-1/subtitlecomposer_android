@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../../models/editor_models.dart';
 import '../../../providers/font_provider.dart';
+import '../../../providers/editor_provider.dart';
 
 class FontTab extends StatefulWidget {
   final SubtitleClip clip;
@@ -20,12 +21,15 @@ class FontTab extends StatefulWidget {
 
 class _FontTabState extends State<FontTab> {
   Future<void> _importFont(BuildContext context) async {
+    final editorProvider = context.read<EditorProvider>();
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['ttf', 'otf'],
+      initialDirectory: editorProvider.lastUsedDirectory,
     );
     if (result != null && context.mounted) {
       final path = result.files.single.path!;
+      editorProvider.updateLastUsedDirectory(path);
       await context.read<FontProvider>().importFont(path);
     }
   }

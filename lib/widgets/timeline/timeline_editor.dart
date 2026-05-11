@@ -44,6 +44,7 @@ class TimelineEditor extends StatefulWidget {
   final Function(double) onZoomChanged;
   final Function(dynamic, String, Duration?) onMoveClip; // dynamic to support both clip types
   final Function(TrackType) onAddTrack;
+  final Function(String) onRemoveTrack;
   final Function(dynamic, Duration?, Duration?, bool) onUpdateClipTiming;
   final Function(String) onResolveCollisions;
   final VoidCallback onStackSelected;
@@ -106,6 +107,7 @@ class TimelineEditor extends StatefulWidget {
     required this.onZoomChanged,
     required this.onMoveClip,
     required this.onAddTrack,
+    required this.onRemoveTrack,
     required this.onUpdateClipTiming,
     required this.onResolveCollisions,
     required this.onStackSelected,
@@ -269,11 +271,13 @@ class _TimelineEditorState extends State<TimelineEditor> {
 
     if (widget.selectedClipIds.isEmpty) {
       _draggingClipId = null;
+      _isScrollingLocked = false;
+      _activeEdgeClipId = null;
     }
   }
 
   void _onPlaybackTimeChanged() {
-    if (!widget.isPlaying || _isManualScrolling) return;
+    if (!widget.isPlaying || _isManualScrolling || _isScrollingLocked) return;
     
     // Auto-scroll to keep current time at center
     final time = widget.playbackTime?.value ?? widget.currentTime;
@@ -726,10 +730,21 @@ class _TimelineEditorState extends State<TimelineEditor> {
     }
   }
 
-  Widget _buildTrackRow(Track track) {
+  Widget _buildTrackRow(Track track, {bool showAddButton = false}) {
     final GlobalKey trackKey = GlobalKey();
     return Row(
       children: [
+        SizedBox(
+          width: 52,
+          height: 48,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (showAddButton || track.isEmpty) _buildAddButton(track.type),
+              if (track.isEmpty) _buildRemoveButton(track.id),
+            ],
+          ),
+        ),
         _buildTrackLabelWidget(track),
         Expanded(
           child: DragTarget<Object>( // Object to support both
@@ -785,6 +800,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
       child: LongPressDraggable<Object>(
         data: clip,
         onDragStarted: () {
+          if (widget.isPlaying) widget.onTogglePlay();
           setState(() {
             _isScrollingLocked = true;
             _draggingClipId = clip.id;
@@ -835,6 +851,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
               child: Listener(
                 behavior: HitTestBehavior.opaque,
                 onPointerDown: (_) {
+                  if (widget.isPlaying) widget.onTogglePlay();
                   // Direct assignment — NO setState here to avoid rebuild killing the pointer tracking
                   _activeEdgeClipId = clip.id;
                   _activeEdgeIsLeft = true;
@@ -899,6 +916,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
               child: Listener(
                 behavior: HitTestBehavior.opaque,
                 onPointerDown: (_) {
+                  if (widget.isPlaying) widget.onTogglePlay();
                   _activeEdgeClipId = clip.id;
                   _activeEdgeIsLeft = false;
                   _isScrollingLocked = true;
@@ -1248,27 +1266,27 @@ class _TimelineEditorState extends State<TimelineEditor> {
 
   Widget _buildTracksColumn(double padding) {
     return Padding(
-      padding: EdgeInsets.only(left: padding - 40, right: padding),
+      padding: EdgeInsets.only(left: padding - 92, right: padding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (widget.showTextTracks) ...[
-            ...widget.tracks.map((track) => _buildTrackRow(track)),
+            ...widget.tracks.asMap().entries.map((e) => _buildTrackRow(e.value, showAddButton: e.key == 0)),
             _buildEmptySpaceDragTarget(TrackType.text),
           ],
           if (widget.showOverlayTracks) ...[
             const SizedBox(height: 4),
-            ...widget.overlayTracks.map((track) => _buildTrackRow(track)),
+            ...widget.overlayTracks.asMap().entries.map((e) => _buildTrackRow(e.value, showAddButton: e.key == 0)),
             _buildEmptySpaceDragTarget(TrackType.overlay),
           ],
           if (widget.showBackgroundTracks) ...[
             const SizedBox(height: 4),
-            ...widget.backgroundTracks.map((track) => _buildTrackRow(track)),
+            ...widget.backgroundTracks.asMap().entries.map((e) => _buildTrackRow(e.value, showAddButton: e.key == 0)),
             _buildEmptySpaceDragTarget(TrackType.background),
           ],
           if (widget.showAudioTracks) ...[
             const SizedBox(height: 4),
-            ...widget.audioTracks.map((track) => _buildTrackRow(track)),
+            ...widget.audioTracks.asMap().entries.map((e) => _buildTrackRow(e.value, showAddButton: e.key == 0)),
             _buildEmptySpaceDragTarget(TrackType.audio),
           ],
           const SizedBox(height: 100),
@@ -1278,6 +1296,10 @@ class _TimelineEditorState extends State<TimelineEditor> {
   }
 
   Widget _buildTrackLabelWidget(Track track) {
+    return _buildLabelContainer(_getTrackTypeLabel(track.type), _getTrackTypeColor(track.type));
+  }
+
+  Widget _buildLabelContainer(String label, Color color) {
     return Container(
       height: 48,
       width: 40,
@@ -1288,11 +1310,11 @@ class _TimelineEditorState extends State<TimelineEditor> {
         child: RotatedBox(
           quarterTurns: 3,
           child: Text(
-            _getTrackLabel(track),
+            label,
             style: TextStyle(
               fontSize: 6.5,
               fontWeight: FontWeight.w900,
-              color: _getTrackColor(track).withOpacity(0.7),
+              color: color.withOpacity(0.7),
               letterSpacing: 0.5,
             ),
           ),
@@ -1301,8 +1323,51 @@ class _TimelineEditorState extends State<TimelineEditor> {
     );
   }
 
+  Widget _buildAddButton(TrackType type) {
+    return _buildTimelineActionButton(
+      icon: Icons.add_rounded,
+      color: Colors.greenAccent,
+      onTap: () => widget.onAddTrack(type),
+    );
+  }
+
+  Widget _buildRemoveButton(String trackId) {
+    return _buildTimelineActionButton(
+      icon: Icons.remove_rounded,
+      color: Colors.redAccent,
+      onTap: () => widget.onRemoveTrack(trackId),
+    );
+  }
+
+  Widget _buildTimelineActionButton({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          width: 22,
+          height: 22,
+          margin: const EdgeInsets.symmetric(horizontal: 1),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: color.withOpacity(0.15), width: 0.5),
+          ),
+          child: Center(
+            child: Icon(icon, size: 14, color: color.withOpacity(0.8)),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildEmptySpaceLabel() {
-    return const SizedBox(height: 60, width: 40);
+    return const SizedBox(height: 60, width: 92);
   }
 
   Widget _buildEmptySpaceDragTarget(TrackType type) {
@@ -1310,37 +1375,40 @@ class _TimelineEditorState extends State<TimelineEditor> {
       onWillAccept: (data) => true,
       onAccept: (data) {
         widget.onAddTrack(type);
-        // We'll need a way to move the clip to the new track immediately,
-        // but for now this just creates the track.
       },
       builder: (context, candidateData, rejectedData) {
         return Padding(
-          padding: const EdgeInsets.only(left: 0), // Already handled by parent column padding offset
+          padding: const EdgeInsets.only(left: 0),
           child: Row(
             children: [
-              _buildEmptySpaceLabel(),
-              Expanded(
-              child: Container(
-                height: 60,
-                decoration: BoxDecoration(
-                  color: candidateData.isNotEmpty ? Colors.deepPurpleAccent.withOpacity(0.05) : Colors.transparent,
-                ),
-                child: Column(
+              SizedBox(
+                width: 52,
+                height: 48,
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    if (candidateData.isNotEmpty)
-                      const Text(
-                        "DROP TO CREATE NEW TRACK", 
-                        style: TextStyle(color: Colors.deepPurpleAccent, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1.0)
-                      )
-                    else 
-                      TextButton.icon(
-                        onPressed: () => widget.onAddTrack(type),
-                        icon: const Icon(Icons.add_circle_outline_rounded, size: 14, color: Colors.white24),
-                        label: Text("ADD ${type == TrackType.text ? 'TEXT' : (type == TrackType.overlay ? 'OVERLAY' : (type == TrackType.background ? 'BACKGROUND' : 'AUDIO'))} TRACK", 
-                          style: const TextStyle(fontSize: 8, color: Colors.white24, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
-                      ),
-                    ],
+                    _buildAddButton(type),
+                  ],
+                ),
+              ),
+              _buildLabelContainer(_getTrackTypeLabel(type), _getTrackTypeColor(type)),
+              Expanded(
+                child: Container(
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: candidateData.isNotEmpty ? Colors.deepPurpleAccent.withOpacity(0.05) : Colors.transparent,
+                    border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.05))),
+                  ),
+                  child: Center(
+                    child: candidateData.isNotEmpty
+                      ? const Text(
+                          "DROP TO CREATE NEW TRACK", 
+                          style: TextStyle(color: Colors.deepPurpleAccent, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1.0)
+                        )
+                      : const Text(
+                          "DROP CLIP TO CREATE TRACK",
+                          style: TextStyle(color: Colors.white10, fontSize: 7, fontWeight: FontWeight.bold, letterSpacing: 1.0),
+                        ),
                   ),
                 ),
               ),
@@ -1351,19 +1419,17 @@ class _TimelineEditorState extends State<TimelineEditor> {
     );
   }
 
-  String _getTrackLabel(Track track) {
-    String typePrefix = "";
-    switch (track.type) {
-      case TrackType.text: typePrefix = "TEXT"; break;
-      case TrackType.overlay: typePrefix = "OVERLAY"; break;
-      case TrackType.background: typePrefix = "BG"; break;
-      case TrackType.audio: typePrefix = "AUDIO"; break;
+  String _getTrackTypeLabel(TrackType type) {
+    switch (type) {
+      case TrackType.text: return "TEXT";
+      case TrackType.overlay: return "OVERLAY";
+      case TrackType.background: return "BG";
+      case TrackType.audio: return "AUDIO";
     }
-    return typePrefix;
   }
 
-  Color _getTrackColor(Track track) {
-    switch (track.type) {
+  Color _getTrackTypeColor(TrackType type) {
+    switch (type) {
       case TrackType.text: return Color(widget.textTimelineColor);
       case TrackType.overlay: return Color(widget.overlayTimelineColor);
       case TrackType.background: return Color(widget.backgroundTimelineColor);

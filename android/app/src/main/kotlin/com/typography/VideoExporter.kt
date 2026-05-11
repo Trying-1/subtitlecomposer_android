@@ -221,6 +221,10 @@ class VideoExporter(
         subtitleRenderer?.updateSize(viewportWidth, viewportHeight)
         
         val activeClips = clips.filter { it.startTime <= currentTimeMs && it.endTime >= currentTimeMs }
+            .sortedWith(compareBy(
+                { if (it.isBackground) 0 else 1 },
+                { if (it.isText) 1 else 0 }
+            ))
         for (clip in activeClips) {
             val animState = AnimationEvaluator.evaluate(clip, currentTimeMs)
             if (clip.isText) {

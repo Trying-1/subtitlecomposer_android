@@ -613,12 +613,12 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         val glY = -(finalY * 2 - 1)
         android.opengl.Matrix.translateM(model, 0, glX, glY, 0f)
         
-        val totalRotation = clip.rotation + animState.rotation
+        val totalRotation = animState.rotation
         if (totalRotation != 0f) {
             android.opengl.Matrix.rotateM(model, 0, totalRotation, 0f, 0f, 1f)
         }
         
-        val finalScale = clip.scale * animState.scale
+        val finalScale = animState.scale
         val baselineHeight = 1080f
         val logW = (bmpWidth.toFloat() / baselineHeight) * 2 * finalScale * animState.scaleX
         val logH = (bmpHeight.toFloat() / baselineHeight) * 2 * finalScale * animState.scaleY
@@ -737,10 +737,10 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         
         val a = if (clip.isText) {
             // Text color is already baked into the bitmap, so we only apply global and animation opacities
-            clip.opacity * animState.opacity
+            animState.opacity
         } else {
             val tc = clip.color
-            ((tc shr 24 and 0xFF) / 255f) * clip.opacity * animState.opacity * clip.textOpacity
+            ((tc shr 24 and 0xFF) / 255f) * animState.opacity * clip.textOpacity
         }
 
         if (clip.isText) {
@@ -870,17 +870,21 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
             isCached = true
             isOES = true
         } else {
-            textureId = textureCache.getOrPut(path) {
-                val bitmap = BitmapFactory.decodeFile(path) ?: return@getOrPut 0
-                val tex = IntArray(1)
-                GLES20.glGenTextures(1, tex, 0)
-                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, tex[0])
-                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
-                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
-                GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bitmap, 0)
-                dimensionCache[path] = Pair(bitmap.width, bitmap.height)
-                bitmap.recycle()
-                tex[0]
+            textureId = textureCache[path] ?: 0
+            if (textureId == 0) {
+                val bitmap = BitmapFactory.decodeFile(path)
+                if (bitmap != null) {
+                    val tex = IntArray(1)
+                    GLES20.glGenTextures(1, tex, 0)
+                    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, tex[0])
+                    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
+                    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
+                    GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bitmap, 0)
+                    dimensionCache[path] = Pair(bitmap.width, bitmap.height)
+                    bitmap.recycle()
+                    textureId = tex[0]
+                    textureCache[path] = textureId
+                }
             }
             val dims = dimensionCache[path] ?: Pair(1280, 720)
             bmpWidth = dims.first
@@ -960,12 +964,12 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         val glY = -((clip.y + animState.offsetY) * 2 - 1)
         android.opengl.Matrix.translateM(model, 0, glX, glY, 0f)
         
-        val totalRotation = clip.rotation + animState.rotation
+        val totalRotation = animState.rotation
         if (totalRotation != 0f) {
             android.opengl.Matrix.rotateM(model, 0, totalRotation, 0f, 0f, 1f)
         }
         
-        val finalScale = clip.scale * animState.scale
+        val finalScale = animState.scale
         val imgAspect = bmpWidth.toFloat() / bmpHeight.toFloat().coerceAtLeast(1f)
         
         var logW = (2f * imgAspect) * finalScale * animState.scaleX
@@ -999,7 +1003,7 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
             }
         }
         
-        val a = clip.opacity * animState.opacity
+        val a = animState.opacity
         GLES20.glUniform4f(vCol, 1f, 1f, 1f, a)
 
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
