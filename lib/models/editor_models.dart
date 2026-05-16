@@ -29,6 +29,12 @@ enum AnimationType {
   throwback,
   wavyBend,
   ripple,
+  smoothSlideUp,
+  staggeredSlideUp,
+  slideFromTop,
+  slideFromBottom,
+  staggeredSlideFromTop,
+  staggeredSlideFromBottom,
 }
 
 enum EasingType {

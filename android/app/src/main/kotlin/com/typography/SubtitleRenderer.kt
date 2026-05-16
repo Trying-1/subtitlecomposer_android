@@ -126,23 +126,56 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
     private var uWipeProgressLoc: Int = 0
     private var uWipeTypeLoc: Int = 0
     private var uWipeIntensityLoc: Int = 0
+    private var uCharCountLoc: Int = 0
     
-    private var uWipeProgressOESLoc: Int = 0
     private var uWipeTypeOESLoc: Int = 0
+    private var uWipeProgressOESLoc: Int = 0
     private var uWipeIntensityOESLoc: Int = 0
+    private var uCharCountOESLoc: Int = 0
 
     private val vertexShaderCode = """
+        precision highp float;
         attribute vec4 vPosition;
         attribute vec2 vTexCoord;
         uniform mat4 uMVPMatrix;
         uniform float uBendingAmount;
+        uniform mediump float uWipeProgress;
+        uniform mediump float uCharCount;
+        uniform mediump int uWipeType;
         varying vec2 fTexCoord;
         varying vec2 fTypewriterCoord;
         void main() {
             vec4 pos = vPosition;
-            if (abs(uBendingAmount) > 0.001) {
+            if (uBendingAmount > 0.001 || uBendingAmount < -0.001) {
                 float x = vTexCoord.x - 0.5;
                 pos.y += uBendingAmount * x * x;
+            }
+            if (uWipeType == 5) {
+                float stagger = 0.5;
+                float localT = clamp((uWipeProgress - (1.0 - vTexCoord.x) * stagger) / (1.0 - stagger), 0.0, 1.0);
+                pos.y -= 0.4 * (1.0 - localT);
+            }
+            if (uWipeType == 7) { // Staggered Slide Up (Quantized)
+                float stagger = 0.6;
+                // Quantize X into blocks to simulate characters
+                float blocks = max(uCharCount, 1.0);
+                float qx = floor(vTexCoord.x * blocks) / blocks;
+                float localT = clamp((uWipeProgress - (1.0 - qx) * stagger) / (1.0 - stagger), 0.0, 1.0);
+                pos.y -= 0.4 * (1.0 - localT);
+            }
+            if (uWipeType == 8) { // Staggered Slide From Top
+                float stagger = 0.6;
+                float blocks = max(uCharCount, 1.0);
+                float qx = floor(vTexCoord.x * blocks) / blocks;
+                float localT = clamp((uWipeProgress - (1.0 - qx) * stagger) / (1.0 - stagger), 0.0, 1.0);
+                pos.y -= 2.0 * (1.0 - localT); 
+            }
+            if (uWipeType == 9) { // Staggered Slide From Bottom
+                float stagger = 0.6;
+                float blocks = max(uCharCount, 1.0);
+                float qx = floor(vTexCoord.x * blocks) / blocks;
+                float localT = clamp((uWipeProgress - (qx) * stagger) / (1.0 - stagger), 0.0, 1.0);
+                pos.y += 2.0 * (1.0 - localT); 
             }
             gl_Position = uMVPMatrix * pos;
             fTexCoord = vTexCoord;
@@ -166,6 +199,7 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         uniform float uGlowSize;
         uniform float uWipeProgress;
         uniform int uWipeType;
+        uniform float uCharCount;
         uniform float uWipeIntensity;
         uniform float uReflectionOpacity;
         uniform vec4 uReflectionColor;
@@ -178,9 +212,7 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         void main() {
             vec2 uv = fTexCoord;
             float alphaMod = 1.0;
-            if (uWipeType == 0) { // Typewriter
-                if (uv.x > uWipeProgress) discard;
-            } else if (uWipeType == 1) { // Linear Wipe Right
+            if (uWipeType == 1) { // Linear Wipe Right
                 float softness = 0.15;
                 alphaMod = 1.0 - smoothstep(uWipeProgress - softness, uWipeProgress, uv.x);
             } else if (uWipeType == 2) { // Radial Wipe
@@ -197,6 +229,20 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                 float dist = distance(uv, vec2(0.5, 0.5));
                 float wave = sin(dist * 25.0 - uWipeProgress * 6.2832);
                 uv += (uv - 0.5) * wave * 0.04 * uWipeIntensity; // Using intensity
+            } else if (uWipeType == 5 || uWipeType == 7) { // Slide Up Staggered (Fade)
+                float stagger = (uWipeType == 7) ? 0.6 : 0.5;
+                float blocks = max(uCharCount, 1.0);
+                float qx = (uWipeType == 7) ? floor(uv.x * blocks) / blocks : uv.x;
+                float localT = clamp((uWipeProgress - (1.0 - qx) * stagger) / (1.0 - stagger), 0.0, 1.0);
+                alphaMod *= localT;
+            } else if (uWipeType == 8 || uWipeType == 9) { // Staggered Edge Slide (Fade)
+                float stagger = 0.6;
+                float blocks = max(uCharCount, 1.0);
+                float qx = floor(uv.x * blocks) / blocks;
+                float localT = clamp((uWipeProgress - (1.0 - qx) * stagger) / (1.0 - stagger), 0.0, 1.0);
+                alphaMod *= localT;
+            } else if (uWipeType == 6) { // Typewriter
+                if (uv.x > uWipeProgress) discard;
             }
             
             uv = clamp(uv, 0.0, 1.0); // Prevent wrapping artifacts
@@ -283,6 +329,7 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         uniform float uGlowSize;
         uniform float uWipeProgress;
         uniform int uWipeType;
+        uniform float uCharCount;
         uniform float uWipeIntensity;
         uniform float uReflectionOpacity;
         uniform vec4 uReflectionColor;
@@ -295,9 +342,7 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         void main() {
             vec2 uv = fTexCoord;
             float alphaMod = 1.0;
-            if (uWipeType == 0) {
-                if (uv.x > uWipeProgress) discard;
-            } else if (uWipeType == 1) {
+            if (uWipeType == 1) {
                 float softness = 0.15;
                 alphaMod = 1.0 - smoothstep(uWipeProgress - softness, uWipeProgress, uv.x);
             } else if (uWipeType == 2) {
@@ -314,6 +359,20 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                 float dist = distance(uv, vec2(0.5, 0.5));
                 float wave = sin(dist * 25.0 - uWipeProgress * 6.2832);
                 uv += (uv - 0.5) * wave * 0.04 * uWipeIntensity;
+            } else if (uWipeType == 5 || uWipeType == 7) { // Slide Up Staggered (Fade)
+                float stagger = (uWipeType == 7) ? 0.6 : 0.5;
+                float blocks = max(uCharCount, 1.0);
+                float qx = (uWipeType == 7) ? floor(uv.x * blocks) / blocks : uv.x;
+                float localT = clamp((uWipeProgress - (1.0 - qx) * stagger) / (1.0 - stagger), 0.0, 1.0);
+                alphaMod *= localT;
+            } else if (uWipeType == 8 || uWipeType == 9) { // Staggered Edge Slide (Fade)
+                float stagger = 0.6;
+                float blocks = max(uCharCount, 1.0);
+                float qx = floor(uv.x * blocks) / blocks;
+                float localT = clamp((uWipeProgress - (1.0 - qx) * stagger) / (1.0 - stagger), 0.0, 1.0);
+                alphaMod *= localT;
+            } else if (uWipeType == 6) { // Typewriter
+                if (uv.x > uWipeProgress) discard;
             }
             
             uv = clamp(uv, 0.0, 1.0); // Prevent wrapping artifacts
@@ -422,6 +481,8 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         uGradientColor1Loc = GLES20.glGetUniformLocation(program, "uGradientColor1")
         uGradientColor2Loc = GLES20.glGetUniformLocation(program, "uGradientColor2")
         uGradientAngleLoc = GLES20.glGetUniformLocation(program, "uGradientAngle")
+        uWipeIntensityLoc = GLES20.glGetUniformLocation(program, "uWipeIntensity")
+        uCharCountLoc = GLES20.glGetUniformLocation(program, "uCharCount")
         
         vPositionOESLoc = GLES20.glGetAttribLocation(programOES, "vPosition")
         vTexCoordOESLoc = GLES20.glGetAttribLocation(programOES, "vTexCoord")
@@ -437,8 +498,8 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         uBendingAmountOESLoc = GLES20.glGetUniformLocation(programOES, "uBendingAmount")
         uWipeProgressOESLoc = GLES20.glGetUniformLocation(programOES, "uWipeProgress")
         uWipeTypeOESLoc = GLES20.glGetUniformLocation(programOES, "uWipeType")
-        uWipeIntensityLoc = GLES20.glGetUniformLocation(program, "uWipeIntensity")
         uWipeIntensityOESLoc = GLES20.glGetUniformLocation(programOES, "uWipeIntensity")
+        uCharCountOESLoc = GLES20.glGetUniformLocation(programOES, "uCharCount")
         uReflectionOffsetOESLoc = GLES20.glGetUniformLocation(programOES, "uReflectionOffset")
         uReflectionOpacityOESLoc = GLES20.glGetUniformLocation(programOES, "uReflectionOpacity")
         uReflectionColorOESLoc = GLES20.glGetUniformLocation(programOES, "uReflectionColor")
@@ -633,6 +694,11 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
             AnimationType.GRADIENT_WIPE -> wipeType = 1
             AnimationType.RADIAL_WIPE -> wipeType = 2
             AnimationType.WAVY_BEND -> wipeType = 3
+            AnimationType.SMOOTH_SLIDE_UP -> wipeType = 5
+            AnimationType.STAGGERED_SLIDE_UP -> wipeType = 7
+            AnimationType.STAGGERED_SLIDE_FROM_TOP -> wipeType = 8
+            AnimationType.STAGGERED_SLIDE_FROM_BOTTOM -> wipeType = 9
+            AnimationType.TYPEWRITER -> wipeType = 6
             else -> {}
         }
         // Loop animation can also drive the wave
@@ -656,6 +722,7 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
             GLES20.glUniform1f(uGradientAngleLoc, clip.gradientAngle)
         }
         GLES20.glUniform1f(uWipeProgressLoc, animState.typewriterProgress)
+        GLES20.glUniform1f(uCharCountLoc, clip.text.length.toFloat())
         GLES20.glUniform1f(uWipeIntensityLoc, if (clip.loopAnimation.type != AnimationType.NONE) clip.loopAnimation.intensity else clip.entranceAnimation.intensity)
         GLES20.glUniform2f(uTexelSizeLoc, 1f / bmpWidth, 1f / bmpHeight)
 
@@ -673,8 +740,8 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         GLES20.glUniform1f(uBendingAmountLoc, if (clip.isBendingEnabled) clip.bendingAmount else 0f)
         setBlendMode(clip.blendMode.ordinal)
 
-        val activeBuffer = if (clip.isBendingEnabled) bendingVertexBuffer else vertexBuffer
-        val activeCount = if (clip.isBendingEnabled) bendingVertexCount else 4
+        val activeBuffer = if (clip.isBendingEnabled || wipeType == 5 || wipeType == 7) bendingVertexBuffer else vertexBuffer
+        val activeCount = if (clip.isBendingEnabled || wipeType == 5 || wipeType == 7) bendingVertexCount else 4
 
         activeBuffer.position(0)
         GLES20.glVertexAttribPointer(vPositionLoc, 3, GLES20.GL_FLOAT, false, 5 * 4, activeBuffer)
@@ -907,6 +974,7 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         val vTex = if (isOES) vTexCoordOESLoc else vTexCoordLoc
 
         val uWipeP = if (isOES) uWipeProgressOESLoc else uWipeProgressLoc
+        val uWipeC = if (isOES) uCharCountOESLoc else uCharCountLoc
         val uWipeT = if (isOES) uWipeTypeOESLoc else uWipeTypeLoc
         val uReflO = if (isOES) uReflectionOpacityOESLoc else uReflectionOpacityLoc
         val uReflC = if (isOES) uReflectionColorOESLoc else uReflectionColorLoc
@@ -923,6 +991,11 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
             AnimationType.GRADIENT_WIPE -> wipeType = 1
             AnimationType.RADIAL_WIPE -> wipeType = 2
             AnimationType.WAVY_BEND -> wipeType = 3
+            AnimationType.SMOOTH_SLIDE_UP -> wipeType = 5
+            AnimationType.STAGGERED_SLIDE_UP -> wipeType = 7
+            AnimationType.STAGGERED_SLIDE_FROM_TOP -> wipeType = 8
+            AnimationType.STAGGERED_SLIDE_FROM_BOTTOM -> wipeType = 9
+            AnimationType.TYPEWRITER -> wipeType = 6
             else -> {}
         }
         // Loop animation can also drive the wave
@@ -931,6 +1004,7 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         
         GLES20.glUniform1i(uWipeT, wipeType)
         GLES20.glUniform1f(uWipeP, animState.typewriterProgress)
+        GLES20.glUniform1f(uWipeC, 15f) // Default for images/video
         GLES20.glUniform1f(if (isOES) uWipeIntensityOESLoc else uWipeIntensityLoc, if (clip.loopAnimation.type != AnimationType.NONE) clip.loopAnimation.intensity else clip.entranceAnimation.intensity)
         
         GLES20.glUniform1i(uGradE, if (clip.isGradientEnabled) 1 else 0)
@@ -1010,8 +1084,8 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         GLES20.glBindTexture(if (isOES) android.opengl.GLES11Ext.GL_TEXTURE_EXTERNAL_OES else GLES20.GL_TEXTURE_2D, textureId)
         GLES20.glUniform1i(sTex, 0)
 
-        val activeBuffer = if (clip.isBendingEnabled) bendingVertexBuffer else vertexBuffer
-        val activeCount = if (clip.isBendingEnabled) bendingVertexCount else 4
+        val activeBuffer = if (clip.isBendingEnabled || clip.entranceAnimation.type == AnimationType.SMOOTH_SLIDE_UP || clip.entranceAnimation.type == AnimationType.STAGGERED_SLIDE_UP) bendingVertexBuffer else vertexBuffer
+        val activeCount = if (clip.isBendingEnabled || clip.entranceAnimation.type == AnimationType.SMOOTH_SLIDE_UP || clip.entranceAnimation.type == AnimationType.STAGGERED_SLIDE_UP) bendingVertexCount else 4
 
         activeBuffer.position(0)
         GLES20.glVertexAttribPointer(vPos, 3, GLES20.GL_FLOAT, false, 5 * 4, activeBuffer)

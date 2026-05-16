@@ -362,9 +362,34 @@ reduce the selection box stroke width, make it thinner just visible, and chose g
 [always show the track type label even for empty tracks, got it]
 [and also the + button as well]
 
-
-
-
+===============version19==============
+[good next in the paste dialog, add mini play pause and progress bar scrubber for the main audio, so that we can replay and write accurate transcription, understood. ]
+[good, next lets remove the gradient design of the segment UI in timeline, keep solid colors. got it]
+[also remove the glow effects in]
+[remove corner radius as well]
+[in the track always show the +- button but if the track is not empty disable the - button, and users press then show that tracks not empty understood]
+[okay next, lets add method to save the project to device as well so that we can import project even after app is uninstalled, understood, in the homescreen project add this method. understood. ]
+[what about assets used]
+[lets add new text entrance animation. like smooth slide up. like letter by letter, like right most moves up first and so on. understand what I mean]
+[lets add dots in the selection box vertex, which we can use for scaling element on draging, undertood. ]
+[now lets also add rotation handle as well. show this in the top right corner, got it]
+[yo rotation is kind of working on oppsite direction]
+[good, next in the past subtitle dialog lets add toggle switch whether to set the sentences in staggered sequence in different track or in  sequence the same track, understood]
+[good next lets add a junction drag controller this will work at the joining section bettween to segment, like suppose two segment are adjacent, common dynamic trimming of both segment, how should we proceed, ]
+[in the app config for whether to show the export/import project ]
+[also for the asset library in home screen, timeline colors in project tab]
+[in the preset color palette instead of random color palette add premuim color palettes that looks premium and luxury, understood]
+[keep the color order like this, for background, main text, and subtexts]
+[next lets add zoom and pan mode. add this in the zoom slider row of timeline panel, what this will do is this allow to zoom and pan the preview window without allowing any element selection in the canvas, understood. ]
+[pan isn't working properly add debug logs]
+[good but when paning is toggled off the preview gets reset I don't want that since I want to edit the element select them now, so add separte reset button next to it got it]
+[good now can we optimize and remove this pan toggle directlly allow pan when dragged from empty space, and to be safe lets add a toggle for this mode in the project tab, for whether to show the pan toggle, understood so that we can keep both method understood]
+[good next lets add new text animation, right we do have slide up and slide down animation, similar to that I want animation which slides up and down from the bottom edge and top edge respectively understood]
+[when applied on sentence segment then show this slide animation individually for each word understood. ]
+[okay theres a critical bug in split segment its not  spliting at playhead check once]
+[okay, next lets add few important screen that a professional industry standard app should have. understood]
+[in the export screen show the human readable path instead of content:// ...]
+[some animations are showing up in the animation tab but not in the styles animaiton subtab for texts, look into this]
 
 
 

@@ -183,6 +183,9 @@ class AnimationEngine {
         return AnimatedTextState(scale: 2.0 - t, opacity: t);
       case AnimationType.typewriter:
         return AnimatedTextState(typewriterProgress: t);
+      case AnimationType.smoothSlideUp:
+      case AnimationType.staggeredSlideUp:
+        return AnimatedTextState(typewriterProgress: t);
       case AnimationType.bounceIn:
         return AnimatedTextState(scale: t, offsetY: 0.2 * (1.0 - t));
       case AnimationType.rotateIn:
@@ -211,6 +214,9 @@ class AnimationEngine {
         return AnimatedTextState(scale: t, opacity: t);
       case AnimationType.scaleDown:
         return AnimatedTextState(scale: 2.0 - t, opacity: t);
+      case AnimationType.smoothSlideUp:
+      case AnimationType.staggeredSlideUp:
+        return AnimatedTextState(typewriterProgress: 1.0 - t);
       case AnimationType.bounceIn:
         return AnimatedTextState(scale: t, offsetY: -0.2 * (1.0 - t));
       case AnimationType.rotateIn:

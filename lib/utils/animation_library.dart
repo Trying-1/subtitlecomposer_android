@@ -117,6 +117,36 @@ class AnimationLibrary {
       label: 'Ripple',
       icon: Icons.blur_circular_rounded,
     ),
+    AnimationMetadata(
+      type: AnimationType.smoothSlideUp,
+      label: 'Smooth Slide',
+      icon: Icons.auto_awesome_rounded,
+    ),
+    AnimationMetadata(
+      type: AnimationType.staggeredSlideUp,
+      label: 'Char Slide',
+      icon: Icons.format_strikethrough_rounded,
+    ),
+    AnimationMetadata(
+      type: AnimationType.slideFromTop,
+      label: 'Edge Top',
+      icon: Icons.expand_more_rounded,
+    ),
+    AnimationMetadata(
+      type: AnimationType.slideFromBottom,
+      label: 'Edge Bottom',
+      icon: Icons.expand_less_rounded,
+    ),
+    AnimationMetadata(
+      type: AnimationType.staggeredSlideFromTop,
+      label: 'Stag Top',
+      icon: Icons.keyboard_double_arrow_down_rounded,
+    ),
+    AnimationMetadata(
+      type: AnimationType.staggeredSlideFromBottom,
+      label: 'Stag Bottom',
+      icon: Icons.keyboard_double_arrow_up_rounded,
+    ),
   ];
 
   static const List<AnimationMetadata> exitAnimations = [
@@ -209,6 +239,36 @@ class AnimationLibrary {
       type: AnimationType.ripple,
       label: 'Ripple',
       icon: Icons.blur_circular_rounded,
+    ),
+    AnimationMetadata(
+      type: AnimationType.smoothSlideUp,
+      label: 'Smooth Slide',
+      icon: Icons.auto_awesome_rounded,
+    ),
+    AnimationMetadata(
+      type: AnimationType.staggeredSlideUp,
+      label: 'Char Slide',
+      icon: Icons.format_strikethrough_rounded,
+    ),
+    AnimationMetadata(
+      type: AnimationType.slideFromTop,
+      label: 'Edge Top',
+      icon: Icons.expand_more_rounded,
+    ),
+    AnimationMetadata(
+      type: AnimationType.slideFromBottom,
+      label: 'Edge Bottom',
+      icon: Icons.expand_less_rounded,
+    ),
+    AnimationMetadata(
+      type: AnimationType.staggeredSlideFromTop,
+      label: 'Stag Top',
+      icon: Icons.keyboard_double_arrow_down_rounded,
+    ),
+    AnimationMetadata(
+      type: AnimationType.staggeredSlideFromBottom,
+      label: 'Stag Bottom',
+      icon: Icons.keyboard_double_arrow_up_rounded,
     ),
   ];
 

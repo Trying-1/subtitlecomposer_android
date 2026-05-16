@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/font_provider.dart';
+import '../settings/settings_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -25,6 +26,9 @@ class ProfileScreen extends StatelessWidget {
             _buildProfileCard(),
             const SizedBox(height: 32),
             _buildSection('Application'),
+            _buildListTile('Settings', Icons.settings_rounded, null, onTap: () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+            }),
             _buildListTile('Custom Fonts', Icons.font_download_outlined, context.watch<FontProvider>().customFonts.length.toString()),
             _buildListTile('Export Quality', Icons.high_quality_outlined, '4K'),
             _buildListTile('Language', Icons.language_outlined, 'English'),
@@ -104,7 +108,7 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildListTile(String title, IconData icon, String? trailing) {
+  Widget _buildListTile(String title, IconData icon, String? trailing, {VoidCallback? onTap}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
@@ -112,6 +116,7 @@ class ProfileScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       child: ListTile(
+        onTap: onTap,
         leading: Icon(icon, color: Colors.white54, size: 20),
         title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 15)),
         trailing: Row(

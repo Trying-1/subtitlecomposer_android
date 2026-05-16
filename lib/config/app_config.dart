@@ -15,9 +15,14 @@ class AppConfig {
   static const bool showModelButton = true;
   static const bool showAddTextButton = true;
   static const bool showExportButton = true;
+  static const bool showTimelineColors = true;
+  static const bool showTimelinePanControls = true;
+  static const bool showExportProjectButton = true;
+  static const bool showImportProjectButton = true;
 
   // Home Screen Elements
   static const bool showHomeNewProject = true;
+  static const bool showHomeAssetsLibrary = true;
   static const bool showHomeTutorials = true;
   static const bool showHomeNativePlayer = true;
   static const bool showHomeProfile = true;
@@ -42,5 +47,8 @@ class AppConfig {
 
   // Other global toggles
   static const bool enableAdvancedAnimations = true;
-  static const bool useExperimentalRenderer = false;
+  static const bool useExperimentalRenderer = true;
+  static const bool showSplashScreen = true;
+  static const bool showSettingsScreen = true;
+  static const bool showExportScreen = true;
 }

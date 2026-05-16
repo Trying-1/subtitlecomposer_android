@@ -11,6 +11,7 @@ import '../services/audio_service.dart';
 import '../models/editor_models.dart';
 import '../providers/asset_provider.dart';
 import 'package:path/path.dart' as p;
+import 'export/export_screen.dart';
 
 class EditorScreen extends StatefulWidget {
   const EditorScreen({super.key});
@@ -67,6 +68,13 @@ class _EditorScreenState extends State<EditorScreen> {
     }
   }
 
+  String _formatDuration(Duration d) {
+    final minutes = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    final ms = (d.inMilliseconds.remainder(1000) ~/ 100).toString();
+    return "$minutes:$seconds.$ms";
+  }
+
   void _showPasteSubtitlesDialog(BuildContext context, EditorProvider provider) {
     final controller = TextEditingController(text: _pastedSubtitlesText);
     showGeneralDialog(
@@ -85,120 +93,241 @@ class _EditorScreenState extends State<EditorScreen> {
         alignment: Alignment.topCenter,
         child: Material(
           color: Colors.transparent,
-          child: Container(
-            margin: EdgeInsets.only(top: MediaQuery.of(context).padding.top),
-            decoration: const BoxDecoration(
-              color: Color(0xFF111116),
-              borderRadius: BorderRadius.vertical(bottom: Radius.circular(16)),
-              boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 20)],
-            ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Consumer<EditorProvider>(
+            builder: (context, provider, _) {
+              return Container(
+                margin: EdgeInsets.only(top: MediaQuery.of(context).padding.top),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF111116),
+                  borderRadius: BorderRadius.vertical(bottom: Radius.circular(16)),
+                  boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 20)],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Text('Paste Subtitles', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                      TextButton(
-                        onPressed: () {
-                          controller.clear();
-                          _pastedSubtitlesText = "";
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Paste Subtitles', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                          TextButton(
+                            onPressed: () {
+                              controller.clear();
+                              _pastedSubtitlesText = "";
+                            },
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: Text(
+                              'CLEAR',
+                              style: TextStyle(
+                                color: Colors.redAccent.withOpacity(0.8),
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.0,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Paste your text below, then choose how to split it into segments.',
+                        style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Audio Mini Player
+                      if (provider.audioPath != null) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.03),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.white.withOpacity(0.05)),
+                          ),
+                          child: Row(
+                            children: [
+                              IconButton(
+                                onPressed: () => provider.togglePlay(),
+                                icon: Icon(
+                                  provider.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                                  color: Colors.cyanAccent,
+                                  size: 20,
+                                ),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: ValueListenableBuilder<Duration>(
+                                  valueListenable: provider.playbackTime,
+                                  builder: (context, time, _) {
+                                    final total = provider.totalDuration;
+                                    final progress = total.inMilliseconds > 0 
+                                      ? time.inMilliseconds / total.inMilliseconds 
+                                      : 0.0;
+                                    return Column(
+                                      children: [
+                                        SliderTheme(
+                                          data: SliderTheme.of(context).copyWith(
+                                            trackHeight: 2,
+                                            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 4),
+                                            overlayShape: const RoundSliderOverlayShape(overlayRadius: 10),
+                                            activeTrackColor: Colors.cyanAccent,
+                                            inactiveTrackColor: Colors.white10,
+                                            thumbColor: Colors.white,
+                                          ),
+                                          child: Slider(
+                                            value: progress.clamp(0.0, 1.0),
+                                            onChanged: (v) {
+                                              final target = Duration(milliseconds: (v * total.inMilliseconds).toInt());
+                                              provider.seekTo(target);
+                                            },
+                                          ),
+                                        ),
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(_formatDuration(time), style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 8)),
+                                            Text(_formatDuration(total), style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 8)),
+                                          ],
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      TextField(
+                        controller: controller,
+                        maxLines: 8,
+                        autofocus: true,
+                        style: const TextStyle(color: Colors.white, fontSize: 13),
+                        decoration: InputDecoration(
+                          hintText: 'Paste your paragraph or lyrics here...\nEach line = one sentence segment',
+                          hintStyle: TextStyle(color: Colors.white.withOpacity(0.2)),
+                          filled: true,
+                          fillColor: Colors.white.withOpacity(0.05),
+                          contentPadding: const EdgeInsets.all(12),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      
+                      // Stacking Toggle
+                      StatefulBuilder(
+                        builder: (context, setModalState) {
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.03),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.layers_rounded, color: Colors.white.withOpacity(0.4), size: 16),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text('Stack in different tracks', style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold)),
+                                      Text(
+                                        provider.stackInDifferentTracks ? 'Each segment gets its own track' : 'All segments follow on the same track',
+                                        style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 9),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Switch(
+                                  value: provider.stackInDifferentTracks,
+                                  onChanged: (val) {
+                                    setModalState(() {
+                                      provider.stackInDifferentTracks = val;
+                                    });
+                                  },
+                                  activeColor: Colors.cyanAccent,
+                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                              ],
+                            ),
+                          );
                         },
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                        child: Text(
-                          'CLEAR',
-                          style: TextStyle(
-                            color: Colors.redAccent.withOpacity(0.8),
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.0,
+                      ),
+                      
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('CANCEL', style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold)),
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                _pastedSubtitlesText = controller.text;
+                                if (controller.text.trim().isNotEmpty) {
+                                  provider.generateSentencesFromText(
+                                    controller.text.trim(),
+                                    stackInDifferentTracks: provider.stackInDifferentTracks,
+                                  );
+                                }
+                                Navigator.pop(context);
+                              },
+                              icon: const Icon(Icons.segment_rounded, size: 16),
+                              label: const Text('SENTENCES', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.amberAccent,
+                                side: const BorderSide(color: Colors.amberAccent),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                _pastedSubtitlesText = controller.text;
+                                if (controller.text.trim().isNotEmpty) {
+                                  provider.generateSubtitlesFromText(
+                                    controller.text.trim(),
+                                    stackInDifferentTracks: provider.stackInDifferentTracks,
+                                  );
+                                }
+                                Navigator.pop(context);
+                              },
+                              icon: const Icon(Icons.text_fields_rounded, size: 16),
+                              label: const Text('WORDS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.deepPurpleAccent,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Paste your text below, then choose how to split it into segments.',
-                    style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: controller,
-                    maxLines: 8,
-                    autofocus: true,
-                    style: const TextStyle(color: Colors.white, fontSize: 13),
-                    decoration: InputDecoration(
-                      hintText: 'Paste your paragraph or lyrics here...\nEach line = one sentence segment',
-                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.2)),
-                      filled: true,
-                      fillColor: Colors.white.withOpacity(0.05),
-                      contentPadding: const EdgeInsets.all(12),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('CANCEL', style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            _pastedSubtitlesText = controller.text;
-                            if (controller.text.trim().isNotEmpty) {
-                              provider.generateSentencesFromText(controller.text.trim());
-                            }
-                            Navigator.pop(context);
-                          },
-                          icon: const Icon(Icons.segment_rounded, size: 16),
-                          label: const Text('SENTENCES', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.amberAccent,
-                            side: const BorderSide(color: Colors.amberAccent),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            _pastedSubtitlesText = controller.text;
-                            if (controller.text.trim().isNotEmpty) {
-                              provider.generateSubtitlesFromText(controller.text.trim());
-                            }
-                            Navigator.pop(context);
-                          },
-                          icon: const Icon(Icons.text_fields_rounded, size: 16),
-                          label: const Text('WORDS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.deepPurpleAccent,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           ),
         ),
       ),
@@ -838,13 +967,10 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   Future<void> _handleExport(BuildContext context, EditorProvider provider) async {
-    final path = await provider.exportVideo();
-    if (path != null && context.mounted) {
-      showDialog(
-        context: context,
-        builder: (context) => ExportSuccessDialog(videoPath: path),
-      );
-    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const ExportScreen()),
+    );
   }
 
   void _handleNewProject(BuildContext context, EditorProvider provider) {
@@ -1029,7 +1155,7 @@ class _EditorScreenState extends State<EditorScreen> {
                           onResolveCollisions: (id) => provider.forceResolveCollisions(id),
                           onStackSelected: () => provider.stackSelectedClips(),
                           onResetSelected: () => provider.resetSelectedClips(),
-                          onSplit: () => provider.selectedClipIds.isNotEmpty ? provider.splitClip(provider.selectedClipIds.first) : null,
+                          onSplit: () => provider.splitSelectedClipsAtPlayhead(),
                           onMerge: () => provider.mergeSelectedClips(),
                           onSplitToWords: () => provider.splitSelectedClipToWords(),
                           onBurstSelected: () => provider.burstSelectedClipToStackedWords(),
@@ -1063,6 +1189,9 @@ class _EditorScreenState extends State<EditorScreen> {
                           audioTimelineColor: provider.audioTimelineColor,
                           overlayTimelineColor: provider.overlayTimelineColor,
                           backgroundTimelineColor: provider.backgroundTimelineColor,
+                          isPreviewZoomMode: provider.isPreviewZoomMode,
+                          onTogglePreviewZoomMode: provider.togglePreviewZoomMode,
+                          onResetPreviewZoom: provider.resetPreviewZoom,
                         ),
                       ),
                                             SizedBox(height: provider.isControlPanelCollapsed ? 52 : 240 + 16),

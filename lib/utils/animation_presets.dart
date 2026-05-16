@@ -118,6 +118,42 @@ class AnimationPresets {
       entrance: ClipAnimation(type: AnimationType.ripple, durationMs: 800, easing: EasingType.easeOut),
       exit: ClipAnimation(type: AnimationType.ripple, durationMs: 500, easing: EasingType.easeIn),
     ),
+    AnimationPreset(
+      name: 'Smooth Slide',
+      icon: '✨',
+      entrance: ClipAnimation(type: AnimationType.smoothSlideUp, durationMs: 800, easing: EasingType.easeOut),
+      exit: ClipAnimation(type: AnimationType.fadeOut, durationMs: 300, easing: EasingType.easeIn),
+    ),
+    AnimationPreset(
+      name: 'Char Slide',
+      icon: '📏',
+      entrance: ClipAnimation(type: AnimationType.staggeredSlideUp, durationMs: 800, easing: EasingType.easeOut),
+      exit: ClipAnimation(type: AnimationType.fadeOut, durationMs: 300, easing: EasingType.easeIn),
+    ),
+    AnimationPreset(
+      name: 'Edge Top',
+      icon: '⏬',
+      entrance: ClipAnimation(type: AnimationType.slideFromTop, durationMs: 700, easing: EasingType.easeOut),
+      exit: ClipAnimation(type: AnimationType.slideFromTop, durationMs: 500, easing: EasingType.easeIn),
+    ),
+    AnimationPreset(
+      name: 'Edge Bottom',
+      icon: '⏫',
+      entrance: ClipAnimation(type: AnimationType.slideFromBottom, durationMs: 700, easing: EasingType.easeOut),
+      exit: ClipAnimation(type: AnimationType.slideFromBottom, durationMs: 500, easing: EasingType.easeIn),
+    ),
+    AnimationPreset(
+      name: 'Stag Top',
+      icon: '⏬',
+      entrance: ClipAnimation(type: AnimationType.staggeredSlideFromTop, durationMs: 1000, easing: EasingType.easeOut),
+      exit: ClipAnimation(type: AnimationType.staggeredSlideFromTop, durationMs: 600, easing: EasingType.easeIn),
+    ),
+    AnimationPreset(
+      name: 'Stag Bottom',
+      icon: '⏫',
+      entrance: ClipAnimation(type: AnimationType.staggeredSlideFromBottom, durationMs: 1000, easing: EasingType.easeOut),
+      exit: ClipAnimation(type: AnimationType.staggeredSlideFromBottom, durationMs: 600, easing: EasingType.easeIn),
+    ),
   ];
 
   static String animationTypeName(AnimationType type) {
@@ -152,6 +188,12 @@ class AnimationPresets {
       case AnimationType.throwback: return 'Throwback';
       case AnimationType.wavyBend: return 'Wavy Bend';
       case AnimationType.ripple: return 'Ripple';
+      case AnimationType.smoothSlideUp: return 'Smooth Slide Up';
+      case AnimationType.staggeredSlideUp: return 'Staggered Slide';
+      case AnimationType.slideFromTop: return 'Edge Top';
+      case AnimationType.slideFromBottom: return 'Edge Bottom';
+      case AnimationType.staggeredSlideFromTop: return 'Stag Top';
+      case AnimationType.staggeredSlideFromBottom: return 'Stag Bottom';
     }
   }
 

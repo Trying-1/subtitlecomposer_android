@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/editor_provider.dart';
@@ -16,6 +17,7 @@ class VideoPreview extends StatefulWidget {
 
 class _VideoPreviewState extends State<VideoPreview> {
   final NativeBridge _bridge = NativeBridge();
+  final GlobalKey _canvasKey = GlobalKey();
   int? _textureId;
   bool _isInitialized = false;
 
@@ -55,6 +57,14 @@ class _VideoPreviewState extends State<VideoPreview> {
   Offset _basePreviewOffset = Offset.zero;
 
   double _startFocalPointX = 0;
+  
+  // Scaling/Rotation state
+  bool _isScaling = false;
+  bool _isRotating = false;
+  double _initialScale = 1.0;
+  double _initialRotation = 0.0;
+  double _initialDistance = 1.0;
+  double _initialAngle = 0.0;
 
   void _handleScaleStart(ScaleStartDetails details, BoxConstraints constraints) {
     final provider = context.read<EditorProvider>();
@@ -62,11 +72,12 @@ class _VideoPreviewState extends State<VideoPreview> {
     _allowInteraction = false;
     _isWorkspaceNavigating = false;
 
-    // Multi-touch: Workspace zoom/pan
-    if (details.pointerCount >= 2) {
+    // Mode-based or Multi-touch: Workspace zoom/pan
+    if (provider.isPreviewZoomMode || details.pointerCount >= 2) {
+      debugPrint("VideoPreview: Pan/Zoom Start. Mode: ${provider.isPreviewZoomMode}, Pointers: ${details.pointerCount}");
       _isWorkspaceNavigating = true;
-      _basePreviewZoom = _previewZoom;
-      _basePreviewOffset = _previewOffset;
+      _basePreviewZoom = provider.previewZoom;
+      _basePreviewOffset = provider.previewOffset;
       return;
     }
 
@@ -87,6 +98,17 @@ class _VideoPreviewState extends State<VideoPreview> {
     }
 
     provider.selectClipAt(tapX, tapY, deselectIfEmpty: false, toggle: false);
+    
+    // If no clip is selected at this position, allow direct panning
+    final currentSelected = provider.selectedTimelineClip;
+    if (currentSelected == null || currentSelected is BackgroundClip) {
+      debugPrint("VideoPreview: Empty space. Enabling Pan.");
+      _isWorkspaceNavigating = true;
+      _basePreviewZoom = provider.previewZoom;
+      _basePreviewOffset = provider.previewOffset;
+      return;
+    }
+
     _allowInteraction = false;
   }
 
@@ -94,14 +116,15 @@ class _VideoPreviewState extends State<VideoPreview> {
     final provider = context.read<EditorProvider>();
 
     if (_isWorkspaceNavigating) {
-      setState(() {
-        _previewZoom = (_basePreviewZoom * details.scale).clamp(1.0, 5.0);
-        if (_previewZoom > 1.0) {
-          _previewOffset = _basePreviewOffset + details.focalPointDelta;
-        } else {
-          _previewOffset = Offset.zero;
-        }
-      });
+      final newZoom = (_basePreviewZoom * details.scale).clamp(0.5, 10.0);
+      if (newZoom != provider.previewZoom) {
+        provider.setPreviewZoom(newZoom);
+      }
+      
+      if (details.focalPointDelta != Offset.zero) {
+        debugPrint("VideoPreview: Panning delta: ${details.focalPointDelta}");
+        provider.updatePreviewOffset(details.focalPointDelta);
+      }
       return;
     }
 
@@ -158,8 +181,8 @@ class _VideoPreviewState extends State<VideoPreview> {
               Center(
                 child: Transform(
                   transform: Matrix4.identity()
-                    ..translate(_previewOffset.dx, _previewOffset.dy)
-                    ..scale(_previewZoom),
+                    ..translate(provider.previewOffset.dx, provider.previewOffset.dy)
+                    ..scale(provider.previewZoom),
                   alignment: Alignment.center,
                   child: AspectRatio(
                     key: ValueKey('preview_${provider.aspectRatio}'),
@@ -177,6 +200,7 @@ class _VideoPreviewState extends State<VideoPreview> {
                       });
 
                       return Container(
+                          key: _canvasKey,
                           color: Color(provider.backgroundColor), // Actual video background
                           child: Stack(
                             children: [
@@ -186,6 +210,7 @@ class _VideoPreviewState extends State<VideoPreview> {
                                 onScaleUpdate: (details) => _handleScaleUpdate(context, details, constraints),
                                 onScaleEnd: (_) => _handleScaleEnd(),
                                 onTapUp: (details) {
+                                  if (provider.isPreviewZoomMode) return;
                                   final tapX = details.localPosition.dx / constraints.maxWidth;
                                   final tapY = details.localPosition.dy / constraints.maxHeight;
                                   provider.selectClipAt(tapX, tapY);
@@ -216,7 +241,7 @@ class _VideoPreviewState extends State<VideoPreview> {
       provider.currentTime <= c.endTime
     ).toList();
 
-    if (visibleSelected.isEmpty) return const SizedBox.shrink();
+    if (visibleSelected.isEmpty || provider.isPreviewZoomMode) return const SizedBox.shrink();
 
     double minX = double.infinity;
     double minY = double.infinity;
@@ -236,15 +261,176 @@ class _VideoPreviewState extends State<VideoPreview> {
       if (bottom > maxY) maxY = bottom;
     }
 
+    final clip = visibleSelected.first;
+    final centerX = clip.x * constraints.maxWidth;
+    final centerY = clip.y * constraints.maxHeight;
+
+    return Stack(
+      children: [
+        Transform.rotate(
+          angle: -clip.rotation * math.pi / 180,
+          origin: Offset(centerX, centerY),
+          alignment: Alignment.topLeft,
+          child: Stack(
+            children: [
+              // Selection Border
+              Positioned(
+                left: minX,
+                top: minY,
+                width: maxX - minX,
+                height: maxY - minY,
+                child: IgnorePointer(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.white, width: 1.0),
+                    ),
+                  ),
+                ),
+              ),
+              
+              // Corner Handles (Dots)
+              _buildHandle(minX, minY, 0, provider, constraints, clip), // Top Left
+              _buildHandle(maxX, minY, 1, provider, constraints, clip), // Top Right
+              _buildHandle(minX, maxY, 2, provider, constraints, clip), // Bottom Left
+              _buildHandle(maxX, maxY, 3, provider, constraints, clip), // Bottom Right
+              
+              // Rotation Handle (Top Right, slightly offset)
+              _buildRotationHandle(maxX, minY, provider, constraints, clip),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRotationHandle(double x, double y, EditorProvider provider, BoxConstraints constraints, TimelineClip clip) {
+    const double handleSize = 24.0;
+    const double offset = 25.0; // Distance from corner
+    
     return Positioned(
-      left: minX,
-      top: minY,
-      width: maxX - minX,
-      height: maxY - minY,
-      child: IgnorePointer(
+      left: x + offset - (handleSize / 2),
+      top: y - offset - (handleSize / 2),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onScaleStart: (details) {
+          _isRotating = true;
+          _initialRotation = clip.rotation;
+          
+          final RenderBox? box = _canvasKey.currentContext?.findRenderObject() as RenderBox?;
+          if (box == null) return;
+          final localPoint = box.globalToLocal(details.focalPoint);
+          
+          final centerX = clip.x * constraints.maxWidth;
+          final centerY = clip.y * constraints.maxHeight;
+          
+          _initialAngle = math.atan2(localPoint.dy - centerY, localPoint.dx - centerX);
+        },
+        onScaleUpdate: (details) {
+          if (!_isRotating) return;
+          
+          final RenderBox? box = _canvasKey.currentContext?.findRenderObject() as RenderBox?;
+          if (box == null) return;
+          final localPoint = box.globalToLocal(details.focalPoint);
+          
+          final centerX = clip.x * constraints.maxWidth;
+          final centerY = clip.y * constraints.maxHeight;
+          
+          final currentAngle = math.atan2(localPoint.dy - centerY, localPoint.dx - centerX);
+          
+          double angleDiff = (currentAngle - _initialAngle) * 180 / math.pi;
+          provider.updateClip(clip.id, rotation: _initialRotation - angleDiff, silent: true);
+          setState(() {});
+        },
+        onScaleEnd: (_) {
+          _isRotating = false;
+          provider.syncToNative();
+          provider.notifyListeners();
+        },
         child: Container(
+          width: handleSize,
+          height: handleSize,
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.white38, width: 0.8),
+            color: Colors.blueAccent,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.rotate_right,
+            size: 16,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHandle(double x, double y, int index, EditorProvider provider, BoxConstraints constraints, TimelineClip clip) {
+    const double handleSize = 14.0;
+    return Positioned(
+      left: x - (handleSize / 2),
+      top: y - (handleSize / 2),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onScaleStart: (details) {
+          _isScaling = true;
+          _initialScale = clip.scale;
+          
+          final RenderBox? box = _canvasKey.currentContext?.findRenderObject() as RenderBox?;
+          if (box == null) return;
+          final localPoint = box.globalToLocal(details.focalPoint);
+          
+          final centerX = clip.x * constraints.maxWidth;
+          final centerY = clip.y * constraints.maxHeight;
+          
+          _initialDistance = math.sqrt(
+            math.pow(localPoint.dx - centerX, 2) + math.pow(localPoint.dy - centerY, 2)
+          );
+        },
+        onScaleUpdate: (details) {
+          if (!_isScaling) return;
+          
+          final RenderBox? box = _canvasKey.currentContext?.findRenderObject() as RenderBox?;
+          if (box == null) return;
+          final localPoint = box.globalToLocal(details.focalPoint);
+          
+          final centerX = clip.x * constraints.maxWidth;
+          final centerY = clip.y * constraints.maxHeight;
+          
+          final currentDistance = math.sqrt(
+            math.pow(localPoint.dx - centerX, 2) + math.pow(localPoint.dy - centerY, 2)
+          );
+          
+          if (_initialDistance > 0) {
+            double newScale = _initialScale * (currentDistance / _initialDistance);
+            provider.updateClip(clip.id, scale: newScale.clamp(0.1, 10.0), silent: true);
+            setState(() {});
+          }
+        },
+        onScaleEnd: (_) {
+          _isScaling = false;
+          provider.syncToNative();
+          provider.notifyListeners();
+        },
+        child: Container(
+          width: handleSize,
+          height: handleSize,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.blueAccent, width: 2.0),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
         ),
       ),

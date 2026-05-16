@@ -30,7 +30,13 @@ enum class AnimationType {
     RADIAL_WIPE,
     THROWBACK,
     WAVY_BEND,
-    RIPPLE;
+    RIPPLE,
+    SMOOTH_SLIDE_UP,
+    STAGGERED_SLIDE_UP,
+    SLIDE_FROM_TOP,
+    SLIDE_FROM_BOTTOM,
+    STAGGERED_SLIDE_FROM_TOP,
+    STAGGERED_SLIDE_FROM_BOTTOM;
 
     companion object {
         fun fromIndex(index: Int): AnimationType = entries.getOrElse(index) { NONE }

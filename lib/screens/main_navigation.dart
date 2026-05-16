@@ -15,7 +15,6 @@ class _MainNavigationState extends State<MainNavigation> {
 
   final List<Widget> _screens = [
     const HomeScreen(),
-    const EditorScreen(), // Included in navigation for convenience
     const ProfileScreen(),
   ];
 
@@ -51,10 +50,6 @@ class _MainNavigationState extends State<MainNavigation> {
             BottomNavigationBarItem(
               icon: Icon(Icons.home_filled),
               label: 'HOME',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.movie_creation_rounded),
-              label: 'EDITOR',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_rounded),

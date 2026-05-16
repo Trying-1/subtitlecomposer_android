@@ -148,6 +148,59 @@ class EditorProvider extends ChangeNotifier {
   bool _isPlayheadLocked = false;
   bool _isControlPanelCollapsed = true; // Start collapsed by default
   int _activeTabIndex = 0;
+  bool _stackInDifferentTracks = true;
+  bool get stackInDifferentTracks => _stackInDifferentTracks;
+  set stackInDifferentTracks(bool val) {
+    _stackInDifferentTracks = val;
+    notifyListeners();
+  }
+
+  bool _showPanControls = true;
+  bool get showPanControls => _showPanControls;
+  void toggleShowPanControls() {
+    _showPanControls = !_showPanControls;
+    notifyListeners();
+  }
+
+  // Preview Zoom/Pan Mode
+  bool _isPreviewZoomMode = false;
+  double _previewZoom = 1.0;
+  Offset _previewOffset = Offset.zero;
+
+  bool get isPreviewZoomMode => _isPreviewZoomMode;
+  double get previewZoom => _previewZoom;
+  Offset get previewOffset => _previewOffset;
+
+  void togglePreviewZoomMode() {
+    _isPreviewZoomMode = !_isPreviewZoomMode;
+    notifyListeners();
+  }
+
+  void resetPreviewZoom() {
+    _previewZoom = 1.0;
+    _previewOffset = Offset.zero;
+    notifyListeners();
+  }
+
+  void updatePreviewZoom(double scaleDelta) {
+    _previewZoom = (_previewZoom * scaleDelta).clamp(0.5, 10.0);
+    notifyListeners();
+  }
+
+  void updatePreviewOffset(Offset delta) {
+    _previewOffset += delta;
+    notifyListeners();
+  }
+
+  void setPreviewZoom(double zoom) {
+    _previewZoom = zoom.clamp(0.5, 10.0);
+    notifyListeners();
+  }
+
+  void setPreviewOffset(Offset offset) {
+    _previewOffset = offset;
+    notifyListeners();
+  }
   
   List<double> _customAspectRatios = [];
   List<CustomLayout> _customLayouts = [];
@@ -776,6 +829,9 @@ class EditorProvider extends ChangeNotifier {
         _selectedClipIds = {id};
       }
 
+      /* 
+      // Removed auto-seek on selection to prevent playhead drift during precision editing.
+      // If needed, we can re-enable this only if the playhead is outside the clip bounds.
       final clip = selectedTimelineClip;
       if (clip != null && !_isPlayheadLocked) {
         final center = Duration(
@@ -783,6 +839,7 @@ class EditorProvider extends ChangeNotifier {
         );
         seekTo(center);
       }
+      */
     }
     notifyListeners();
   }
@@ -1588,16 +1645,50 @@ class EditorProvider extends ChangeNotifier {
   }
 
   void splitClip(String id) {
+    // Defensive sync: ensure _currentTime matches the visual playhead
+    _currentTime = playbackTime.value;
+    _splitClipInternal(id, _currentTime);
+    syncToNative();
+    notifyListeners();
+  }
+
+  void splitSelectedClipsAtPlayhead() {
+    if (_selectedClipIds.isEmpty) return;
+    
+    // Defensive sync: ensure _currentTime matches the visual playhead.
+    _currentTime = playbackTime.value;
+    
     saveState();
+    
+    final idsToSplit = List<String>.from(_selectedClipIds);
+    bool anySplit = false;
+    
+    for (var id in idsToSplit) {
+      if (_splitClipInternal(id, _currentTime)) {
+        anySplit = true;
+      }
+    }
+    
+    if (anySplit) {
+      syncToNative();
+      notifyListeners();
+    }
+  }
+
+
+  bool _splitClipInternal(String id, Duration splitTime) {
     TimelineClip? clip;
     int trackIdx = -1;
-    bool isOverlay = false;
+    int clipIdx = -1;
+    int type = 0; // 0: subtitle, 1: overlay, 2: background, 3: audio
     
     for (int i = 0; i < _tracks.length; i++) {
       final idx = _tracks[i].clips.indexWhere((c) => c.id == id);
       if (idx != -1) {
         clip = _tracks[i].clips[idx];
         trackIdx = i;
+        clipIdx = idx;
+        type = 0;
         break;
       }
     }
@@ -1608,72 +1699,118 @@ class EditorProvider extends ChangeNotifier {
         if (idx != -1) {
           clip = _overlayTracks[i].overlays[idx];
           trackIdx = i;
-          isOverlay = true;
+          clipIdx = idx;
+          type = 1;
           break;
         }
       }
     }
 
-    bool isBackground = false;
     if (clip == null) {
       for (int i = 0; i < _backgroundTracks.length; i++) {
         final idx = _backgroundTracks[i].backgrounds.indexWhere((c) => c.id == id);
         if (idx != -1) {
           clip = _backgroundTracks[i].backgrounds[idx];
           trackIdx = i;
-          isBackground = true;
+          clipIdx = idx;
+          type = 2;
           break;
         }
       }
     }
     
-    if (clip == null) return;
-    
-    if (_currentTime <= clip.startTime || _currentTime >= clip.endTime) return;
-    
-    final oldEndTime = clip.endTime;
-    final splitTime = _currentTime;
-    
-    if (isOverlay) {
-      final oldClip = clip as OverlayClip;
-      final newClip = oldClip.copyWith(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        startTime: splitTime,
-        endTime: oldEndTime,
-      );
-      
-      final list = _overlayTracks[trackIdx].overlays;
-      final idx = list.indexWhere((c) => c.id == id);
-      list[idx] = oldClip.copyWith(endTime: splitTime);
-      list.insert(idx + 1, newClip);
-    } else if (isBackground) {
-      final oldClip = clip as BackgroundClip;
-      final newClip = oldClip.copyWith(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        startTime: splitTime,
-        endTime: oldEndTime,
-      );
-      
-      final list = _backgroundTracks[trackIdx].backgrounds;
-      final idx = list.indexWhere((c) => c.id == id);
-      list[idx] = oldClip.copyWith(endTime: splitTime);
-      list.insert(idx + 1, newClip);
-    } else {
-      final oldClip = clip as SubtitleClip;
-      final newClip = oldClip.copyWith(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        startTime: splitTime,
-        endTime: oldEndTime,
-      );
-      
-      final list = _tracks[trackIdx].clips;
-      final idx = list.indexWhere((c) => c.id == id);
-      list[idx] = oldClip.copyWith(endTime: splitTime);
-      list.insert(idx + 1, newClip);
+    if (clip == null) {
+      for (int i = 0; i < _audioTracks.length; i++) {
+        final idx = _audioTracks[i].audioClips.indexWhere((c) => c.id == id);
+        if (idx != -1) {
+          clip = _audioTracks[i].audioClips[idx];
+          trackIdx = i;
+          clipIdx = idx;
+          type = 3;
+          break;
+        }
+      }
     }
     
-    syncToNative();
-    notifyListeners();
+    if (clip == null) return false;
+    
+    if (splitTime <= clip.startTime || splitTime >= clip.endTime) {
+      return false;
+    }
+    
+    final oldEndTime = clip.endTime;
+    final splitOffsetSec = (splitTime - clip.startTime).inMicroseconds / 1000000.0;
+    
+    // Helper to split keyframes
+    List<Keyframe> splitKeyframes(List<Keyframe> original, bool isSecondHalf) {
+      if (isSecondHalf) {
+        return original
+            .where((k) => k.timeOffset >= splitOffsetSec)
+            .map((k) => k.copyWith(timeOffset: k.timeOffset - splitOffsetSec))
+            .toList();
+      } else {
+        return original
+            .where((k) => k.timeOffset < splitOffsetSec)
+            .toList();
+      }
+    }
+
+    if (type == 1) { // Overlay
+      final oldClip = clip as OverlayClip;
+      final newClip = oldClip.copyWith(
+        id: '${DateTime.now().millisecondsSinceEpoch}_${id}_2',
+        startTime: splitTime,
+        endTime: oldEndTime,
+        keyframes: splitKeyframes(oldClip.keyframes, true),
+      );
+      
+      _overlayTracks[trackIdx].overlays[clipIdx] = oldClip.copyWith(
+        endTime: splitTime,
+        keyframes: splitKeyframes(oldClip.keyframes, false),
+      );
+      _overlayTracks[trackIdx].overlays.insert(clipIdx + 1, newClip);
+    } else if (type == 2) { // Background
+      final oldClip = clip as BackgroundClip;
+      final newClip = oldClip.copyWith(
+        id: '${DateTime.now().millisecondsSinceEpoch}_${id}_2',
+        startTime: splitTime,
+        endTime: oldEndTime,
+        keyframes: splitKeyframes(oldClip.keyframes, true),
+      );
+      
+      _backgroundTracks[trackIdx].backgrounds[clipIdx] = oldClip.copyWith(
+        endTime: splitTime,
+        keyframes: splitKeyframes(oldClip.keyframes, false),
+      );
+      _backgroundTracks[trackIdx].backgrounds.insert(clipIdx + 1, newClip);
+    } else if (type == 3) { // Audio
+      final oldClip = clip as AudioClip;
+      final newClip = oldClip.copyWith(
+        id: '${DateTime.now().millisecondsSinceEpoch}_${id}_2',
+        startTime: splitTime,
+        endTime: oldEndTime,
+        // Audio might need sourceStartTime adjustment if implemented, but for now we follow the pattern
+      );
+      
+      _audioTracks[trackIdx].audioClips[clipIdx] = oldClip.copyWith(endTime: splitTime);
+      _audioTracks[trackIdx].audioClips.insert(clipIdx + 1, newClip);
+    } else { // Subtitle (0)
+      final oldClip = clip as SubtitleClip;
+      final newClip = oldClip.copyWith(
+        id: '${DateTime.now().millisecondsSinceEpoch}_${id}_2',
+        startTime: splitTime,
+        endTime: oldEndTime,
+        keyframes: splitKeyframes(oldClip.keyframes, true),
+      );
+      
+      _tracks[trackIdx].clips[clipIdx] = oldClip.copyWith(
+        endTime: splitTime,
+        keyframes: splitKeyframes(oldClip.keyframes, false),
+      );
+      _tracks[trackIdx].clips.insert(clipIdx + 1, newClip);
+    }
+    
+    return true;
   }
 
   void resetProject() {
@@ -1721,41 +1858,68 @@ class EditorProvider extends ChangeNotifier {
     await generateSubtitlesFromText(content);
   }
 
-  Future<void> generateSubtitlesFromText(String content) async {
+  Future<void> generateSubtitlesFromText(String content, {bool stackInDifferentTracks = false}) async {
     saveState();
     final words = content.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
     
-    final List<SubtitleClip> clips = [];
+    _tracks = [];
     Duration currentStart = Duration.zero;
     const duration = Duration(milliseconds: 500);
 
-    for (var word in words) {
-      final clipId = DateTime.now().millisecondsSinceEpoch.toString() + clips.length.toString();
-      clips.add(SubtitleClip(
-        id: clipId,
-        text: word,
-        startTime: currentStart,
-        endTime: currentStart + duration,
-        x: 0.5,
-        y: 0.5,
-        originalTrackId: 'main',
-        originalStartTime: currentStart,
-        originalEndTime: currentStart + duration,
-      ));
-      currentStart += duration;
-    }
+    if (stackInDifferentTracks) {
+      for (int i = 0; i < words.length; i++) {
+        final word = words[i];
+        final clipId = DateTime.now().millisecondsSinceEpoch.toString() + i.toString();
+        final startTime = currentStart;
+        final endTime = startTime + duration;
 
-    _tracks = [Track(id: 'main', name: 'Main Track', clips: clips)];
-    
-    if (currentStart > _totalDuration) {
-      _totalDuration = currentStart;
+        final clip = SubtitleClip(
+          id: clipId,
+          text: word,
+          startTime: startTime,
+          endTime: endTime,
+          x: 0.5,
+          y: 0.5,
+          originalTrackId: 'track_$i',
+          originalStartTime: startTime,
+          originalEndTime: endTime,
+        );
+
+        _tracks.add(Track(
+          id: 'track_$i',
+          name: 'Track ${i + 1}',
+          clips: [clip],
+        ));
+
+        currentStart += duration;
+        if (endTime > _totalDuration) _totalDuration = endTime;
+      }
+    } else {
+      final List<SubtitleClip> clips = [];
+      for (var word in words) {
+        final clipId = DateTime.now().millisecondsSinceEpoch.toString() + clips.length.toString();
+        clips.add(SubtitleClip(
+          id: clipId,
+          text: word,
+          startTime: currentStart,
+          endTime: currentStart + duration,
+          x: 0.5,
+          y: 0.5,
+          originalTrackId: 'main',
+          originalStartTime: currentStart,
+          originalEndTime: currentStart + duration,
+        ));
+        currentStart += duration;
+      }
+      _tracks = [Track(id: 'main', name: 'Main Track', clips: clips)];
+      if (currentStart > _totalDuration) _totalDuration = currentStart;
     }
 
     syncToNative();
     notifyListeners();
   }
 
-  Future<void> generateSentencesFromText(String content) async {
+  Future<void> generateSentencesFromText(String content, {bool stackInDifferentTracks = true}) async {
     saveState();
     // Split by newlines; each line is one segment
     final lines = content.split(RegExp(r'\n')).map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
@@ -1764,35 +1928,54 @@ class EditorProvider extends ChangeNotifier {
     Duration currentStart = Duration.zero;
     const duration = Duration(milliseconds: 2000);
 
-    for (int i = 0; i < lines.length; i++) {
-      final line = lines[i];
-      final clipId = DateTime.now().millisecondsSinceEpoch.toString() + i.toString();
-      final startTime = currentStart;
-      final endTime = startTime + duration;
+    if (stackInDifferentTracks) {
+      for (int i = 0; i < lines.length; i++) {
+        final line = lines[i];
+        final clipId = DateTime.now().millisecondsSinceEpoch.toString() + i.toString();
+        final startTime = currentStart;
+        final endTime = startTime + duration;
 
-      final clip = SubtitleClip(
-        id: clipId,
-        text: line,
-        startTime: startTime,
-        endTime: endTime,
-        x: 0.5,
-        y: 0.5,
-        originalTrackId: 'track_$i',
-        originalStartTime: startTime,
-        originalEndTime: endTime,
-      );
+        final clip = SubtitleClip(
+          id: clipId,
+          text: line,
+          startTime: startTime,
+          endTime: endTime,
+          x: 0.5,
+          y: 0.5,
+          originalTrackId: 'track_$i',
+          originalStartTime: startTime,
+          originalEndTime: endTime,
+        );
 
-      _tracks.add(Track(
-        id: 'track_$i',
-        name: 'Track ${i + 1}',
-        clips: [clip],
-      ));
+        _tracks.add(Track(
+          id: 'track_$i',
+          name: 'Track ${i + 1}',
+          clips: [clip],
+        ));
 
-      currentStart += duration;
-      
-      if (endTime > _totalDuration) {
-        _totalDuration = endTime;
+        currentStart += duration;
+        if (endTime > _totalDuration) _totalDuration = endTime;
       }
+    } else {
+      final List<SubtitleClip> clips = [];
+      for (int i = 0; i < lines.length; i++) {
+        final line = lines[i];
+        final clipId = DateTime.now().millisecondsSinceEpoch.toString() + i.toString();
+        clips.add(SubtitleClip(
+          id: clipId,
+          text: line,
+          startTime: currentStart,
+          endTime: currentStart + duration,
+          x: 0.5,
+          y: 0.5,
+          originalTrackId: 'main',
+          originalStartTime: currentStart,
+          originalEndTime: currentStart + duration,
+        ));
+        currentStart += duration;
+      }
+      _tracks = [Track(id: 'main', name: 'Main Track', clips: clips)];
+      if (currentStart > _totalDuration) _totalDuration = currentStart;
     }
 
     syncToNative();
@@ -1823,6 +2006,10 @@ class EditorProvider extends ChangeNotifier {
       }
 
       final nativePosMs = await _bridge.getAudioPosition();
+      
+      // CRITICAL: Guard against stale async responses after playback stopped.
+      if (!_isPlaying) return;
+      
       _currentTime = Duration(milliseconds: nativePosMs);
       
       final duration = totalDuration;

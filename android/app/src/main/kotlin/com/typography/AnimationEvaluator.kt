@@ -167,6 +167,8 @@ object AnimationEvaluator {
                 val o = if (t < 0.3f) t / 0.3f else 1.0f
                 AnimatedTextState(scale = s, opacity = o)
             }
+            AnimationType.SMOOTH_SLIDE_UP -> AnimatedTextState(typewriterProgress = t)
+            AnimationType.STAGGERED_SLIDE_UP -> AnimatedTextState(typewriterProgress = t)
             AnimationType.BOUNCE_IN -> AnimatedTextState(scale = t, offsetY = 0.2f * (1f - t))
             AnimationType.ROTATE_IN -> AnimatedTextState(rotation = 360f * (1f - t), opacity = t, scale = t)
             AnimationType.ZOOM_IN -> AnimatedTextState(scale = t * t, opacity = t)
@@ -178,6 +180,10 @@ object AnimationEvaluator {
                 val dropOffset = -2.0f * (1f - applyEasing(t, EasingType.ELASTIC_OUT))
                 AnimatedTextState(offsetY = dropOffset, opacity = if (t < 0.1f) t * 10f else 1f)
             }
+            AnimationType.SLIDE_FROM_TOP -> AnimatedTextState(offsetY = -1.0f * (1f - t))
+            AnimationType.SLIDE_FROM_BOTTOM -> AnimatedTextState(offsetY = 1.0f * (1f - t))
+            AnimationType.STAGGERED_SLIDE_FROM_TOP -> AnimatedTextState(typewriterProgress = t)
+            AnimationType.STAGGERED_SLIDE_FROM_BOTTOM -> AnimatedTextState(typewriterProgress = t)
             else -> AnimatedTextState()
         }
     }
@@ -199,6 +205,8 @@ object AnimationEvaluator {
             AnimationType.SLIDE_RIGHT -> AnimatedTextState(offsetX = 0.5f * (1f - t))
             AnimationType.SCALE_UP -> AnimatedTextState(scale = t, opacity = t)
             AnimationType.SCALE_DOWN -> AnimatedTextState(scale = 2f - t, opacity = t)
+            AnimationType.SMOOTH_SLIDE_UP -> AnimatedTextState(typewriterProgress = 1f - t)
+            AnimationType.STAGGERED_SLIDE_UP -> AnimatedTextState(typewriterProgress = 1f - t)
             AnimationType.BOUNCE_IN -> AnimatedTextState(scale = t, offsetY = -0.2f * (1f - t))
             AnimationType.ROTATE_IN -> AnimatedTextState(rotation = -360f * (1f - t), opacity = t, scale = t)
             AnimationType.ZOOM_IN -> AnimatedTextState(scale = t * t, opacity = t)
@@ -210,6 +218,10 @@ object AnimationEvaluator {
                 val dropOffset = 2.0f * (1f - applyEasing(t, EasingType.ELASTIC_OUT))
                 AnimatedTextState(offsetY = dropOffset, opacity = t)
             }
+            AnimationType.SLIDE_FROM_TOP -> AnimatedTextState(offsetY = -1.0f * t)
+            AnimationType.SLIDE_FROM_BOTTOM -> AnimatedTextState(offsetY = 1.0f * t)
+            AnimationType.STAGGERED_SLIDE_FROM_TOP -> AnimatedTextState(typewriterProgress = 1f - t)
+            AnimationType.STAGGERED_SLIDE_FROM_BOTTOM -> AnimatedTextState(typewriterProgress = 1f - t)
             else -> AnimatedTextState()
         }
     }

@@ -10,6 +10,7 @@ import 'providers/font_provider.dart';
 
 import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/home/home_screen.dart';
+import 'screens/splash/splash_screen.dart';
 
 import 'services/project_service.dart';
 
@@ -21,14 +22,13 @@ void main() async {
   await Hive.openBox('asset_box');
   await Hive.openBox('font_box');
   await Hive.openBox('settings_box');
+  await Hive.openBox('project_box');
   
   final fontProvider = FontProvider();
   final assetProvider = AssetProvider();
   
   await fontProvider.init();
   await assetProvider.init();
-
-  final bool onboardingShown = Hive.box('settings_box').get('onboarding_shown', defaultValue: false);
 
   runApp(
     MultiProvider(
@@ -37,14 +37,13 @@ void main() async {
         ChangeNotifierProvider(create: (_) => assetProvider),
         ChangeNotifierProvider(create: (_) => fontProvider),
       ],
-      child: TypographyEditorApp(showOnboarding: !onboardingShown),
+      child: const TypographyEditorApp(),
     ),
   );
 }
 
 class TypographyEditorApp extends StatelessWidget {
-  final bool showOnboarding;
-  const TypographyEditorApp({super.key, required this.showOnboarding});
+  const TypographyEditorApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +52,7 @@ class TypographyEditorApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Typo Edit',
       theme: ThemeConfig.theme,
-      home: showOnboarding ? const OnboardingScreen() : const HomeScreen(),
+      home: const SplashScreen(),
     );
   }
 }

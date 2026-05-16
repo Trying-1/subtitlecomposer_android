@@ -67,16 +67,38 @@ class _HomeScreenState extends State<HomeScreen> {
                 primary: true,
               ),
               const SizedBox(height: 20),
-              _buildActionCard(
-                context,
-                title: 'Asset Library',
-                subtitle: 'Manage your overlays and sounds',
-                icon: Icons.auto_awesome_motion_rounded,
-                onTap: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const AssetsLibraryScreen()));
-                },
-              ),
-              const SizedBox(height: 20),
+              if (AppConfig.showHomeAssetsLibrary) ...[
+                _buildActionCard(
+                  context,
+                  title: 'Asset Library',
+                  subtitle: 'Manage your overlays and sounds',
+                  icon: Icons.auto_awesome_motion_rounded,
+                  onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const AssetsLibraryScreen()));
+                  },
+                ),
+                const SizedBox(height: 20),
+              ],
+              if (AppConfig.showImportProjectButton) ...[
+                _buildActionCard(
+                  context,
+                  title: 'Import Project',
+                  subtitle: 'Load project from device storage',
+                  icon: Icons.file_download_outlined,
+                  onTap: () async {
+                    final success = await ProjectService.importProject();
+                    if (success) {
+                      setState(() {});
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Project imported successfully')),
+                        );
+                      }
+                    }
+                  },
+                ),
+                const SizedBox(height: 20),
+              ],
             ],
             if (AppConfig.showHomeTutorials) ...[
               _buildActionCard(
@@ -283,6 +305,19 @@ class _HomeScreenState extends State<HomeScreen> {
                           setState(() {});
                         },
                       ),
+                      if (AppConfig.showExportProjectButton)
+                        PopupMenuItem(
+                          child: const Row(
+                            children: [
+                              Icon(Icons.share_outlined, size: 16, color: Colors.white70),
+                              SizedBox(width: 8),
+                              Text('Export', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                            ],
+                          ),
+                          onTap: () async {
+                            await ProjectService.exportProject(project);
+                          },
+                        ),
                       PopupMenuItem(
                         child: const Row(
                           children: [
