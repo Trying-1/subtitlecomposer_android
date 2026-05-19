@@ -7,6 +7,8 @@ class AssetProvider extends ChangeNotifier {
   List<String> _overlayAssets = [];
   List<String> _backgroundAssets = [];
   List<String> _audioAssets = [];
+  List<String> _musicAssets = [];
+  List<String> _sfxAssets = [];
   List<ColorPalette> _palettes = [];
   Map<String, String> _customNames = {};
   bool _isInitialized = false;
@@ -15,6 +17,8 @@ class AssetProvider extends ChangeNotifier {
   List<String> get overlayAssets => _overlayAssets;
   List<String> get backgroundAssets => _backgroundAssets;
   List<String> get audioAssets => _audioAssets;
+  List<String> get musicAssets => _musicAssets;
+  List<String> get sfxAssets => _sfxAssets;
   List<ColorPalette> get palettes => _palettes;
 
   AssetProvider();
@@ -36,6 +40,25 @@ class AssetProvider extends ChangeNotifier {
 
       final audioData = box.get('audio_assets');
       if (audioData != null) _audioAssets = List<String>.from(audioData);
+
+      final musicData = box.get('music_assets');
+      if (musicData != null) _musicAssets = List<String>.from(musicData);
+
+      final sfxData = box.get('sfx_assets');
+      if (sfxData != null) _sfxAssets = List<String>.from(sfxData);
+
+      // Migrating old flat audio list to music/sfx split
+      if (_musicAssets.isEmpty && _sfxAssets.isEmpty && _audioAssets.isNotEmpty) {
+        for (var path in _audioAssets) {
+          final pathLower = path.toLowerCase();
+          if (pathLower.contains('/sfx/') || pathLower.contains('/effects/') || pathLower.contains('sfx_') || pathLower.contains('sfx')) {
+            _sfxAssets.add(path);
+          } else {
+            _musicAssets.add(path);
+          }
+        }
+        _persistAssets();
+      }
 
       final palettesData = box.get('palettes');
       if (palettesData != null) {
@@ -106,6 +129,44 @@ class AssetProvider extends ChangeNotifier {
     }
   }
 
+  void addMusicAssets(List<String> paths) {
+    if (!_isInitialized) return;
+    bool changed = false;
+    for (var path in paths) {
+      if (!_musicAssets.contains(path)) {
+        _musicAssets.add(path);
+        changed = true;
+      }
+      // Also update master list for backward compatibility
+      if (!_audioAssets.contains(path)) {
+        _audioAssets.add(path);
+      }
+    }
+    if (changed) {
+      _persistAssets();
+      notifyListeners();
+    }
+  }
+
+  void addSfxAssets(List<String> paths) {
+    if (!_isInitialized) return;
+    bool changed = false;
+    for (var path in paths) {
+      if (!_sfxAssets.contains(path)) {
+        _sfxAssets.add(path);
+        changed = true;
+      }
+      // Also update master list for backward compatibility
+      if (!_audioAssets.contains(path)) {
+        _audioAssets.add(path);
+      }
+    }
+    if (changed) {
+      _persistAssets();
+      notifyListeners();
+    }
+  }
+
   void savePalette(String name, List<int> colors) {
     if (!_isInitialized) return;
     final palette = ColorPalette(
@@ -163,6 +224,30 @@ class AssetProvider extends ChangeNotifier {
     if (!_isInitialized) return;
     if (_audioAssets.contains(path)) {
       _audioAssets.remove(path);
+      _musicAssets.remove(path);
+      _sfxAssets.remove(path);
+      _customNames.remove(path);
+      _persistAssets();
+      notifyListeners();
+    }
+  }
+
+  void removeMusicAsset(String path) {
+    if (!_isInitialized) return;
+    if (_musicAssets.contains(path)) {
+      _musicAssets.remove(path);
+      _audioAssets.remove(path);
+      _customNames.remove(path);
+      _persistAssets();
+      notifyListeners();
+    }
+  }
+
+  void removeSfxAsset(String path) {
+    if (!_isInitialized) return;
+    if (_sfxAssets.contains(path)) {
+      _sfxAssets.remove(path);
+      _audioAssets.remove(path);
       _customNames.remove(path);
       _persistAssets();
       notifyListeners();
@@ -175,6 +260,8 @@ class AssetProvider extends ChangeNotifier {
       await box.put('overlay_assets', _overlayAssets);
       await box.put('background_assets', _backgroundAssets);
       await box.put('audio_assets', _audioAssets);
+      await box.put('music_assets', _musicAssets);
+      await box.put('sfx_assets', _sfxAssets);
       await box.put('palettes', _palettes.map((p) => p.toJson()).toList());
       await box.put('custom_names', _customNames);
     } catch (e) {

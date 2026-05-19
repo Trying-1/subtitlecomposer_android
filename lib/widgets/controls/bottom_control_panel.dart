@@ -15,6 +15,7 @@ import 'tabs/overlay_tab.dart';
 import 'tabs/project_tab.dart';
 import 'tabs/font_tab.dart';
 import 'tabs/audio_tab.dart';
+import 'tabs/timing_tab.dart';
 import 'tabs/keyframe_manager_tab.dart';
 import 'tabs/layout_tab.dart';
 
@@ -88,6 +89,7 @@ class BottomControlPanel extends StatefulWidget {
   }) onUpdate;
   final Function(String path) onAddAudioClip;
   final Function(AnimationPreset) onApplyPreset;
+  final Function(dynamic clip, Duration? start, Duration? end, {bool resolve}) onUpdateTiming;
 
   const BottomControlPanel({
     super.key,
@@ -117,6 +119,7 @@ class BottomControlPanel extends StatefulWidget {
     required this.onAddAudioClip,
     required this.onUpdate,
     required this.onApplyPreset,
+    required this.onUpdateTiming,
   });
 
   @override
@@ -135,6 +138,7 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
     {'name': 'Keyframes', 'icon': Icons.diamond_rounded},
     {'name': 'Transform', 'icon': Icons.transform_rounded},
     {'name': 'Position', 'icon': Icons.location_on_rounded},
+    {'name': 'Timing', 'icon': Icons.more_time_rounded},
     {'name': 'Overlay', 'icon': Icons.add_photo_alternate_rounded},
     {'name': 'Background', 'icon': Icons.wallpaper_rounded},
     {'name': 'Audio', 'icon': Icons.audiotrack_rounded},
@@ -169,7 +173,7 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
   }
 
   Widget _buildActiveTabContentWrapper(int activeTabIndex) {
-    if (activeTabIndex >= 9) {
+    if (activeTabIndex >= 10) {
       return SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         child: _buildGlobalTabContent(activeTabIndex),
@@ -315,6 +319,7 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
       case 6: return KeyframeManagerTab(clip: clip, currentPosition: widget.currentTime, onUpdate: widget.onUpdate);
       case 7: return TransformTab(clip: clip, onUpdate: widget.onUpdate);
       case 8: return PositionTab(clip: clip, onUpdate: widget.onUpdate);
+      case 9: return TimingTab(clip: clip, onUpdate: (c, s, e, {resolve = true}) => widget.onUpdateTiming(c, s, e, resolve: resolve));
       default: return const SizedBox();
     }
   }
@@ -337,19 +342,19 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
 
   Widget _buildGlobalTabContent(int activeTabIndex) {
     switch (activeTabIndex) {
-      case 9: return OverlayTab(
+      case 10: return OverlayTab(
         selectedOverlay: widget.selectedOverlay,
         onAddOverlay: widget.onAddOverlay,
         onUpdate: widget.onUpdate,
       );
-      case 10: return const BackgroundTab();
-      case 11: return AudioTab(
+      case 11: return const BackgroundTab();
+      case 12: return AudioTab(
         selectedAudio: widget.selectedAudio,
         onAddAudio: widget.onAddAudioClip,
         onUpdate: ({volume}) => widget.onUpdate(volume: volume),
       );
-      case 12: return const AspectTab();
-      case 13: return ProjectTab(
+      case 13: return const AspectTab();
+      case 14: return ProjectTab(
         onImportAudio: widget.onImportAudio,
         onImportSubtitles: widget.onImportSubtitles,
         onImportPlainText: widget.onImportPlainText,
@@ -358,6 +363,19 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
         onExtractAudio: widget.onExtractAudio,
         onExport: widget.onExport,
         onNewProject: widget.onNewProject,
+        onSaveProject: () async {
+          final p = context.read<EditorProvider>();
+          await p.saveProject();
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Project saved successfully!'),
+                backgroundColor: Colors.green,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        },
         onTranscribe: widget.onTranscribe,
         onImportModel: widget.onImportModel,
         onBulkEditJson: widget.onBulkEditJson,

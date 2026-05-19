@@ -1,10 +1,14 @@
 package com.typography
 
-import kotlin.math.*
+import com.typography.animations.EasingFunctions
+import com.typography.animations.EntranceAnimations
+import com.typography.animations.ExitAnimations
+import com.typography.animations.LoopAnimations
 
 /**
- * Evaluates animation state for a clip at a given timestamp.
- * Mirrors the Dart AnimationEngine for native rendering consistency.
+ * Slim animation orchestrator.
+ * Delegates type-specific logic to modular animation files in the animations/ package.
+ * Keeps only orchestration (keyframe evaluation + entrance/exit/loop blending) here.
  */
 object AnimationEvaluator {
 
@@ -32,8 +36,8 @@ object AnimationEvaluator {
         // Entrance
         val entrance = clip.entranceAnimation
         if (entrance.type != AnimationType.NONE && elapsed < entrance.durationMs) {
-            val t = applyEasing(elapsed.toFloat() / entrance.durationMs, entrance.easing)
-            val state = evaluateEntrance(entrance.type, t)
+            val t = EasingFunctions.applyEasing(elapsed.toFloat() / entrance.durationMs, entrance.easing)
+            val state = EntranceAnimations.evaluate(entrance.type, t)
             opacity *= state.opacity
             offsetX += state.offsetX
             offsetY += state.offsetY
@@ -48,8 +52,8 @@ object AnimationEvaluator {
         val exit = clip.exitAnimation
         if (exit.type != AnimationType.NONE && remaining < exit.durationMs) {
             val exitProgress = (exit.durationMs - remaining).toFloat() / exit.durationMs
-            val t = applyEasing(exitProgress.coerceIn(0f, 1f), exit.easing)
-            val state = evaluateExit(exit.type, t)
+            val t = EasingFunctions.applyEasing(exitProgress.coerceIn(0f, 1f), exit.easing)
+            val state = ExitAnimations.evaluate(exit.type, t)
             opacity *= state.opacity
             offsetX += state.offsetX
             offsetY += state.offsetY
@@ -62,7 +66,7 @@ object AnimationEvaluator {
         // Loop
         val loop = clip.loopAnimation
         if (loop.type != AnimationType.NONE) {
-            val state = evaluateLoop(loop.type, currentTimeMs, loop.durationMs)
+            val state = LoopAnimations.evaluate(loop.type, currentTimeMs, loop.durationMs)
             offsetX += state.offsetX
             offsetY += state.offsetY
             rotation += state.rotation
@@ -88,6 +92,8 @@ object AnimationEvaluator {
         )
     }
 
+    // ── Keyframe Evaluation (orchestration logic, stays here) ──
+
     private fun evaluateKeyframes(keyframes: List<Keyframe>, timeOffset: Float, clip: SubtitleClip): AnimatedTextState {
         if (keyframes.isEmpty()) {
             return AnimatedTextState(
@@ -96,18 +102,11 @@ object AnimationEvaluator {
                 offsetY = 0f,
                 scale = clip.scale,
                 rotation = clip.rotation
-                // Note: offsetX/offsetY in AnimatedTextState are RELATIVE to clip.x/y
-                // But if we use keyframes, we might want absolute X/Y.
-                // Let's stick to keyframes defining absolute positions (gl space or 0..1).
-                // Actually, let's have keyframes define the base (opacity, scale, rot) 
-                // and for X/Y we'll use them as offsets or absolute 0..1?
-                // 0..1 is more powerful.
             )
         }
 
         val sorted = keyframes.sortedBy { it.timeOffset }
         
-        // Find surrounding keyframes
         val nextIndex = sorted.indexOfFirst { it.timeOffset > timeOffset }
         
         if (nextIndex == 0) {
@@ -136,7 +135,7 @@ object AnimationEvaluator {
         val k2 = sorted[nextIndex]
         var t = (timeOffset - k1.timeOffset) / (k2.timeOffset - k1.timeOffset)
         
-        t = applyEasing(t, k1.easing, k1)
+        t = EasingFunctions.applyEasing(t, k1.easing, k1)
 
         return AnimatedTextState(
             opacity = lerp(k1.opacity ?: clip.opacity, k2.opacity ?: clip.opacity, t),
@@ -148,292 +147,4 @@ object AnimationEvaluator {
     }
 
     private fun lerp(a: Float, b: Float, t: Float): Float = a + (b - a) * t
- 
-    private fun evaluateEntrance(type: AnimationType, t: Float): AnimatedTextState {
-        return when (type) {
-            AnimationType.FADE_IN -> AnimatedTextState(opacity = t)
-            AnimationType.SLIDE_UP -> AnimatedTextState(offsetY = 0.3f * (1f - t))
-            AnimationType.SLIDE_DOWN -> AnimatedTextState(offsetY = -0.3f * (1f - t))
-            AnimationType.SLIDE_LEFT -> AnimatedTextState(offsetX = 0.5f * (1f - t))
-            AnimationType.SLIDE_RIGHT -> AnimatedTextState(offsetX = -0.5f * (1f - t))
-            AnimationType.SCALE_UP -> AnimatedTextState(scale = t, opacity = t)
-            AnimationType.SCALE_DOWN -> AnimatedTextState(scale = 2f - t, opacity = t)
-            AnimationType.TYPEWRITER -> AnimatedTextState(typewriterProgress = t)
-            AnimationType.GRADIENT_WIPE -> AnimatedTextState(typewriterProgress = t)
-            AnimationType.RADIAL_WIPE -> AnimatedTextState(typewriterProgress = t)
-            AnimationType.WAVY_BEND -> AnimatedTextState(typewriterProgress = t)
-            AnimationType.THROWBACK -> {
-                val s = 4.0f - 3.0f * t
-                val o = if (t < 0.3f) t / 0.3f else 1.0f
-                AnimatedTextState(scale = s, opacity = o)
-            }
-            AnimationType.SMOOTH_SLIDE_UP -> AnimatedTextState(typewriterProgress = t)
-            AnimationType.STAGGERED_SLIDE_UP -> AnimatedTextState(typewriterProgress = t)
-            AnimationType.BOUNCE_IN -> AnimatedTextState(scale = t, offsetY = 0.2f * (1f - t))
-            AnimationType.ROTATE_IN -> AnimatedTextState(rotation = 360f * (1f - t), opacity = t, scale = t)
-            AnimationType.ZOOM_IN -> AnimatedTextState(scale = t * t, opacity = t)
-            AnimationType.ZOOM_OUT -> AnimatedTextState(scale = 1f + (1f - t) * 2f, opacity = t)
-            AnimationType.FLIP_X -> AnimatedTextState(scaleX = t, opacity = t)
-            AnimationType.FLIP_Y -> AnimatedTextState(scaleY = t, opacity = t)
-            AnimationType.ELASTIC_DROP -> {
-                // Drop from off-screen top (-2.0 normalized)
-                val dropOffset = -2.0f * (1f - applyEasing(t, EasingType.ELASTIC_OUT))
-                AnimatedTextState(offsetY = dropOffset, opacity = if (t < 0.1f) t * 10f else 1f)
-            }
-            AnimationType.SLIDE_FROM_TOP -> AnimatedTextState(offsetY = -1.0f * (1f - t))
-            AnimationType.SLIDE_FROM_BOTTOM -> AnimatedTextState(offsetY = 1.0f * (1f - t))
-            AnimationType.STAGGERED_SLIDE_FROM_TOP -> AnimatedTextState(typewriterProgress = t)
-            AnimationType.STAGGERED_SLIDE_FROM_BOTTOM -> AnimatedTextState(typewriterProgress = t)
-            else -> AnimatedTextState()
-        }
-    }
- 
-    private fun evaluateExit(type: AnimationType, t: Float): AnimatedTextState {
-        return when (type) {
-            AnimationType.FADE_OUT -> AnimatedTextState(opacity = 1f - t)
-            AnimationType.FADE_IN -> AnimatedTextState(opacity = t)
-            AnimationType.GRADIENT_WIPE -> AnimatedTextState(typewriterProgress = 1f - t)
-            AnimationType.RADIAL_WIPE -> AnimatedTextState(typewriterProgress = 1f - t)
-            AnimationType.WAVY_BEND -> AnimatedTextState(typewriterProgress = 1f - t)
-            AnimationType.THROWBACK -> {
-                val s = 1.0f + 3.0f * (1f - t)
-                AnimatedTextState(scale = s, opacity = t)
-            }
-            AnimationType.SLIDE_UP -> AnimatedTextState(offsetY = -0.3f * (1f - t))
-            AnimationType.SLIDE_DOWN -> AnimatedTextState(offsetY = 0.3f * (1f - t))
-            AnimationType.SLIDE_LEFT -> AnimatedTextState(offsetX = -0.5f * (1f - t))
-            AnimationType.SLIDE_RIGHT -> AnimatedTextState(offsetX = 0.5f * (1f - t))
-            AnimationType.SCALE_UP -> AnimatedTextState(scale = t, opacity = t)
-            AnimationType.SCALE_DOWN -> AnimatedTextState(scale = 2f - t, opacity = t)
-            AnimationType.SMOOTH_SLIDE_UP -> AnimatedTextState(typewriterProgress = 1f - t)
-            AnimationType.STAGGERED_SLIDE_UP -> AnimatedTextState(typewriterProgress = 1f - t)
-            AnimationType.BOUNCE_IN -> AnimatedTextState(scale = t, offsetY = -0.2f * (1f - t))
-            AnimationType.ROTATE_IN -> AnimatedTextState(rotation = -360f * (1f - t), opacity = t, scale = t)
-            AnimationType.ZOOM_IN -> AnimatedTextState(scale = t * t, opacity = t)
-            AnimationType.ZOOM_OUT -> AnimatedTextState(scale = 1f + (1f - t) * 2f, opacity = t)
-            AnimationType.FLIP_X -> AnimatedTextState(scaleX = t, opacity = t)
-            AnimationType.FLIP_Y -> AnimatedTextState(scaleY = t, opacity = t)
-            AnimationType.ELASTIC_DROP -> {
-                // Drop out the bottom (2.0 normalized)
-                val dropOffset = 2.0f * (1f - applyEasing(t, EasingType.ELASTIC_OUT))
-                AnimatedTextState(offsetY = dropOffset, opacity = t)
-            }
-            AnimationType.SLIDE_FROM_TOP -> AnimatedTextState(offsetY = -1.0f * t)
-            AnimationType.SLIDE_FROM_BOTTOM -> AnimatedTextState(offsetY = 1.0f * t)
-            AnimationType.STAGGERED_SLIDE_FROM_TOP -> AnimatedTextState(typewriterProgress = 1f - t)
-            AnimationType.STAGGERED_SLIDE_FROM_BOTTOM -> AnimatedTextState(typewriterProgress = 1f - t)
-            else -> AnimatedTextState()
-        }
-    }
- 
-    private fun evaluateLoop(type: AnimationType, timeMs: Long, durationMs: Int): AnimatedTextState {
-        val t = timeMs.toFloat() / 1000f
-        // Map durationMs to speed factor. 
-        // 1000ms = normal speed (1.0x)
-        // 2000ms = half speed (0.5x)
-        // 500ms = double speed (2.0x)
-        val speedFactor = 1000f / durationMs.coerceAtLeast(100).toFloat()
-        val angle = (t * 2f * PI.toFloat() * speedFactor)
-        
-        return when (type) {
-            AnimationType.SHAKE -> {
-                val freq = 15f
-                val intensity = 0.02f
-                AnimatedTextState(
-                    offsetX = sin(angle * freq) * intensity,
-                    offsetY = cos(angle * freq * 0.7f) * intensity
-                )
-            }
-            AnimationType.WOBBLE -> {
-                val freq = 3f
-                val rotIntensity = 5f
-                val scaleIntensity = 0.05f
-                AnimatedTextState(
-                    rotation = sin(angle * freq) * rotIntensity,
-                    scale = 1f + sin(angle * freq * 0.6f) * scaleIntensity
-                )
-            }
-            AnimationType.PULSE -> {
-                val freq = 2f
-                val scaleIntensity = 0.1f
-                AnimatedTextState(scale = 1f + sin(angle * freq) * scaleIntensity)
-            }
-            AnimationType.BOUNCE -> {
-                val freq = 2f
-                val intensity = 0.05f
-                AnimatedTextState(offsetY = abs(sin(angle * freq)) * -intensity)
-            }
-            AnimationType.SWING -> {
-                val freq = 1.5f
-                val rotIntensity = 15f
-                AnimatedTextState(rotation = sin(angle * freq) * rotIntensity)
-            }
-            AnimationType.SPIN -> {
-                // For spin, durationMs is the time for ONE full rotation
-                val progress = (timeMs % durationMs.coerceAtLeast(100)).toFloat() / durationMs.coerceAtLeast(100).toFloat()
-                AnimatedTextState(rotation = progress * 360f)
-            }
-            AnimationType.HEARTBEAT -> {
-                val freq = 1.2f * speedFactor
-                val localT = (t * freq) % 1.0f
-                val s = if (localT < 0.2f) {
-                    1f + sin(localT * 5f * PI.toFloat()) * 0.2f
-                } else if (localT < 0.5f) {
-                    val t2 = (localT - 0.2f) * (1f / 0.3f)
-                    1f + sin(t2 * PI.toFloat()) * 0.1f
-                } else {
-                    1f
-                }
-                AnimatedTextState(scale = s)
-            }
-            AnimationType.JELLO -> {
-                val freq = 2.5f
-                val intensity = 0.15f
-                val s = sin(angle * freq)
-                AnimatedTextState(
-                    scaleX = 1f + s * intensity,
-                    scaleY = 1f - s * intensity
-                )
-            }
-            AnimationType.WAVY_BEND -> {
-                // Continuously advance the wave phase using time and duration
-                val phase = (timeMs % durationMs.coerceAtLeast(100)) / durationMs.coerceAtLeast(100).toFloat()
-                AnimatedTextState(typewriterProgress = phase)
-            }
-            AnimationType.RIPPLE -> {
-                // Ripple phase
-                val phase = (timeMs % durationMs.coerceAtLeast(100)) / durationMs.coerceAtLeast(100).toFloat()
-                AnimatedTextState(typewriterProgress = phase)
-            }
-            else -> AnimatedTextState()
-        }
-    }
-
-    private fun applyEasing(t: Float, easing: EasingType, keyframe: Keyframe? = null): Float {
-        val clamped = t.coerceIn(0f, 1f)
-        return when (easing) {
-            EasingType.LINEAR -> clamped
-            EasingType.EASE_IN -> clamped * clamped * clamped
-            EasingType.EASE_OUT -> 1f - (1f - clamped).pow(3)
-            EasingType.EASE_IN_OUT -> if (clamped < 0.5f) {
-                4f * clamped * clamped * clamped
-            } else {
-                1f - (-2f * clamped + 2f).pow(3) / 2f
-            }
-            EasingType.BOUNCE_OUT -> bounceOut(clamped)
-            EasingType.ELASTIC_OUT -> elasticOut(clamped)
-            EasingType.CUSTOM -> solveCubicBezier(
-                clamped,
-                keyframe?.cp1x ?: 0.42f,
-                keyframe?.cp1y ?: 0.0f,
-                keyframe?.cp2x ?: 0.58f,
-                keyframe?.cp2y ?: 1.0f
-            )
-            EasingType.GRAPH -> evaluateGraph(clamped, keyframe?.customGraphPoints)
-        }
-    }
-
-    private fun evaluateGraph(t: Float, points: List<Float>?): Float {
-        if (points == null || points.isEmpty()) return t
-        
-        val nodes = mutableListOf(Pair(0f, 0f))
-        for (i in 0 until points.size step 2) {
-            if (i + 1 < points.size) {
-                nodes.add(Pair(points[i], points[i + 1]))
-            }
-        }
-        nodes.add(Pair(1f, 1f))
-        nodes.sortBy { it.first }
-
-        val n = nodes.size
-        if (n < 2) return t
-
-        // Compute slopes
-        val ms = FloatArray(n - 1)
-        for (i in 0 until n - 1) {
-            val dx = nodes[i + 1].first - nodes[i].first
-            ms[i] = if (abs(dx) < 1e-6f) 0f else (nodes[i + 1].second - nodes[i].second) / dx
-        }
-
-        // Compute tangents (Monotone Cubic Hermite Spline)
-        val ds = FloatArray(n)
-        ds[0] = ms[0]
-        ds[n - 1] = ms[n - 2]
-        for (i in 1 until n - 1) {
-            if (ms[i - 1] * ms[i] <= 0) {
-                ds[i] = 0f
-            } else {
-                ds[i] = (ms[i - 1] + ms[i]) / 2f
-            }
-        }
-
-        // Find segment
-        var idx = 0
-        while (idx < n - 2 && t > nodes[idx + 1].first) idx++
-
-        val p1 = nodes[idx]
-        val p2 = nodes[idx + 1]
-        val h = p2.first - p1.first
-        if (abs(h) < 1e-6f) return p2.second
-
-        val lt = (t - p1.first) / h
-        val lt2 = lt * lt
-        val lt3 = lt2 * lt
-
-        return (2 * lt3 - 3 * lt2 + 1) * p1.second +
-               (lt3 - 2 * lt2 + lt) * h * ds[idx] +
-               (-2 * lt3 + 3 * lt2) * p2.second +
-               (lt3 - lt2) * h * ds[idx + 1]
-    }
-
-    private fun solveCubicBezier(x: Float, x1: Float, y1: Float, x2: Float, y2: Float): Float {
-        if (x <= 0f) return 0f
-        if (x >= 1f) return 1f
-
-        var t = x
-        for (i in 0 until 8) {
-            val currentX = sampleBezier(t, x1, x2)
-            val derivative = sampleBezierDerivative(t, x1, x2)
-            if (abs(derivative) < 1e-6f) break
-            t -= (currentX - x) / derivative
-            t = t.coerceIn(0f, 1f)
-        }
-
-        return sampleBezier(t, y1, y2)
-    }
-
-    private fun sampleBezier(t: Float, p1: Float, p2: Float): Float {
-        return 3f * p1 * t * (1f - t).pow(2) + 3f * p2 * t.pow(2) * (1f - t) + t.pow(3)
-    }
-
-    private fun sampleBezierDerivative(t: Float, p1: Float, p2: Float): Float {
-        return (3f * p1 * (1f - t).pow(2)) - (6f * p1 * t * (1f - t)) + (6f * p2 * t * (1f - t)) - (3f * p2 * t.pow(2)) + (3f * t.pow(2))
-    }
-
-    private fun bounceOut(t: Float): Float {
-        var x = t
-        return when {
-            x < 1f / 2.75f -> 7.5625f * x * x
-            x < 2f / 2.75f -> {
-                x -= 1.5f / 2.75f
-                7.5625f * x * x + 0.75f
-            }
-            x < 2.5f / 2.75f -> {
-                x -= 2.25f / 2.75f
-                7.5625f * x * x + 0.9375f
-            }
-            else -> {
-                x -= 2.625f / 2.75f
-                7.5625f * x * x + 0.984375f
-            }
-        }
-    }
-
-    private fun elasticOut(t: Float): Float {
-        if (t == 0f || t == 1f) return t
-        return 2f.pow(-10f * t) * sin((t - 0.075f) * (2f * PI.toFloat()) / 0.3f) + 1f
-    }
-
-    private fun Float.pow(exp: Float): Float = this.toDouble().pow(exp.toDouble()).toFloat()
-    private fun Float.pow(exp: Int): Float = this.toDouble().pow(exp).toFloat()
 }

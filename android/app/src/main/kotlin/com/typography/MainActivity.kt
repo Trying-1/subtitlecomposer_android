@@ -416,6 +416,54 @@ class MainActivity : FlutterActivity() {
                         runOnUiThread { result.success(pcm) }
                     }.start()
                 }
+                "checkStoragePermission" -> {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                        result.success(android.os.Environment.isExternalStorageManager())
+                    } else {
+                        val readPerm = androidx.core.content.ContextCompat.checkSelfPermission(
+                            this,
+                            android.Manifest.permission.READ_EXTERNAL_STORAGE
+                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                        result.success(readPerm)
+                    }
+                }
+                "requestStoragePermission" -> {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                        try {
+                            val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                            intent.data = android.net.Uri.parse("package:" + packageName)
+                            startActivity(intent)
+                            result.success(true)
+                        } catch (e: Exception) {
+                            try {
+                                val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                                startActivity(intent)
+                                result.success(true)
+                            } catch (e2: Exception) {
+                                result.error("PERMISSION_ERROR", e2.message, null)
+                            }
+                        }
+                    } else {
+                        androidx.core.app.ActivityCompat.requestPermissions(
+                            this,
+                            arrayOf(
+                                android.Manifest.permission.READ_EXTERNAL_STORAGE,
+                                android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+                            ),
+                            1234
+                        )
+                        result.success(true)
+                    }
+                }
+                "isStoragePermissionDeclared" -> {
+                    val declared = try {
+                        val packageInfo = packageManager.getPackageInfo(packageName, android.content.pm.PackageManager.GET_PERMISSIONS)
+                        packageInfo.requestedPermissions?.contains(android.Manifest.permission.MANAGE_EXTERNAL_STORAGE) == true
+                    } catch (e: Exception) {
+                        false
+                    }
+                    result.success(declared)
+                }
                 else -> result.notImplemented()
             }
         }

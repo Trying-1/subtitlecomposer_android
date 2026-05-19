@@ -674,7 +674,25 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         val glY = -(finalY * 2 - 1)
         android.opengl.Matrix.translateM(model, 0, glX, glY, 0f)
         
+        // Perspective warp matrix for local 3D perspective distortion
+        val pWarp = FloatArray(16)
+        android.opengl.Matrix.setIdentityM(pWarp, 0)
+        pWarp[11] = -0.4f // Strong, gorgeous 3D perspective depth coefficient
+        
+        val temp = FloatArray(16)
+        android.opengl.Matrix.multiplyMM(temp, 0, model, 0, pWarp, 0)
+        System.arraycopy(temp, 0, model, 0, 16)
+        
+        val rotX = animState.rotationX
+        val rotY = animState.rotationY
         val totalRotation = animState.rotation
+        
+        if (rotX != 0f) {
+            android.opengl.Matrix.rotateM(model, 0, rotX, 1f, 0f, 0f)
+        }
+        if (rotY != 0f) {
+            android.opengl.Matrix.rotateM(model, 0, rotY, 0f, 1f, 0f)
+        }
         if (totalRotation != 0f) {
             android.opengl.Matrix.rotateM(model, 0, totalRotation, 0f, 0f, 1f)
         }
@@ -1021,12 +1039,12 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                 android.graphics.Color.alpha(clip.gradientColor2) / 255f)
             GLES20.glUniform1f(uGradA, clip.gradientAngle)
         }
-        
         if (!isOES) {
             GLES20.glUniform2f(uBlurVectorLoc, 0f, 0f) 
         }
 
         val aspect = width.toFloat() / height.toFloat()
+        
         val mvpMatrix = FloatArray(16)
         val projection = FloatArray(16)
         android.opengl.Matrix.orthoM(projection, 0, -aspect, aspect, -1f, 1f, -1f, 1f)
@@ -1038,7 +1056,25 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         val glY = -((clip.y + animState.offsetY) * 2 - 1)
         android.opengl.Matrix.translateM(model, 0, glX, glY, 0f)
         
+        // Perspective warp matrix for local 3D perspective distortion
+        val pWarp = FloatArray(16)
+        android.opengl.Matrix.setIdentityM(pWarp, 0)
+        pWarp[11] = -0.4f // Strong, gorgeous 3D perspective depth coefficient
+        
+        val temp = FloatArray(16)
+        android.opengl.Matrix.multiplyMM(temp, 0, model, 0, pWarp, 0)
+        System.arraycopy(temp, 0, model, 0, 16)
+        
+        val rotX = animState.rotationX
+        val rotY = animState.rotationY
         val totalRotation = animState.rotation
+        
+        if (rotX != 0f) {
+            android.opengl.Matrix.rotateM(model, 0, rotX, 1f, 0f, 0f)
+        }
+        if (rotY != 0f) {
+            android.opengl.Matrix.rotateM(model, 0, rotY, 0f, 1f, 0f)
+        }
         if (totalRotation != 0f) {
             android.opengl.Matrix.rotateM(model, 0, totalRotation, 0f, 0f, 1f)
         }

@@ -82,3 +82,10 @@ target_link_libraries(
     OpenSLES
     ${log-lib}
 )
+
+# Support 16 KB memory page sizes
+target_link_options(
+    native-lib
+    PRIVATE
+    "-Wl,-z,max-page-size=16384"
+)

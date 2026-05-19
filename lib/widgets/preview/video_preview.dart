@@ -446,16 +446,24 @@ class _VideoPreviewState extends State<VideoPreview> {
         text: TextSpan(
           text: clip.text,
           style: TextStyle(
-            fontSize: clip.fontSize * (constraints.maxHeight / 720),
+            fontSize: clip.fontSize * (constraints.maxHeight / 1080),
             fontFamily: clip.fontFamily,
-            fontWeight: FontWeight.bold,
+            letterSpacing: clip.letterSpacing,
           ),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
       
-      baseWidth = textPainter.width + 30;
-      baseHeight = textPainter.height + 20;
+      double extraPadding = 4.0;
+      if (clip.isStrokeEnabled) extraPadding += clip.strokeWidth;
+      if (clip.isShadowEnabled) {
+        extraPadding += clip.shadowBlur + math.max(clip.shadowOffsetX.abs(), clip.shadowOffsetY.abs());
+      } else if (clip.isGlowEnabled) {
+        extraPadding += clip.glowSize;
+      }
+      
+      baseWidth = textPainter.width + extraPadding;
+      baseHeight = textPainter.height + extraPadding;
     } else if (clip is OverlayClip) {
       if (_imageDimensions.containsKey(clip.imagePath)) {
         final imgSize = _imageDimensions[clip.imagePath]!;

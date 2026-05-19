@@ -36,7 +36,13 @@ enum class AnimationType {
     SLIDE_FROM_TOP,
     SLIDE_FROM_BOTTOM,
     STAGGERED_SLIDE_FROM_TOP,
-    STAGGERED_SLIDE_FROM_BOTTOM;
+    STAGGERED_SLIDE_FROM_BOTTOM,
+    ELASTIC_STRETCH,
+    SPIRAL_DROP,
+    GLITCH,
+    FLIP3D_X,
+    FLIP3D_Y,
+    SPIN3D;
 
     companion object {
         fun fromIndex(index: Int): AnimationType = entries.getOrElse(index) { NONE }
@@ -192,6 +198,8 @@ data class AnimatedTextState(
     val scaleX: Float = 1f,
     val scaleY: Float = 1f,
     val rotation: Float = 0f,
+    val rotationX: Float = 0f,
+    val rotationY: Float = 0f,
     val typewriterProgress: Float = 1f
 )
 

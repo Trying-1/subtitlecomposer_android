@@ -1365,6 +1365,9 @@ class _EditorScreenState extends State<EditorScreen> {
                               provider.applyPreset(id, preset);
                             }
                           },
+                          onUpdateTiming: (clip, start, end, {resolve = true}) {
+                            provider.updateClipTiming(clip, start, end, resolveCollisions: resolve);
+                          },
                         ),
                       ],
                     ),

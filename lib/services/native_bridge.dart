@@ -191,4 +191,28 @@ class NativeBridge {
   Future<void> openVideoFile(String path) async {
     await _channel.invokeMethod('openVideoFile', {'path': path});
   }
+
+  Future<bool> checkStoragePermission() async {
+    try {
+      return await _channel.invokeMethod<bool>('checkStoragePermission') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> requestStoragePermission() async {
+    try {
+      return await _channel.invokeMethod<bool>('requestStoragePermission') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> isStoragePermissionDeclared() async {
+    try {
+      return await _channel.invokeMethod<bool>('isStoragePermissionDeclared') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
 }

@@ -454,6 +454,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
   }
 
   Widget _buildControlHeader(BuildContext context) {
+    final provider = context.watch<EditorProvider>();
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFF1F1F29),
@@ -487,7 +488,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
                 ),
                 const Icon(Icons.zoom_in, size: 14, color: Colors.white30),
                 const SizedBox(width: 8),
-                if (AppConfig.showTimelinePanControls && context.watch<EditorProvider>().showPanControls) ...[
+                if (AppConfig.showTimelinePanControls && provider.showPanControls) ...[
                   Container(width: 1, height: 16, color: Colors.white10),
                   const SizedBox(width: 8),
                   _buildVerticalToggle(
@@ -545,6 +546,11 @@ class _TimelineEditorState extends State<TimelineEditor> {
                       const SizedBox(width: 16),
                     ],
 
+                    if (AppConfig.showTimelineDelete) ...[
+                      _buildVerticalToggle("DEL", false, widget.onDelete, icon: Icons.delete_outline_rounded),
+                      const SizedBox(width: 16),
+                    ],
+
                     if (AppConfig.showTimelineDivide) ...[
                       _buildVerticalToggle(
                         "DIVIDE", 
@@ -567,12 +573,23 @@ class _TimelineEditorState extends State<TimelineEditor> {
                       const SizedBox(width: 16),
                     ],
 
-                    if (AppConfig.showTimelineDelete) ...[
-                      _buildVerticalToggle("DEL", false, widget.onDelete, icon: Icons.delete_outline_rounded),
+                    if (AppConfig.showTimelineStack) ...[
+                      _buildVerticalToggle("STACK", false, widget.onStackSelected, icon: Icons.layers_outlined),
                       const SizedBox(width: 16),
                     ],
 
-                    if (AppConfig.showTimelineSplit || AppConfig.showTimelineMerge || AppConfig.showTimelineDivide || AppConfig.showTimelineBurst || AppConfig.showTimelineDelete)
+                    if (AppConfig.showTimelineReset) ...[
+                      _buildVerticalToggle("RESET", false, widget.onResetSelected, icon: Icons.history_rounded),
+                      const SizedBox(width: 16),
+                    ],
+
+                    if (AppConfig.showTimelineSplit || 
+                        AppConfig.showTimelineMerge || 
+                        AppConfig.showTimelineDivide || 
+                        AppConfig.showTimelineBurst || 
+                        AppConfig.showTimelineDelete ||
+                        AppConfig.showTimelineStack ||
+                        AppConfig.showTimelineReset)
                       Container(width: 1, height: 16, color: Colors.white10),
                     const SizedBox(width: 16),
                     
@@ -592,16 +609,6 @@ class _TimelineEditorState extends State<TimelineEditor> {
 
                     _buildVerticalToggle("ALL", widget.isAllSelected, widget.onToggleSelectAll),
                     const SizedBox(width: 16),
-                    
-                    if (AppConfig.showTimelineReset) ...[
-                      _buildVerticalToggle("RESET", false, widget.onResetSelected, icon: Icons.history_rounded),
-                      const SizedBox(width: 16),
-                    ],
-
-                    if (AppConfig.showTimelineStack) ...[
-                      _buildVerticalToggle("STACK", false, widget.onStackSelected, icon: Icons.layers_outlined),
-                      const SizedBox(width: 16),
-                    ],
 
                     if (AppConfig.showTimelinePush) ...[
                       _buildVerticalToggle("PUSH", widget.isCollisionAdjustEnabled, widget.onToggleCollisionAdjust),
@@ -622,6 +629,35 @@ class _TimelineEditorState extends State<TimelineEditor> {
                     if (AppConfig.showTimelineMultiSelect) ...[
                       _buildVerticalToggle("MULTI", widget.isMultiSelectMode, widget.onToggleMultiSelect),
                       const SizedBox(width: 16),
+                    ],
+
+                    if (AppConfig.showTimelineLoop) ...[
+                      _buildVerticalToggle(
+                        "LP START", 
+                        provider.focusStart != null, 
+                        () => provider.setFocusStart(provider.currentTime), 
+                        icon: Icons.keyboard_double_arrow_right_rounded,
+                        color: provider.focusStart != null ? Colors.cyanAccent : null,
+                      ),
+                      const SizedBox(width: 16),
+                      _buildVerticalToggle(
+                        "LP END", 
+                        provider.focusEnd != null, 
+                        () => provider.setFocusEnd(provider.currentTime), 
+                        icon: Icons.keyboard_double_arrow_left_rounded,
+                        color: provider.focusEnd != null ? Colors.cyanAccent : null,
+                      ),
+                      const SizedBox(width: 16),
+                      if (provider.focusStart != null || provider.focusEnd != null) ...[
+                        _buildVerticalToggle(
+                          "LP CLEAR", 
+                          false, 
+                          () => provider.clearFocusRange(), 
+                          icon: Icons.highlight_off_rounded,
+                          color: Colors.redAccent,
+                        ),
+                        const SizedBox(width: 16),
+                      ],
                     ],
 
                     Container(width: 1, height: 16, color: Colors.white10),
@@ -701,14 +737,16 @@ class _TimelineEditorState extends State<TimelineEditor> {
                   ? Icon(icon, size: 16, color: color ?? (value ? Colors.deepPurpleAccent : Colors.white70))
                   : FittedBox(
                       fit: BoxFit.contain,
-                      child: Switch(
-                        value: value,
-                        onChanged: (_) => onTap(),
-                        activeColor: Colors.deepPurpleAccent,
-                        activeTrackColor: Colors.deepPurpleAccent.withOpacity(0.3),
-                        inactiveThumbColor: Colors.white24,
-                        inactiveTrackColor: Colors.white10,
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      child: IgnorePointer(
+                        child: Switch(
+                          value: value,
+                          onChanged: (_) {}, // Handled by InkWell
+                          activeColor: Colors.deepPurpleAccent,
+                          activeTrackColor: Colors.deepPurpleAccent.withOpacity(0.3),
+                          inactiveThumbColor: Colors.white24,
+                          inactiveTrackColor: Colors.white10,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
                       ),
                     ),
               ),
@@ -730,6 +768,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
   }
 
   Widget _buildTimeRuler() {
+    final provider = context.watch<EditorProvider>();
     return GestureDetector(
       onHorizontalDragUpdate: (details) => _handleSeek(details.localPosition.dx),
       onTapDown: (details) => _handleSeek(details.localPosition.dx),
@@ -740,7 +779,13 @@ class _TimelineEditorState extends State<TimelineEditor> {
           children: [
             Positioned.fill(
               child: CustomPaint(
-                painter: RulerPainter(widget.totalDuration, _pixelsPerSecond, widget.markers),
+                painter: RulerPainter(
+                  widget.totalDuration, 
+                  _pixelsPerSecond, 
+                  widget.markers,
+                  provider.focusStart,
+                  provider.focusEnd,
+                ),
               ),
             ),
           ],
@@ -1587,11 +1632,63 @@ class RulerPainter extends CustomPainter {
   final Duration totalDuration;
   final double pixelsPerSecond;
   final List<Duration> markers;
+  final Duration? focusStart;
+  final Duration? focusEnd;
   
-  RulerPainter(this.totalDuration, this.pixelsPerSecond, this.markers);
+  RulerPainter(this.totalDuration, this.pixelsPerSecond, this.markers, this.focusStart, this.focusEnd);
 
   @override
   void paint(Canvas canvas, Size size) {
+    // 1. Draw Loop Focus Range first so grid lines are drawn on top
+    if (focusStart != null && focusEnd != null) {
+      final startX = (focusStart!.inMilliseconds / 1000) * pixelsPerSecond;
+      final endX = (focusEnd!.inMilliseconds / 1000) * pixelsPerSecond;
+      
+      // Soft translucent cyan background
+      final rangePaint = Paint()
+        ..color = const Color(0xFF00E5FF).withOpacity(0.08)
+        ..style = PaintingStyle.fill;
+      canvas.drawRect(Rect.fromLTRB(startX, 0, endX, size.height), rangePaint);
+      
+      // Boundaries lines
+      final boundPaint = Paint()
+        ..color = const Color(0xFF00E5FF).withOpacity(0.4)
+        ..strokeWidth = 1.0;
+      canvas.drawLine(Offset(startX, 0), Offset(startX, size.height), boundPaint);
+      canvas.drawLine(Offset(endX, 0), Offset(endX, size.height), boundPaint);
+
+      // Draw small loop bracket icons [ ] at the top/bottom edges
+      final bracketPaint = Paint()
+        ..color = const Color(0xFF00E5FF)
+        ..style = PaintingStyle.fill;
+        
+      // Left bracket [
+      final leftPath = Path()
+        ..moveTo(startX, 0)
+        ..lineTo(startX + 4, 0)
+        ..lineTo(startX + 4, 2)
+        ..lineTo(startX + 1.5, 2)
+        ..lineTo(startX + 1.5, size.height - 2)
+        ..lineTo(startX + 4, size.height - 2)
+        ..lineTo(startX + 4, size.height)
+        ..lineTo(startX, size.height)
+        ..close();
+      canvas.drawPath(leftPath, bracketPaint);
+
+      // Right bracket ]
+      final rightPath = Path()
+        ..moveTo(endX, 0)
+        ..lineTo(endX - 4, 0)
+        ..lineTo(endX - 4, 2)
+        ..lineTo(endX - 1.5, 2)
+        ..lineTo(endX - 1.5, size.height - 2)
+        ..lineTo(endX - 4, size.height - 2)
+        ..lineTo(endX - 4, size.height)
+        ..lineTo(endX, size.height)
+        ..close();
+      canvas.drawPath(rightPath, bracketPaint);
+    }
+
     final paint = Paint()
       ..color = Colors.white24
       ..strokeWidth = 1;
@@ -1643,7 +1740,9 @@ class RulerPainter extends CustomPainter {
   bool shouldRepaint(covariant RulerPainter oldDelegate) => 
     oldDelegate.totalDuration != totalDuration || 
     oldDelegate.pixelsPerSecond != pixelsPerSecond ||
-    oldDelegate.markers != markers;
+    oldDelegate.markers != markers ||
+    oldDelegate.focusStart != focusStart ||
+    oldDelegate.focusEnd != focusEnd;
 }
 
 class DottedLinePainter extends CustomPainter {

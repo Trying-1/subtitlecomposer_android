@@ -14,6 +14,7 @@ class ProjectTab extends StatelessWidget {
   final VoidCallback? onExtractAudio;
   final VoidCallback? onExport;
   final VoidCallback? onNewProject;
+  final VoidCallback? onSaveProject;
   final VoidCallback? onTranscribe;
   final VoidCallback? onImportModel;
   final VoidCallback? onBulkEditJson;
@@ -34,6 +35,7 @@ class ProjectTab extends StatelessWidget {
     this.onExtractAudio,
     this.onExport,
     this.onNewProject,
+    this.onSaveProject,
     this.onTranscribe,
     this.onImportModel,
     this.onBulkEditJson,
@@ -62,6 +64,14 @@ class ProjectTab extends StatelessWidget {
                 label: 'New', 
                 onTap: onNewProject,
                 color: Colors.redAccent.withOpacity(0.8),
+              ),
+            
+            if (AppConfig.showSaveProjectButton)
+              CommonControls.buildSquareActionButton(
+                icon: Icons.save_rounded, 
+                label: 'Save', 
+                onTap: onSaveProject,
+                color: Colors.greenAccent.withOpacity(0.8),
               ),
             
             if (AppConfig.showImportAudioButton)

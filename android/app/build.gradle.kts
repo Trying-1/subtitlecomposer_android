@@ -15,6 +15,15 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
+    val isAabTask = project.gradle.startParameter.taskNames.any { task ->
+        task.contains("bundle", ignoreCase = true) || task.contains("AppBundle", ignoreCase = true)
+    }
+    val storagePerm = if (isAabTask) {
+        "android.permission.READ_EXTERNAL_STORAGE"
+    } else {
+        "android.permission.MANAGE_EXTERNAL_STORAGE"
+    }
+
     namespace = "com.typography"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "27.3.13750724"
@@ -42,13 +51,21 @@ android {
         applicationId = "com.typography"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk = 24
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 
+        manifestPlaceholders["storagePermission"] = storagePerm
+
         ndk {
             abiFilters.add("arm64-v8a")
+        }
+
+        externalNativeBuild {
+            cmake {
+                arguments("-DCMAKE_SHARED_LINKER_FLAGS=-Wl,-z,max-page-size=16384", "-DCMAKE_EXE_LINKER_FLAGS=-Wl,-z,max-page-size=16384")
+            }
         }
     }
 
@@ -62,6 +79,12 @@ android {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
             version = "3.22.1"
+        }
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
         }
     }
 
@@ -87,5 +110,5 @@ flutter {
 }
 
 dependencies {
-    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.16.0")
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.22.0")
 }

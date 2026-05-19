@@ -12,6 +12,10 @@ import '../../models/editor_models.dart';
 import '../../widgets/common/custom_color_picker.dart';
 import '../../widgets/common/image_color_picker.dart';
 import '../../utils/palette_presets.dart';
+import '../../services/master_import_service.dart';
+import '../../services/native_bridge.dart';
+import 'package:flutter/foundation.dart';
+import '../../config/app_config.dart';
 
 class AssetsLibraryScreen extends StatefulWidget {
   const AssetsLibraryScreen({super.key});
@@ -24,11 +28,22 @@ class _AssetsLibraryScreenState extends State<AssetsLibraryScreen> with SingleTi
   late TabController _tabController;
   final AudioPlayer _audioPlayer = AudioPlayer();
   String? _playingPath;
+  bool _isMasterImportAvailable = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 8, vsync: this);
+    _checkMasterImportAvailability();
+  }
+
+  Future<void> _checkMasterImportAvailability() async {
+    final available = await NativeBridge().isStoragePermissionDeclared();
+    if (mounted) {
+      setState(() {
+        _isMasterImportAvailable = available;
+      });
+    }
   }
 
   @override
@@ -221,7 +236,7 @@ class _AssetsLibraryScreenState extends State<AssetsLibraryScreen> with SingleTi
     }
   }
 
-  Future<void> _pickAudio(BuildContext context, AssetProvider provider) async {
+  Future<void> _pickAudio(BuildContext context, AssetProvider provider, {required bool isSfx}) async {
     final editorProvider = context.read<EditorProvider>();
     final result = await FilePicker.pickFiles(
       type: FileType.audio,
@@ -231,8 +246,22 @@ class _AssetsLibraryScreenState extends State<AssetsLibraryScreen> with SingleTi
     if (result != null && result.paths.isNotEmpty) {
       final paths = result.paths.whereType<String>().toList();
       editorProvider.updateLastUsedDirectory(paths.first);
-      provider.addAudioAssets(paths);
+      if (isSfx) {
+        provider.addSfxAssets(paths);
+      } else {
+        provider.addMusicAssets(paths);
+      }
     }
+  }
+
+  bool _isImage(String path) {
+    final ext = path.split('.').last.toLowerCase();
+    return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].contains(ext);
+  }
+
+  bool _isVideo(String path) {
+    final ext = path.split('.').last.toLowerCase();
+    return ['mp4', 'mov', '3gp', 'avi', 'mkv', 'webm'].contains(ext);
   }
 
   Future<void> _pickFonts(BuildContext context, FontProvider provider) async {
@@ -413,14 +442,268 @@ class _AssetsLibraryScreenState extends State<AssetsLibraryScreen> with SingleTi
     );
   }
 
+  Future<void> _importMasterFolder(
+    BuildContext context,
+    AssetProvider assetProvider,
+    FontProvider fontProvider,
+  ) async {
+    try {
+      final bridge = NativeBridge();
+      bool hasPermission = await bridge.checkStoragePermission();
+      if (!hasPermission) {
+        if (!mounted) return;
+        final bool proceed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: const Color(0xFF14141E),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Row(
+              children: [
+                Icon(Icons.folder_shared_rounded, color: Colors.deepPurpleAccent),
+                SizedBox(width: 12),
+                Text('Storage Access Required', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            content: const Text(
+              'On modern Android, raw directory crawling of external/SD card folders requires "All Files Access" permission. Please grant this permission on the next screen to proceed.',
+              style: TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('CANCEL', style: TextStyle(color: Colors.white38)),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurpleAccent),
+                child: const Text('GRANT ACCESS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        ) ?? false;
+        
+        if (!proceed) return;
+        
+        await bridge.requestStoragePermission();
+        
+        await Future.delayed(const Duration(milliseconds: 1500));
+        hasPermission = await bridge.checkStoragePermission();
+        if (!hasPermission) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Storage access permission is required to import external folders.'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+          return;
+        }
+      }
+
+      final String? selectedDirectory = await FilePicker.getDirectoryPath();
+      if (selectedDirectory == null) return;
+
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: Card(
+            color: Color(0xFF14141E),
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(color: Colors.deepPurpleAccent),
+                  SizedBox(height: 16),
+                  Text(
+                    'Importing master folder...',
+                    style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Organizing and copying assets...',
+                    style: TextStyle(color: Colors.white38, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final importService = MasterImportService();
+      final result = await importService.importMasterFolder(
+        masterPath: selectedDirectory,
+        assetProvider: assetProvider,
+        fontProvider: fontProvider,
+      );
+
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading dialog
+
+      _showImportResultDialog(context, result);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error importing master folder: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showImportResultDialog(BuildContext context, ImportResult result) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF14141E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.deepPurpleAccent.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.drive_folder_upload_rounded, color: Colors.deepPurpleAccent, size: 20),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Import Summary',
+              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (result.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Text(
+                      'No valid subfolders (backgrounds, overlays, audio, fonts) or compatible assets found to import.',
+                      style: TextStyle(color: Colors.white60, fontSize: 13),
+                    ),
+                  )
+                else ...[
+                  const Text(
+                    'Successfully imported assets to your library:',
+                    style: TextStyle(color: Colors.white60, fontSize: 12),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildResultRow(Icons.photo_size_select_actual_rounded, 'Backgrounds', result.backgroundsCount),
+                  const SizedBox(height: 10),
+                  _buildResultRow(Icons.layers_rounded, 'Overlays', result.overlaysCount),
+                  const SizedBox(height: 10),
+                  _buildResultRow(Icons.music_note_rounded, 'Audio & SFX', result.audiosCount),
+                  const SizedBox(height: 10),
+                  _buildResultRow(Icons.font_download_rounded, 'Fonts', result.fontsCount),
+                ],
+                if (result.warnings.isNotEmpty) ...[
+                  const SizedBox(height: 24),
+                  const Text(
+                    'LOGS & WARNINGS',
+                    style: TextStyle(color: Colors.redAccent, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.2),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    constraints: const BoxConstraints(maxHeight: 250),
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.black26,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white.withOpacity(0.05)),
+                    ),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: result.warnings.length,
+                      itemBuilder: (context, idx) => Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Text(
+                          '• ${result.warnings[idx]}',
+                          style: const TextStyle(color: Colors.white38, fontSize: 11),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('GOT IT', style: TextStyle(color: Colors.deepPurpleAccent, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResultRow(IconData icon, String label, int count) {
+    return Row(
+      children: [
+        Icon(icon, color: count > 0 ? Colors.greenAccent : Colors.white24, size: 18),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: count > 0 ? Colors.white : Colors.white38,
+              fontSize: 13,
+              fontWeight: count > 0 ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: count > 0 ? Colors.greenAccent.withOpacity(0.1) : Colors.white.withOpacity(0.02),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            '+$count',
+            style: TextStyle(
+              color: count > 0 ? Colors.greenAccent : Colors.white24,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final assetProvider = context.read<AssetProvider>();
+    final fontProvider = context.read<FontProvider>();
     return Scaffold(
       backgroundColor: const Color(0xFF0F0F15),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: const Text('Asset Library', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+        actions: [
+          if (_isMasterImportAvailable)
+            IconButton(
+              icon: const Icon(Icons.drive_folder_upload_rounded, color: Colors.deepPurpleAccent),
+              tooltip: 'Import Master Folder',
+              onPressed: () => _importMasterFolder(context, assetProvider, fontProvider),
+            ),
+          const SizedBox(width: 8),
+        ],
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: Colors.deepPurpleAccent,
@@ -430,9 +713,12 @@ class _AssetsLibraryScreenState extends State<AssetsLibraryScreen> with SingleTi
           unselectedLabelColor: Colors.white38,
           labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.2),
           tabs: const [
-            Tab(text: 'OVERLAYS'),
-            Tab(text: 'BACKGROUNDS'),
-            Tab(text: 'AUDIO & SFX'),
+            Tab(text: 'OVERLAY IMAGES'),
+            Tab(text: 'OVERLAY VIDEOS'),
+            Tab(text: 'BACKGROUND IMAGES'),
+            Tab(text: 'BACKGROUND VIDEOS'),
+            Tab(text: 'MUSIC'),
+            Tab(text: 'SFX'),
             Tab(text: 'FONTS'),
             Tab(text: 'PALETTES'),
           ],
@@ -443,10 +729,51 @@ class _AssetsLibraryScreenState extends State<AssetsLibraryScreen> with SingleTi
           return TabBarView(
             controller: _tabController,
             children: [
-              _buildGrid(context, assetProvider.overlayAssets, (path) => assetProvider.removeAsset(path), () => _showPickerOptions(context, assetProvider)),
-              _buildGrid(context, assetProvider.backgroundAssets, (path) => assetProvider.removeBackgroundAsset(path), () => _showPickerOptions(context, assetProvider, isBackground: true)),
-              _buildAudioList(context, assetProvider.audioAssets, (path) => assetProvider.removeAudioAsset(path), () => _pickAudio(context, assetProvider)),
+              // 1. Overlay Images
+              _buildGrid(
+                context, 
+                assetProvider.overlayAssets.where((p) => _isImage(p)).toList(), 
+                (path) => assetProvider.removeAsset(path), 
+                () => _showPickerOptions(context, assetProvider, isBackground: false)
+              ),
+              // 2. Overlay Videos
+              _buildGrid(
+                context, 
+                assetProvider.overlayAssets.where((p) => _isVideo(p)).toList(), 
+                (path) => assetProvider.removeAsset(path), 
+                () => _showPickerOptions(context, assetProvider, isBackground: false)
+              ),
+              // 3. Background Images
+              _buildGrid(
+                context, 
+                assetProvider.backgroundAssets.where((p) => _isImage(p)).toList(), 
+                (path) => assetProvider.removeBackgroundAsset(path), 
+                () => _showPickerOptions(context, assetProvider, isBackground: true)
+              ),
+              // 4. Background Videos
+              _buildGrid(
+                context, 
+                assetProvider.backgroundAssets.where((p) => _isVideo(p)).toList(), 
+                (path) => assetProvider.removeBackgroundAsset(path), 
+                () => _showPickerOptions(context, assetProvider, isBackground: true)
+              ),
+              // 5. Music
+              _buildAudioList(
+                context, 
+                assetProvider.musicAssets, 
+                (path) => assetProvider.removeMusicAsset(path), 
+                () => _pickAudio(context, assetProvider, isSfx: false)
+              ),
+              // 6. SFX
+              _buildAudioList(
+                context, 
+                assetProvider.sfxAssets, 
+                (path) => assetProvider.removeSfxAsset(path), 
+                () => _pickAudio(context, assetProvider, isSfx: true)
+              ),
+              // 7. Fonts
               _buildFontList(context, fontProvider.customFonts, (font) => fontProvider.deleteFont(font), () => _pickFonts(context, fontProvider)),
+              // 8. Palettes
               _buildPalettesTab(assetProvider),
             ],
           );

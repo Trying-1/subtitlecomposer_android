@@ -391,21 +391,40 @@ reduce the selection box stroke width, make it thinner just visible, and chose g
 [in the export screen show the human readable path instead of content:// ...]
 [some animations are showing up in the animation tab but not in the styles animaiton subtab for texts, look into this]
 
+===============version20==============
+
+[alright next can we refactor the animation logic separately like to have separate file for each animations so that its organize for future more animations for scaliblity. or else if we put everything at once place if something breaks all the animations will break right, and also the inline code will keep increasing uncessaryly to understand in future right? understood, so plan accordingly ]
+[yes, I don't want animation evalutator to be monolithic since we will add more complex animation in future so keeping it and handling through signle file will be hell later on right?]
+[good, but it would more better we have separate file for each animation preset right?]
+[good, next lets have control for segment duration add new control tab for this]
+[yo its kind of freezing the slider, and other increment and decrement button after one change, and also the changes are not being realtime like its only seen after the I try to scrub timeline, ]
+[good, but there is collision/overlapping happening when adjusting with slider, end slider sensitivity is too high, also get out of focus from input field when tapped outside. got it]
+[good, this tab show the track number as well, and control to move to different track that are free at that duration, understood. ]
+[lets have separate subtab for the timing and track in this tab]
+[improve the splash screen with kinetic typography animation. and intro with proper tag line. understood]
+[advance motion graphics style kinetic typography understood. ]
 
 
+===============version21==============
+[add focus mode looping feature where we can add start and end time and focus on only that time in the timeline]
+[in the project tab add save project method to manually save progress as well, understood]
+[in the timeline toobox panel keep the delete button next to split and merge button got it]
+[also the stack and reset button next to divide and burst button]
+[when we use divide, burst on a segment, then keep the child segements selected by default understand. ]
+[next right now the selection box is uneccessarily too big compared to the actualy element area. check on this]
+[still the left and right edge of selection box is far from the actual segments left and right end]
+[still no, man there is big horizontal space between the selection box left and right edge and the element left and right end. the box calculation too wrong]
+[good next lets add more cool entrance animations. understood. think of new animations style that we can achieve but we are missing right now]
+[spiral drop and glitch animation are horrible, wtf are those animations. the don't look cool at all, they look ugly as hell]
+[lets intergrate 3d animations as well, we can achieve those as well right with opengl]
+[Your app does not support 16 KB memory page sizes. Learn more---> got this in play console]
 
-
-
-
-
-
-
-
-
-
-
-
-
+[next in the asset library lets add feature to directly import all the assets like background, audio, sfx, fonts, overlay, like I will have them organize inside subfolder of folder with specific name, then we upload master folder and the app organize the the assets in the asset library accordingly understood.  create separe file for this service]
+[for the permission shouldn't we use the system dialog? rather than getting redirected to permission setting?]
+[so is this kind of critical permission right? it might slow down the app review processes. I wanted this feature just for myself not for other users. ohters can import all of the assets individually got it ]
+[not necessarily in debug but also in release apk but not in aab, can we do that]
+[okay next in assets lets have separate tabs for background images, and background videos, overlay images and overlay videos, music and sfx, understood]
+[in play console still getting this Your app does not support 16 KB memory page sizes. Learn more and Users that have the APK with version code 3 may need to accept the android.permission.INTERNET permission, which may result in them not upgrading to this version of the app.]
 
 
 

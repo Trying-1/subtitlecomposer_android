@@ -587,7 +587,7 @@ class CommonControls {
       ),
     );
   }
-  static Widget buildDialScrubber(BuildContext context, String label, double value, double min, double max, ValueChanged<double> onChanged, {VoidCallback? onReset}) {
+  static Widget buildDialScrubber(BuildContext context, String label, double value, double min, double max, ValueChanged<double> onChanged, {VoidCallback? onReset, VoidCallback? onEnd}) {
     return _DialScrubber(
       label: label,
       value: value,
@@ -595,6 +595,7 @@ class CommonControls {
       max: max,
       onChanged: onChanged,
       onReset: onReset,
+      onEnd: onEnd,
     );
   }
 }
@@ -606,6 +607,7 @@ class _DialScrubber extends StatefulWidget {
   final double max;
   final ValueChanged<double> onChanged;
   final VoidCallback? onReset;
+  final VoidCallback? onEnd;
 
   const _DialScrubber({
     required this.label,
@@ -614,6 +616,7 @@ class _DialScrubber extends StatefulWidget {
     required this.max,
     required this.onChanged,
     this.onReset,
+    this.onEnd,
   });
 
   @override
@@ -662,13 +665,13 @@ class _DialScrubberState extends State<_DialScrubber> {
           },
           onPanUpdate: (details) {
             final dx = details.localPosition.dx - _dragStartX;
-            // Sensitivity: 200px = full range or a fixed amount?
-            // For scale, maybe 100px = 1.0 change
-            final range = widget.max - widget.min;
-            final delta = (dx / 150.0) * (range * 0.2); // 20% of range per 150px
+            // Fixed sensitivity: 200px = 1.0 unit (second in this case)
+            final delta = dx / 200.0;
             final newValue = (_dragStartValue + delta).clamp(widget.min, widget.max);
             widget.onChanged(newValue);
           },
+          onPanEnd: (_) => widget.onEnd?.call(),
+          onPanCancel: () => widget.onEnd?.call(),
           child: Container(
             height: 32,
             width: double.infinity,

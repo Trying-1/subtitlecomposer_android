@@ -35,6 +35,12 @@ enum AnimationType {
   slideFromBottom,
   staggeredSlideFromTop,
   staggeredSlideFromBottom,
+  elasticStretch,
+  spiralDrop,
+  glitch,
+  flip3D_X,
+  flip3D_Y,
+  spin3D,
 }
 
 enum EasingType {

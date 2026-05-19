@@ -103,6 +103,8 @@ class EditorProvider extends ChangeNotifier {
   List<Track> _backgroundTracks = [];
   List<Track> _audioTracks = [];
   Duration _currentTime = Duration.zero;
+  Duration? _focusStart;
+  Duration? _focusEnd;
   Duration _totalDuration = Duration.zero;
   Duration _mainMediaDuration = Duration.zero;
   bool _isPlaying = false;
@@ -218,6 +220,35 @@ class EditorProvider extends ChangeNotifier {
   List<Track> get backgroundTracks => _backgroundTracks;
   List<Track> get audioTracks => _audioTracks;
   Duration get currentTime => _currentTime;
+  Duration? get focusStart => _focusStart;
+  Duration? get focusEnd => _focusEnd;
+  bool get isFocusModeEnabled => _focusStart != null && _focusEnd != null;
+
+  void setFocusStart(Duration? time) {
+    _focusStart = time;
+    if (_focusEnd != null && _focusStart != null && _focusStart! >= _focusEnd!) {
+      _focusEnd = null;
+    }
+    notifyListeners();
+  }
+
+  void setFocusEnd(Duration? time) {
+    if (_focusStart == null) {
+      _focusStart = Duration.zero;
+    }
+    if (time != null && time > _focusStart!) {
+      _focusEnd = time;
+    } else {
+      _focusEnd = null;
+    }
+    notifyListeners();
+  }
+
+  void clearFocusRange() {
+    _focusStart = null;
+    _focusEnd = null;
+    notifyListeners();
+  }
   int get backgroundColor => selectedBackground?.color ?? _backgroundColor;
   String? get backgroundImagePath => selectedBackground?.imagePath ?? _backgroundImagePath;
   double get backgroundScale => selectedBackground?.scale ?? _backgroundScale;
@@ -308,11 +339,13 @@ class EditorProvider extends ChangeNotifier {
     notifyListeners();
   }
   bool get isAllSelected {
-    final allIds = _tracks.expand((t) => t.clips).map((c) => c.id).toSet();
-    final allOverlayIds = _overlayTracks.expand((t) => t.overlays).map((c) => c.id).toSet();
-    final allBackgroundIds = _backgroundTracks.expand((t) => t.backgrounds).map((c) => c.id).toSet();
-    final totalIds = allIds.length + allOverlayIds.length + allBackgroundIds.length;
-    return totalIds > 0 && _selectedClipIds.length == totalIds;
+    final allIds = {
+      ..._tracks.expand((t) => t.clips).map((c) => c.id),
+      ..._overlayTracks.expand((t) => t.overlays).map((c) => c.id),
+      ..._backgroundTracks.expand((t) => t.backgrounds).map((c) => c.id),
+      ..._audioTracks.expand((t) => t.audioClips).map((c) => c.id),
+    };
+    return allIds.isNotEmpty && _selectedClipIds.containsAll(allIds);
   }
   String? get selectedClipId => _selectedClipIds.isNotEmpty ? _selectedClipIds.first : null;
   double get zoomLevel => _zoomLevel;
@@ -870,16 +903,22 @@ class EditorProvider extends ChangeNotifier {
   }
 
   void toggleSelectAll() {
-    final allTextIds = _tracks.expand((t) => t.clips).map((c) => c.id).toSet();
+    final allIds = {
+      ..._tracks.expand((t) => t.clips).map((c) => c.id),
+      ..._overlayTracks.expand((t) => t.overlays).map((c) => c.id),
+      ..._backgroundTracks.expand((t) => t.backgrounds).map((c) => c.id),
+      ..._audioTracks.expand((t) => t.audioClips).map((c) => c.id),
+    };
     
-    if (allTextIds.isEmpty) return;
+    if (allIds.isEmpty) return;
 
-    bool areAllTextSelected = _selectedClipIds.containsAll(allTextIds);
-
-    if (areAllTextSelected) {
-      _selectedClipIds = _selectedClipIds.where((id) => !allTextIds.contains(id)).toSet();
+    if (isAllSelected) {
+      // Deselect only the clips that are currently in the timeline
+      _selectedClipIds = _selectedClipIds.where((id) => !allIds.contains(id)).toSet();
     } else {
-      _selectedClipIds = {..._selectedClipIds, ...allTextIds};
+      // Add all current clips to selection
+      _selectedClipIds = {..._selectedClipIds, ...allIds};
+      _isMultiSelectMode = true; // Automatically enable multi-select
     }
     notifyListeners();
   }
@@ -1995,6 +2034,15 @@ class EditorProvider extends ChangeNotifier {
     _isPlaying = true;
     _lastTick = DateTime.now();
 
+    if (isFocusModeEnabled) {
+      if (_currentTime < _focusStart! || _currentTime >= _focusEnd!) {
+        _currentTime = _focusStart!;
+        _bridge.seekTo(_currentTime.inMilliseconds);
+        _bridge.seekAudioEngine(_currentTime.inMilliseconds);
+        playbackTime.value = _currentTime;
+      }
+    }
+
     _bridge.setPlaying(true);
     _bridge.startAudioEngine();
     _bridge.seekAudioEngine(_currentTime.inMilliseconds);
@@ -2012,11 +2060,18 @@ class EditorProvider extends ChangeNotifier {
       
       _currentTime = Duration(milliseconds: nativePosMs);
       
-      final duration = totalDuration;
-      if (_currentTime >= duration) {
-        _currentTime = duration;
-        _stopPlayback();
-        return;
+      if (isFocusModeEnabled) {
+        if (_currentTime >= _focusEnd! || _currentTime < _focusStart!) {
+          seekTo(_focusStart!);
+          return;
+        }
+      } else {
+        final duration = totalDuration;
+        if (_currentTime >= duration) {
+          _currentTime = duration;
+          _stopPlayback();
+          return;
+        }
       }
 
       playbackTime.value = _currentTime;
@@ -2277,8 +2332,9 @@ class EditorProvider extends ChangeNotifier {
     targetTrack.clips.addAll(newClips);
     targetTrack.clips.sort((a, b) => a.startTime.compareTo(b.startTime));
     
-    // Select the first word of the split
-    _selectedClipIds = {newClips[0].id};
+    // Select all child segments by default and enable multi-select
+    _selectedClipIds = newClips.map((c) => c.id).toSet();
+    _isMultiSelectMode = true;
     
     syncToNative();
     notifyListeners();
@@ -2351,6 +2407,7 @@ class EditorProvider extends ChangeNotifier {
     
     // Select all the new words so they can be laid out
     _selectedClipIds = newClips.map((c) => c.id).toSet();
+    _isMultiSelectMode = true;
     
     syncToNative();
     notifyListeners();
@@ -2457,8 +2514,9 @@ class EditorProvider extends ChangeNotifier {
     int clipIdx = -1;
     final bool isOverlay = clip is OverlayClip;
     final bool isBackground = clip is BackgroundClip;
+    final bool isAudio = clip is AudioClip;
     
-    final trackList = isOverlay ? _overlayTracks : (isBackground ? _backgroundTracks : _tracks);
+    final trackList = isOverlay ? _overlayTracks : (isBackground ? _backgroundTracks : (isAudio ? _audioTracks : _tracks));
 
     for (int i = 0; i < trackList.length; i++) {
         final List<TimelineClip> clipsOnTrack;
@@ -2466,7 +2524,7 @@ class EditorProvider extends ChangeNotifier {
           clipsOnTrack = trackList[i].overlays;
         } else if (isBackground) {
           clipsOnTrack = trackList[i].backgrounds;
-        } else if (clip is AudioClip) {
+        } else if (isAudio) {
           clipsOnTrack = trackList[i].audioClips;
         } else {
           clipsOnTrack = trackList[i].clips;
@@ -2486,7 +2544,7 @@ class EditorProvider extends ChangeNotifier {
           foundClip = trackList[currentTrackIdx].overlays.removeAt(clipIdx);
         } else if (isBackground) {
           foundClip = trackList[currentTrackIdx].backgrounds.removeAt(clipIdx);
-        } else if (clip is AudioClip) {
+        } else if (isAudio) {
           foundClip = trackList[currentTrackIdx].audioClips.removeAt(clipIdx);
         } else {
           foundClip = trackList[currentTrackIdx].clips.removeAt(clipIdx);
@@ -2495,6 +2553,16 @@ class EditorProvider extends ChangeNotifier {
         var startTime = _clampTime(newStart ?? foundClip.startTime);
         var endTime = _clampTime(newEnd ?? foundClip.endTime);
         
+        // Ensure startTime < endTime
+        if (startTime >= endTime) {
+          if (newStart != null) {
+            startTime = endTime - const Duration(milliseconds: 100);
+          } else {
+            endTime = startTime + const Duration(milliseconds: 100);
+          }
+          startTime = _clampTime(startTime);
+        }
+
         if (isBackground) {
           final contentDuration = _getContentDuration();
           if (contentDuration > Duration.zero) {
@@ -2508,13 +2576,13 @@ class EditorProvider extends ChangeNotifier {
           updatedClip = (foundClip as OverlayClip).copyWith(startTime: startTime, endTime: endTime);
         } else if (isBackground) {
           updatedClip = (foundClip as BackgroundClip).copyWith(startTime: startTime, endTime: endTime);
-        } else if (foundClip is AudioClip) {
+        } else if (isAudio) {
           updatedClip = (foundClip as AudioClip).copyWith(startTime: startTime, endTime: endTime);
         } else {
           updatedClip = (foundClip as SubtitleClip).copyWith(startTime: startTime, endTime: endTime);
         }
 
-        if (_isCollisionAdjustEnabled) {
+        if (_isCollisionAdjustEnabled && !isAudio) {
           _handleCollisionPush(trackList[currentTrackIdx], updatedClip);
         }
 
@@ -2525,21 +2593,64 @@ class EditorProvider extends ChangeNotifier {
                 trackList[currentTrackIdx].overlays.insert(clipIdx, updatedClip as OverlayClip);
             } else if (isBackground) {
                 trackList[currentTrackIdx].backgrounds.insert(clipIdx, updatedClip as BackgroundClip);
-            } else if (updatedClip is AudioClip) {
+            } else if (isAudio) {
                 trackList[currentTrackIdx].audioClips.insert(clipIdx, updatedClip as AudioClip);
             } else {
                 trackList[currentTrackIdx].clips.insert(clipIdx, updatedClip as SubtitleClip);
             }
-            if (!resolveCollisions) {
-              // During active drag, update native preview for backgrounds in real-time
-              if (isBackground) {
-                syncToNative();
-              }
-            }
-            // This prevents the entire widget tree from rebuilding and killing
-            // the active GestureDetector drag mid-flight.
         }
+
+        // Real-time sync for preview
+        syncToNative();
+        notifyListeners();
     }
+  }
+
+  int getCurrentTrackIndex(TimelineClip clip) {
+    final bool isOverlay = clip is OverlayClip;
+    final bool isBackground = clip is BackgroundClip;
+    final bool isAudio = clip is AudioClip;
+    final trackList = isOverlay ? _overlayTracks : (isBackground ? _backgroundTracks : (isAudio ? _audioTracks : _tracks));
+
+    for (int i = 0; i < trackList.length; i++) {
+      final List<TimelineClip> clips;
+      if (isOverlay) clips = trackList[i].overlays;
+      else if (isBackground) clips = trackList[i].backgrounds;
+      else if (isAudio) clips = trackList[i].audioClips;
+      else clips = trackList[i].clips;
+
+      if (clips.any((c) => c.id == clip.id)) return i;
+    }
+    return -1;
+  }
+
+  List<int> getAvailableTrackIndices(TimelineClip clip) {
+    final bool isOverlay = clip is OverlayClip;
+    final bool isBackground = clip is BackgroundClip;
+    final bool isAudio = clip is AudioClip;
+    final trackList = isOverlay ? _overlayTracks : (isBackground ? _backgroundTracks : (isAudio ? _audioTracks : _tracks));
+    
+    List<int> available = [];
+    for (int i = 0; i < trackList.length; i++) {
+      final List<TimelineClip> clips;
+      if (isOverlay) clips = trackList[i].overlays;
+      else if (isBackground) clips = trackList[i].backgrounds;
+      else if (isAudio) clips = trackList[i].audioClips;
+      else clips = trackList[i].clips;
+
+      bool hasCollision = false;
+      for (var existing in clips) {
+        if (existing.id == clip.id) continue;
+        if (clip.startTime < existing.endTime && existing.startTime < clip.endTime) {
+          hasCollision = true;
+          break;
+        }
+      }
+      if (!hasCollision) {
+        available.add(i);
+      }
+    }
+    return available;
   }
 
   void forceResolveCollisions(String clipId) {

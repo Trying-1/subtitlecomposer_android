@@ -1,0 +1,5 @@
+trexx@Trexx:~/projects/typgraphyeditor$ git commit -m "check changelog in the firstprompt.txt, now the app is live in play store"
+error: invalid object 100644 2d31c640cebc75bb298647f3bd42d11572963e67 for 'android/app/src/main/kotlin/com/typography/animations/entrance/BounceIn.kt'
+error: invalid object 100644 2d31c640cebc75bb298647f3bd42d11572963e67 for 'android/app/src/main/kotlin/com/typography/animations/entrance/BounceIn.kt'
+error: Error building trees
+trexx@Trexx:~/projects/typgraphyeditor$ ?
