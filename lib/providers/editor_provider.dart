@@ -17,6 +17,8 @@ import '../services/project_service.dart';
 import 'package:uuid/uuid.dart';
 import '../utils/toast_utils.dart';
 import '../models/editor_models.dart';
+import '../services/kinetic/kinetic_engine.dart';
+import '../services/kinetic/kinetic_style.dart';
 
 class HistoryState {
   final List<Track> tracks;
@@ -2411,6 +2413,153 @@ class EditorProvider extends ChangeNotifier {
     
     syncToNative();
     notifyListeners();
+  }
+
+  /// One-click kinetic typography automation.
+  /// Bursts each selected sentence into words, stacks them, then applies
+  /// the full KineticEngine pipeline (style, layout, animation).
+  void applyKineticStyle(List<KineticStyle> styles, {bool doBurst = true, int? customBgColor}) {
+    saveState();
+
+    // Determine background color: custom or preset derived
+    int bgCol = customBgColor ?? 0xFF0A0A0E; // default sleek dark titanium/black
+    if (customBgColor == null && styles.isNotEmpty) {
+      final styleNameLower = styles.first.name.toLowerCase();
+      if (styleNameLower.contains('cyberpunk')) {
+        bgCol = 0xFF07040B; 
+      } else if (styleNameLower.contains('minimal')) {
+        bgCol = 0xFF12131C; 
+      } else if (styleNameLower.contains('retro')) {
+        bgCol = 0xFF0E0A1E; 
+      } else if (styleNameLower.contains('nature')) {
+        bgCol = 0xFF0B1310; 
+      }
+    }
+
+    _backgroundColor = bgCol;
+
+    // Also update any color fill background clips currently on the background tracks
+    for (var track in _backgroundTracks) {
+      for (int i = 0; i < track.backgrounds.length; i++) {
+        final bg = track.backgrounds[i];
+        if (bg.imagePath == null || bg.imagePath!.isEmpty) {
+          track.backgrounds[i] = bg.copyWith(color: bgCol);
+        }
+      }
+    }
+
+    // Collect target clips: selected clips or ALL text clips
+    List<SubtitleClip> targetClips = [];
+    if (_selectedClipIds.isNotEmpty) {
+      for (var track in _tracks) {
+        for (var clip in track.clips) {
+          if (_selectedClipIds.contains(clip.id)) {
+            targetClips.add(clip);
+          }
+        }
+      }
+    } else {
+      for (var track in _tracks) {
+        targetClips.addAll(track.clips);
+      }
+    }
+
+    if (targetClips.isEmpty) return;
+
+    // Sort by start time
+    targetClips.sort((a, b) => a.startTime.compareTo(b.startTime));
+
+    // Group targetClips by time overlap (co-visible clips form a "sentence/scene" group)
+    final List<List<SubtitleClip>> groups = [];
+    final Set<String> assigned = {};
+
+    for (int i = 0; i < targetClips.length; i++) {
+      if (assigned.contains(targetClips[i].id)) continue;
+
+      final group = <SubtitleClip>[targetClips[i]];
+      assigned.add(targetClips[i].id);
+
+      for (int j = i + 1; j < targetClips.length; j++) {
+        if (assigned.contains(targetClips[j].id)) continue;
+
+        bool overlapsGroup = group.any((g) =>
+            targetClips[j].startTime < g.endTime && g.startTime < targetClips[j].endTime);
+
+        if (overlapsGroup) {
+          group.add(targetClips[j]);
+          assigned.add(targetClips[j].id);
+        }
+      }
+      groups.add(group);
+    }
+
+    // Phase 1 & 3: Burst & Stack within each individual sentence segment's duration, then apply style
+    final List<SubtitleClip> styledClips = [];
+    int idCounter = 0;
+    int styleIndex = 0;
+
+    for (final group in groups) {
+      final currentStyle = styles[styleIndex % styles.length];
+      styleIndex++;
+
+      List<SubtitleClip> sentenceClips = [];
+      if (doBurst) {
+        for (final clip in group) {
+          final words = clip.text.trim().split(RegExp(r'\s+'));
+          if (words.length <= 1) {
+            sentenceClips.add(clip);
+          } else {
+            final totalDuration = clip.duration;
+            final durationPerWord = Duration(
+              microseconds: (totalDuration.inMicroseconds / words.length).toInt(),
+            );
+            var currentStart = clip.startTime;
+
+            for (int i = 0; i < words.length; i++) {
+              sentenceClips.add(clip.copyWith(
+                id: 'kinetic_${DateTime.now().millisecondsSinceEpoch}_${idCounter++}',
+                text: words[i],
+                startTime: currentStart,
+                endTime: clip.endTime, // Keep within parent's duration & stack!
+                keyframes: [],
+              ));
+              currentStart = currentStart + durationPerWord;
+            }
+          }
+        }
+      } else {
+        sentenceClips.addAll(group);
+      }
+
+      // Apply KineticEngine (style + layout + animation) per sentence group
+      final styledSentence = KineticEngine.apply(
+        clips: sentenceClips,
+        style: currentStyle,
+        aspectRatio: _aspectRatio,
+      );
+      styledClips.addAll(styledSentence);
+    }
+
+    // Phase 4: Remove old clips from all text tracks
+    final oldIds = targetClips.map((c) => c.id).toSet();
+    for (var track in _tracks) {
+      track.clips.removeWhere((c) => oldIds.contains(c.id));
+    }
+
+    // Phase 5: Place styled clips across tracks (distribute vertically, reusing tracks)
+    // Reverse the loop so that the last word is placed on the top track (Track 0)
+    // and the first word gets pushed to the bottom tracks, matching stack mode behavior.
+    for (int i = styledClips.length - 1; i >= 0; i--) {
+      _resolveCollisions(styledClips[i], 0);
+    }
+
+    // Select all new clips
+    _selectedClipIds = styledClips.map((c) => c.id).toSet();
+    _isMultiSelectMode = styledClips.length > 1;
+
+    syncToNative();
+    notifyListeners();
+    ToastUtils.show('${styles.length == 1 ? styles.first.name : "Mixed Mode"} applied to ${styledClips.length} segments');
   }
 
   void addNewTrack(TrackType type) {

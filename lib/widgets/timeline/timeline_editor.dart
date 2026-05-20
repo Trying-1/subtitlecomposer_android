@@ -3,7 +3,10 @@ import 'package:provider/provider.dart';
 import '../../config/app_config.dart';
 import '../../models/editor_models.dart';
 import '../../providers/editor_provider.dart';
+import '../../providers/font_provider.dart';
 import '../../utils/toast_utils.dart';
+import '../../services/kinetic/kinetic_style.dart';
+import 'kinetic_preset_sheet.dart';
 import 'dart:async';
 
 class LockableScrollPhysics extends AlwaysScrollableScrollPhysics {
@@ -575,6 +578,17 @@ class _TimelineEditorState extends State<TimelineEditor> {
 
                     if (AppConfig.showTimelineStack) ...[
                       _buildVerticalToggle("STACK", false, widget.onStackSelected, icon: Icons.layers_outlined),
+                      const SizedBox(width: 16),
+                    ],
+
+                    if (AppConfig.showKineticButton) ...[
+                      _buildVerticalToggle(
+                        "KINETIC", 
+                        false, 
+                        () => _showKineticPresetPicker(context),
+                        icon: Icons.auto_awesome_rounded,
+                        color: Colors.amberAccent,
+                      ),
                       const SizedBox(width: 16),
                     ],
 
@@ -1625,6 +1639,39 @@ class _TimelineEditorState extends State<TimelineEditor> {
       case TrackType.background: return Color(widget.backgroundTimelineColor);
       case TrackType.audio: return Color(widget.audioTimelineColor);
     }
+  }
+
+  void _showKineticPresetPicker(BuildContext context) {
+    final provider = context.read<EditorProvider>();
+    final fontProvider = context.read<FontProvider>();
+    
+    // Collect all available fonts
+    final defaultFonts = [
+      'Poppins', 'Bellota', 'BhuTukaExpandedOne', 'Bokor', 'BungeeHairline',
+      'Caramel', 'Explora', 'GrandifloraOne', 'KleeOne', 'Lacquer',
+      'LibreBarcode39Text', 'LuckiestGuy', 'MajorMonoDisplay', 'Metrophobic',
+      'Michroma', 'NewRocker', 'NewTegomin', 'ProtestRevolution',
+    ];
+    final customFonts = fontProvider.customFonts.map((f) => f.family).toList();
+    final allFonts = [...defaultFonts, ...customFonts];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF16161E),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return KineticPresetSheet(
+          allFonts: allFonts,
+          onApply: (styles, doBurst, bgColor) {
+            Navigator.pop(sheetContext);
+            provider.applyKineticStyle(styles, doBurst: doBurst, customBgColor: bgColor);
+          },
+        );
+      },
+    );
   }
 }
 

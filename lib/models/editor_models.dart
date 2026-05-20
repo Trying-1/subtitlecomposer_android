@@ -94,6 +94,12 @@ enum LayoutPreset {
   wave,
   circle,
   spiral,
+  masonry,
+  collage,
+  diagonal,
+  target,
+  explosion,
+  perspective,
 }
 
 class ClipAnimation {

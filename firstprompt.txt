@@ -428,4 +428,33 @@ reduce the selection box stroke width, make it thinner just visible, and chose g
 
 
 
+===============version22==============
 
+[now that we have everything to create kinetic typography, we can completely automate the typography videos, like auto layout, colors, font size,scale, animation type,  etc, on one click. like suppose I am timed the sentence segment properly in the timeline, then after that when we automate it uses burst+ stack on the each sentence segment. and then randomly scales, use different font and font size, colors for each text segment, align them in cool layout, wihout collision or overlapping. animations, right this will be cool way to move to advanced kinetic typography with minimal effor right? lets plan this properly and design and implement this, idea, create new files and folders to avoid increasing inline codes if that can be done, to keep things understanble and organize, understood]
+[awesome but, use the burst and stack on individual setentence segment, and keep the those child segment within that duratiion only, udnerstood, ]
+[and also the background color as well based on the palette, understood, right now we arent updating backgroun layer i guess]
+[also allow user to choose the background, and text colors. instead of forcing style preset]
+[the designt of the Auto Kinetic sheet is not good, and man have separate file for this widget instead of inlining in the time lineeditor file]
+[still layout sucks, man wtf is that, for the color selection user horizontal scrollable selectors, the style overrides toggle use separate row and no card wrapping, use kleeone font for the UI font. instead of bold poppins got it]
+[for color allow custom color like we have in the styles tab colors. ]
+[allow to create cutom color and font presets, ]
+[allow updating and deleting, renaming the  custom preset style]
+[also create new layout style preset for blocky layout like compact but like bento-grid style layout in the kinetic sheet understood. ]
+[still its doesnt feels like compact, I want layout such that the bouding box share edges, like compact. understood]
+[good but text are ovelapping, I don't want that to happen. collision calculation issue, the selection box calculation is not like beofre the the kinetic process, look into this]
+[also there is another bug, addition color are appearing for text aside from the selected text color]
+[okay next lets also have toggle for enabling and disabling entrance and exit animations]
+[good, another improvement, that things are wrking but right now all the segments are kind of getting in separate track, making huge number of tracks stacked, understood, like UI UX feel off. so like it should happen like this, like first sentence is burst and stacked, if first sentence has suppose 5 words then they will be stacked in the 5 tracks, then if next sentence has 3 words then use the exisiting tracks, if the words 7 then use the existing 5 plus add 2 new tracks something like this, instead keep creating new track for every words, understood. ]
+[good but invert the order like we use in the stack mode, like first word be at bottom and last word to be at top, understood]
+[awesome now, lets add more style preset layouts. propose some cool layouts for kinectic typography]
+[and we also already have many layouts in the layout tab like stairs, wave, create kinetics style preset for those as well. undeerstood]
+[good but lets not integrate colors, stroke, glow, fonts in the style preset, we can manually select color from the color selection area, understood, the preset will only of the layout understood]
+[good next by defualt turn of the exit animations, stroke, glow]
+[allow mixed layout selection]
+[lets also choose the entrace and exit animation types. for mixed animations styles instead of using same animations, understood]
+[good but you removed the toggle, lets keep the enabling and disabling toggle.  got it]
+[also lets have control over the minimum and max font size. got it]
+[good next we need control over the rotation as well whether to allow random any rotation, no rotation, or only just 0, 90, 180, 270, understood. ]
+[and few texts are overlapping after rotations.]
+[control for min and max scale of texts]
+[good next there is issue when reapplying the kinetic effect, like suppose I select different layout after applying previous, then its not showing chnnges, like still showing previous layout, and also the previous color settings. look in to this]

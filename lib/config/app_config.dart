@@ -49,6 +49,7 @@ class AppConfig {
 
   // Other global toggles
   static const bool enableAdvancedAnimations = true;
+  static const bool showKineticButton = true;             // premium
   static const bool useExperimentalRenderer = true;
   static const bool showSplashScreen = true;
   static const bool showSettingsScreen = true;
