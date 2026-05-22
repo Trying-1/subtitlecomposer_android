@@ -12,6 +12,8 @@ import '../models/editor_models.dart';
 import '../providers/asset_provider.dart';
 import 'package:path/path.dart' as p;
 import 'export/export_screen.dart';
+import 'dart:math' as math;
+import '../services/ads/ad_service.dart';
 
 class EditorScreen extends StatefulWidget {
   const EditorScreen({super.key});
@@ -967,9 +969,15 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   Future<void> _handleExport(BuildContext context, EditorProvider provider) async {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const ExportScreen()),
+    await AdService.instance.showInterstitialAd(
+      onAdDismissed: () {
+        if (context.mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const ExportScreen()),
+          );
+        }
+      },
     );
   }
 

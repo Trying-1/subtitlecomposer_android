@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'home/home_screen.dart';
 import 'profile/profile_screen.dart';
-import 'editor_screen.dart';
+import 'home/assets_library_screen.dart';
+import 'home/tutorials_page.dart';
+import 'home/more_tools_screen.dart';
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
@@ -15,6 +17,9 @@ class _MainNavigationState extends State<MainNavigation> {
 
   final List<Widget> _screens = [
     const HomeScreen(),
+    const AssetsLibraryScreen(),
+    const TutorialsPage(),
+    const MoreToolsScreen(),
     const ProfileScreen(),
   ];
 
@@ -48,11 +53,28 @@ class _MainNavigationState extends State<MainNavigation> {
           unselectedLabelStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500),
           items: const [
             BottomNavigationBarItem(
-              icon: Icon(Icons.home_filled),
+              icon: Icon(Icons.home_rounded),
+              activeIcon: Icon(Icons.home_filled),
               label: 'HOME',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.person_rounded),
+              icon: Icon(Icons.auto_awesome_motion_outlined),
+              activeIcon: Icon(Icons.auto_awesome_motion_rounded),
+              label: 'ASSETS',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.play_circle_outline_rounded),
+              activeIcon: Icon(Icons.play_circle_filled_rounded),
+              label: 'TUTORIALS',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.grid_view_outlined),
+              activeIcon: Icon(Icons.grid_view_rounded),
+              label: 'STUDIO',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline_rounded),
+              activeIcon: Icon(Icons.person_rounded),
               label: 'PROFILE',
             ),
           ],

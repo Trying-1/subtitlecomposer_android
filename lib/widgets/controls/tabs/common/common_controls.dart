@@ -125,6 +125,21 @@ class CommonControls {
     ColorPalette(id: 'ocean_pearl', name: 'Deep Sea Pearl', colors: [0xFF002366, 0xFFFFFFFF, 0xFFE0E0E0, 0xFF0055D4, 0xFF003399]),
   ];
 
+  static String _getColorRoleLabel(int index) {
+    switch (index) {
+      case 0:
+        return 'BACKGROUND';
+      case 1:
+        return 'MAIN TEXT';
+      case 2:
+        return 'SUB MAIN';
+      case 3:
+        return 'NORMAL TEXT';
+      default:
+        return 'EXTRA';
+    }
+  }
+
   static Widget buildPalettesOnly(BuildContext context, int current, ValueChanged<int> onChanged) {
     return Consumer<AssetProvider>(
       builder: (context, assetProvider, child) {
@@ -155,27 +170,48 @@ class CommonControls {
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(
-                        children: palette.colors.map((c) => Padding(
-                          padding: const EdgeInsets.only(right: 12),
-                          child: GestureDetector(
-                            onTap: () => onChanged(c),
-                            child: Container(
-                              width: 32,
-                              height: 32,
-                              decoration: BoxDecoration(
-                                color: Color(c),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: current == c ? Colors.deepPurpleAccent : Colors.white10, 
-                                  width: 2,
-                                ),
-                                boxShadow: [
-                                  if (current == c) BoxShadow(color: Colors.deepPurpleAccent.withOpacity(0.3), blurRadius: 10)
+                        children: palette.colors.asMap().entries.map((entry) {
+                          final idx = entry.key;
+                          final c = entry.value;
+                          final label = _getColorRoleLabel(idx);
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 16),
+                            child: GestureDetector(
+                              onTap: () => onChanged(c),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    width: 36,
+                                    height: 36,
+                                    decoration: BoxDecoration(
+                                      color: Color(c),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: current == c ? Colors.deepPurpleAccent : Colors.white12, 
+                                        width: current == c ? 2.5 : 1,
+                                      ),
+                                      boxShadow: [
+                                        if (current == c) BoxShadow(color: Colors.deepPurpleAccent.withOpacity(0.4), blurRadius: 8)
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    label,
+                                    style: TextStyle(
+                                      fontSize: 6.5,
+                                      fontWeight: FontWeight.w900,
+                                      color: current == c ? Colors.deepPurpleAccent : Colors.white38,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
-                          ),
-                        )).toList(),
+                          );
+                        }).toList(),
                       ),
                     ),
                   ],
@@ -293,23 +329,25 @@ class CommonControls {
   }
 
   static Widget buildSubTabBar(List<String> labels, int current, ValueChanged<int> onChanged) {
-    return Container(
-      width: double.infinity,
-      height: 30,
-      padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.04),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: List.generate(labels.length, (index) {
-          final isSelected = current == index;
-          return Expanded(
-            child: GestureDetector(
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Container(
+        height: 32,
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.04),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(labels.length, (index) {
+            final isSelected = current == index;
+            return GestureDetector(
               onTap: () => onChanged(index),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 margin: EdgeInsets.only(right: index == labels.length - 1 ? 0 : 4),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: isSelected ? Colors.deepPurpleAccent : Colors.transparent,
@@ -325,9 +363,9 @@ class CommonControls {
                   ),
                 ),
               ),
-            ),
-          );
-        }),
+            );
+          }),
+        ),
       ),
     );
   }

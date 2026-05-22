@@ -154,6 +154,45 @@ class ProjectTab extends StatelessWidget {
             ),
           ],
         ),
+        const SizedBox(height: 16),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Text('Timeline Track Height', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                const Spacer(),
+                Text(
+                  '${context.watch<EditorProvider>().timelineTrackHeight.toInt()} px',
+                  style: const TextStyle(
+                    color: Colors.deepPurpleAccent,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                activeTrackColor: Colors.deepPurpleAccent,
+                inactiveTrackColor: Colors.white.withValues(alpha: 0.1),
+                thumbColor: Colors.deepPurpleAccent,
+                overlayColor: Colors.deepPurpleAccent.withValues(alpha: 0.2),
+                trackHeight: 3,
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+              ),
+              child: Slider(
+                min: 32.0,
+                max: 80.0,
+                value: context.watch<EditorProvider>().timelineTrackHeight,
+                onChanged: (val) {
+                  context.read<EditorProvider>().timelineTrackHeight = val;
+                },
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 32),
       ],
     );

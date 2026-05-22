@@ -14,6 +14,7 @@ import '../../widgets/common/image_color_picker.dart';
 import '../../utils/palette_presets.dart';
 import '../../services/master_import_service.dart';
 import '../../services/native_bridge.dart';
+import '../../services/palette_export_service.dart';
 import 'package:flutter/foundation.dart';
 import '../../config/app_config.dart';
 
@@ -282,53 +283,64 @@ class _AssetsLibraryScreenState extends State<AssetsLibraryScreen> with SingleTi
   }
 
   Future<void> _extractPaletteFromImage(BuildContext context, AssetProvider provider) async {
-    final picker = ImagePicker();
+    final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
     if (image == null) return;
 
-    // Show a loading indicator
     if (mounted) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(child: CircularProgressIndicator(color: Colors.deepPurpleAccent)),
-      );
-    }
-
-    try {
-      final paletteGenerator = await PaletteGenerator.fromImageProvider(
-        FileImage(File(image.path)),
-        maximumColorCount: 20,
-      );
-
-      if (mounted) {
-        Navigator.pop(context); // Close loading
-        final initialColors = paletteGenerator.colors.take(8).toList();
-        
-        // Open Manual Picker
-        final List<Color>? finalColors = await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ImageColorPickerScreen(
-              imageFile: File(image.path),
-              initialColors: initialColors,
-            ),
+      final List<Color>? finalColors = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ImageColorPickerScreen(
+            imageFile: File(image.path),
+            initialColors: const [
+              Colors.black,
+              Colors.white,
+              Colors.deepPurpleAccent,
+              Colors.grey,
+            ],
           ),
-        );
+        ),
+      );
 
-        if (mounted && finalColors != null && finalColors.isNotEmpty) {
-          _showAddPaletteDialog(context, provider, initialColors: finalColors, initialName: 'Image Palette');
-        }
+      if (mounted && finalColors != null && finalColors.isNotEmpty) {
+        _showAddPaletteDialog(context, provider, initialColors: finalColors, initialName: 'Image Palette');
       }
-    } catch (e) {
-      if (mounted) Navigator.pop(context);
-      debugPrint("Error extracting palette: $e");
+    }
+  }
+
+  String _getColorRoleLabel(int index) {
+    switch (index) {
+      case 0:
+        return 'BACKGROUND';
+      case 1:
+        return 'MAIN TEXT';
+      case 2:
+        return 'SUB MAIN';
+      case 3:
+        return 'NORMAL TEXT';
+      default:
+        return 'EXTRA';
     }
   }
 
   void _showAddPaletteDialog(BuildContext context, AssetProvider provider, {List<Color>? initialColors, String? initialName}) {
     final nameController = TextEditingController(text: initialName);
-    List<Color> selectedColors = initialColors ?? [Colors.white, Colors.deepPurpleAccent, Colors.blueAccent];
+    List<Color> selectedColors = initialColors ?? [Colors.black, Colors.white, Colors.deepPurpleAccent, Colors.grey];
+    while (selectedColors.length < 4) {
+      if (selectedColors.isEmpty) {
+        selectedColors.add(Colors.black);
+      } else if (selectedColors.length == 1) {
+        selectedColors.add(Colors.white);
+      } else if (selectedColors.length == 2) {
+        selectedColors.add(Colors.deepPurpleAccent);
+      } else {
+        selectedColors.add(Colors.grey);
+      }
+    }
+    if (selectedColors.length > 4) {
+      selectedColors = selectedColors.sublist(0, 4);
+    }
 
     showModalBottomSheet(
       context: context,
@@ -360,60 +372,68 @@ class _AssetsLibraryScreenState extends State<AssetsLibraryScreen> with SingleTi
                 ),
               ),
               const SizedBox(height: 24),
-              const Text('COLORS', style: TextStyle(fontSize: 9, color: Colors.white38, fontWeight: FontWeight.bold)),
+              const Text('COLORS & ROLES', style: TextStyle(fontSize: 9, color: Colors.white38, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: [
-                  ...selectedColors.asMap().entries.map((entry) => GestureDetector(
-                    onTap: () {
-                      showModalBottomSheet(
-                        context: context,
-                        backgroundColor: Colors.transparent,
-                        builder: (context) => CustomColorPicker(
-                          initialColor: entry.value,
-                          onColorChanged: (color) {
-                            setModalState(() {
-                              selectedColors[entry.key] = color;
-                            });
-                          },
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: List.generate(4, (index) {
+                  final color = selectedColors[index];
+                  final label = _getColorRoleLabel(index);
+                  return Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        showModalBottomSheet(
+                          context: context,
+                          backgroundColor: Colors.transparent,
+                          builder: (context) => CustomColorPicker(
+                            initialColor: color,
+                            onColorChanged: (c) {
+                              setModalState(() {
+                                selectedColors[index] = c;
+                              });
+                            },
+                          ),
+                        );
+                      },
+                      child: Container(
+                        margin: EdgeInsets.only(
+                          left: index == 0 ? 0 : 4,
+                          right: index == 3 ? 0 : 4,
                         ),
-                      );
-                    },
-                    onLongPress: () {
-                      if (selectedColors.length > 1) {
-                        setModalState(() => selectedColors.removeAt(entry.key));
-                      }
-                    },
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: entry.value,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white24),
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.02),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.white.withOpacity(0.05)),
+                        ),
+                        child: Column(
+                          children: [
+                            Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: color,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white24),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              label,
+                              style: const TextStyle(
+                                fontSize: 7.5,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white38,
+                                letterSpacing: 0.5,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  )),
-                  GestureDetector(
-                    onTap: () {
-                      if (selectedColors.length < 8) {
-                        setModalState(() => selectedColors.add(Colors.white));
-                      }
-                    },
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.05),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white10),
-                      ),
-                      child: const Icon(Icons.add, color: Colors.white38),
-                    ),
-                  ),
-                ],
+                  );
+                }),
               ),
               const SizedBox(height: 32),
               SizedBox(
@@ -848,16 +868,79 @@ class _AssetsLibraryScreenState extends State<AssetsLibraryScreen> with SingleTi
     );
   }
 
+  Future<void> _importPaletteFile(BuildContext context, AssetProvider provider) async {
+    try {
+      final imported = await PaletteExportService.importPalettesFromFile();
+      if (imported.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No new color palettes imported.'),
+              backgroundColor: Color(0xFF1E1E2A),
+            ),
+          );
+        }
+        return;
+      }
+
+      final count = provider.importPalettes(imported);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Successfully imported $count color palette(s)!'),
+            backgroundColor: Colors.greenAccent,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error importing palette file: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _exportAllPalettes(BuildContext context, AssetProvider provider) async {
+    final success = await PaletteExportService.exportAllPalettes(provider.palettes);
+    if (!success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to share palettes pack.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
   Widget _buildSavedPalettes(AssetProvider provider) {
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          child: Row(
+          child: Column(
             children: [
-              Expanded(child: _buildAddButton('CREATE', () => _showAddPaletteDialog(context, provider))),
-              const SizedBox(width: 12),
-              Expanded(child: _buildAddButton('EXTRACT', () => _extractPaletteFromImage(context, provider), icon: Icons.colorize_rounded)),
+              Row(
+                children: [
+                  Expanded(child: _buildAddButton('CREATE', () => _showAddPaletteDialog(context, provider))),
+                  const SizedBox(width: 12),
+                  Expanded(child: _buildAddButton('EXTRACT', () => _extractPaletteFromImage(context, provider), icon: Icons.colorize_rounded)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(child: _buildAddButton('IMPORT', () => _importPaletteFile(context, provider), icon: Icons.file_download_rounded)),
+                  if (provider.palettes.isNotEmpty) ...[
+                    const SizedBox(width: 12),
+                    Expanded(child: _buildAddButton('SHARE ALL', () => _exportAllPalettes(context, provider), icon: Icons.ios_share_rounded)),
+                  ],
+                ],
+              ),
             ],
           ),
         ),
@@ -926,13 +1009,37 @@ class _AssetsLibraryScreenState extends State<AssetsLibraryScreen> with SingleTi
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(palette.name.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-              IconButton(
-                icon: Icon(isPreset ? Icons.add_circle_outline_rounded : Icons.delete_outline_rounded, 
-                  color: isPreset ? Colors.deepPurpleAccent : Colors.redAccent.withOpacity(0.5), 
-                  size: 20),
-                onPressed: onAction,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (!isPreset) ...[
+                    IconButton(
+                      icon: const Icon(Icons.share_rounded, color: Colors.white70, size: 18),
+                      onPressed: () async {
+                        final success = await PaletteExportService.exportSinglePalette(palette);
+                        if (!success && mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Failed to share color palette.'),
+                              backgroundColor: Colors.redAccent,
+                            ),
+                          );
+                        }
+                      },
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
+                  IconButton(
+                    icon: Icon(isPreset ? Icons.add_circle_outline_rounded : Icons.delete_outline_rounded, 
+                      color: isPreset ? Colors.deepPurpleAccent : Colors.redAccent.withOpacity(0.5), 
+                      size: 20),
+                    onPressed: onAction,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
               ),
             ],
           ),
@@ -940,16 +1047,39 @@ class _AssetsLibraryScreenState extends State<AssetsLibraryScreen> with SingleTi
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
-              children: palette.colors.map((c) => Container(
-                width: 32,
-                height: 32,
-                margin: const EdgeInsets.only(right: 8),
-                decoration: BoxDecoration(
-                  color: Color(c),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.white10, width: 0.5),
-                ),
-              )).toList(),
+              children: palette.colors.asMap().entries.map((entry) {
+                final idx = entry.key;
+                final c = entry.value;
+                final label = _getColorRoleLabel(idx);
+                return Padding(
+                  padding: const EdgeInsets.only(right: 16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: Color(c),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.white12, width: 1),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        label,
+                        style: const TextStyle(
+                          fontSize: 6.5,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white38,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
             ),
           ),
         ],

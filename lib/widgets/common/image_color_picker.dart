@@ -22,11 +22,26 @@ class _ImageColorPickerScreenState extends State<ImageColorPickerScreen> {
   Offset? _fingerPos;
   Color? _hoverColor;
   bool _isLoading = true;
+  int _activeRoleIndex = 0;
 
   @override
   void initState() {
     super.initState();
     _selectedColors = List.from(widget.initialColors);
+    while (_selectedColors.length < 4) {
+      if (_selectedColors.isEmpty) {
+        _selectedColors.add(Colors.black);
+      } else if (_selectedColors.length == 1) {
+        _selectedColors.add(Colors.white);
+      } else if (_selectedColors.length == 2) {
+        _selectedColors.add(Colors.deepPurpleAccent);
+      } else {
+        _selectedColors.add(Colors.grey);
+      }
+    }
+    if (_selectedColors.length > 4) {
+      _selectedColors = _selectedColors.sublist(0, 4);
+    }
     _loadAndDecodeImage();
   }
 
@@ -44,8 +59,7 @@ class _ImageColorPickerScreenState extends State<ImageColorPickerScreen> {
   Color _getColorAt(Offset localPosition, Size widgetSize) {
     if (_decodedImage == null) return Colors.transparent;
 
-    // Apply offset to the sample point so it's not under the finger
-    // We'll sample 50 pixels ABOVE the finger
+    // Sample 60 pixels above finger to not block the view
     final Offset samplePos = Offset(localPosition.dx, localPosition.dy - 60);
 
     final double imageWidth = _decodedImage!.width.toDouble();
@@ -93,16 +107,25 @@ class _ImageColorPickerScreenState extends State<ImageColorPickerScreen> {
       _fingerPos = localPosition;
       if (color != Colors.transparent) {
         _hoverColor = color;
+        if (_activeRoleIndex >= 0 && _activeRoleIndex < _selectedColors.length) {
+          _selectedColors[_activeRoleIndex] = color;
+        }
       }
     });
   }
 
-  void _addColor() {
-    if (_hoverColor != null && _selectedColors.length < 12) {
-      setState(() {
-        _selectedColors.add(_hoverColor!);
-      });
-      // Small haptic or visual feedback could go here
+  String _getColorRoleLabel(int index) {
+    switch (index) {
+      case 0:
+        return 'BACKGROUND';
+      case 1:
+        return 'MAIN TEXT';
+      case 2:
+        return 'SUB MAIN';
+      case 3:
+        return 'NORMAL TEXT';
+      default:
+        return 'EXTRA';
     }
   }
 
@@ -117,7 +140,7 @@ class _ImageColorPickerScreenState extends State<ImageColorPickerScreen> {
           icon: const Icon(Icons.close_rounded, color: Colors.white, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Manual Color Picker', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+        title: const Text('Sample Colors from Image', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, _selectedColors),
@@ -131,9 +154,7 @@ class _ImageColorPickerScreenState extends State<ImageColorPickerScreen> {
               children: [
                 Column(
                   children: [
-                    // Magnifier at the top
                     _buildTopMagnifier(),
-                    
                     Expanded(
                       child: LayoutBuilder(
                         builder: (context, constraints) {
@@ -154,7 +175,7 @@ class _ImageColorPickerScreenState extends State<ImageColorPickerScreen> {
                                 if (_fingerPos != null)
                                   Positioned(
                                     left: _fingerPos!.dx - 20,
-                                    top: _fingerPos!.dy - 80, // Pipette offset
+                                    top: _fingerPos!.dy - 80,
                                     child: _PipetteMarker(color: _hoverColor ?? Colors.transparent),
                                   ),
                               ],
@@ -202,7 +223,7 @@ class _ImageColorPickerScreenState extends State<ImageColorPickerScreen> {
             Text(
               _hoverColor != null 
                 ? '#${_hoverColor!.value.toRadixString(16).padLeft(8, '0').toUpperCase().substring(2)}'
-                : 'DRAG TO PICK',
+                : 'DRAG TO SAMPLE COLOR',
               style: const TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1),
             ),
           ],
@@ -223,69 +244,115 @@ class _ImageColorPickerScreenState extends State<ImageColorPickerScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('PALETTE PREVIEW', style: TextStyle(fontSize: 10, color: Colors.deepPurpleAccent, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
-                  SizedBox(height: 4),
-                  Text('Tap circles to remove', style: TextStyle(fontSize: 9, color: Colors.white38)),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.05),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text('${_selectedColors.length}/12', style: const TextStyle(fontSize: 10, color: Colors.white70, fontWeight: FontWeight.bold)),
-              ),
-            ],
+          const Text(
+            'SELECT COLORS FOR EACH ROLE',
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.deepPurpleAccent,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Tap a role card below, then drag on the image to sample its color.',
+            style: TextStyle(fontSize: 9, color: Colors.white38),
           ),
           const SizedBox(height: 16),
-          SizedBox(
-            height: 50,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: _selectedColors.length,
-              itemBuilder: (context, index) {
-                return Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: GestureDetector(
-                    onTap: () => setState(() => _selectedColors.removeAt(index)),
-                    child: Container(
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        color: _selectedColors[index],
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white10, width: 2),
-                        boxShadow: [
-                          BoxShadow(color: _selectedColors[index].withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4)),
-                        ],
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: List.generate(4, (index) {
+              final label = _getColorRoleLabel(index);
+              final isSelected = _activeRoleIndex == index;
+              final color = _selectedColors[index];
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _activeRoleIndex = index;
+                    });
+                  },
+                  child: Container(
+                    margin: EdgeInsets.only(
+                      left: index == 0 ? 0 : 4,
+                      right: index == 3 ? 0 : 4,
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? Colors.deepPurpleAccent.withOpacity(0.08)
+                          : Colors.white.withOpacity(0.02),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isSelected
+                            ? Colors.deepPurpleAccent
+                            : Colors.white.withOpacity(0.05),
+                        width: isSelected ? 2 : 1,
                       ),
-                      child: const Center(child: Icon(Icons.close, size: 12, color: Colors.white24)),
+                      boxShadow: [
+                        if (isSelected)
+                          BoxShadow(
+                            color: Colors.deepPurpleAccent.withOpacity(0.15),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isSelected ? Colors.white : Colors.white24,
+                              width: isSelected ? 2.5 : 1,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 7.5,
+                            fontWeight: FontWeight.w900,
+                            color: isSelected ? Colors.white : Colors.white38,
+                            letterSpacing: 0.5,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                     ),
                   ),
-                );
-              },
-            ),
+                ),
+              );
+            }),
           ),
           const SizedBox(height: 24),
           Row(
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: _addColor,
-                  icon: const Icon(Icons.add_rounded, size: 20),
-                  label: const Text('ADD COLOR', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2, fontSize: 13)),
+                  onPressed: () {
+                    setState(() {
+                      if (_activeRoleIndex == 0) _selectedColors[0] = Colors.black;
+                      if (_activeRoleIndex == 1) _selectedColors[1] = Colors.white;
+                      if (_activeRoleIndex == 2) _selectedColors[2] = Colors.deepPurpleAccent;
+                      if (_activeRoleIndex == 3) _selectedColors[3] = Colors.grey;
+                    });
+                  },
+                  icon: const Icon(Icons.refresh_rounded, size: 20),
+                  label: const Text('RESET ROLE', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2, fontSize: 13)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white.withOpacity(0.05),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: Colors.white10)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: const BorderSide(color: Colors.white10),
+                    ),
                   ),
                 ),
               ),

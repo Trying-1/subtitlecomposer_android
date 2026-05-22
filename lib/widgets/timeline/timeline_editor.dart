@@ -438,7 +438,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
                                 color: Colors.white,
                                 fontSize: 8,
                                 fontWeight: FontWeight.bold,
-                                fontFamily: 'monospace',
+                                fontFamily: 'KleeOne',
                                 letterSpacing: 0.5,
                               ),
                             ),
@@ -769,6 +769,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
             Text(
               label,
               style: TextStyle(
+                fontFamily: 'KleeOne',
                 fontSize: 6.5,
                 fontWeight: FontWeight.w900,
                 color: color ?? (value ? Colors.deepPurpleAccent : Colors.white38),
@@ -842,11 +843,14 @@ class _TimelineEditorState extends State<TimelineEditor> {
 
   Widget _buildTrackRow(Track track, {bool showAddButton = false}) {
     final GlobalKey trackKey = GlobalKey();
+    final provider = context.watch<EditorProvider>();
+    final trackHeight = provider.timelineTrackHeight;
+
     return Row(
       children: [
         SizedBox(
           width: 52,
-          height: 48,
+          height: trackHeight,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -872,7 +876,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
             },
             builder: (context, candidateData, rejectedData) {
               return Container(
-                height: 48,
+                height: trackHeight,
                 decoration: BoxDecoration(
                   color: candidateData.isNotEmpty ? Colors.deepPurpleAccent.withOpacity(0.05) : Colors.transparent,
                   border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.05))),
@@ -1044,7 +1048,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
         feedback: Material(
           color: Colors.transparent,
           child: SizedBox(
-            height: 40,
+            height: context.read<EditorProvider>().timelineTrackHeight - 8,
             child: _buildDraggingFeedback(clip),
           ),
         ),
@@ -1260,12 +1264,13 @@ class _TimelineEditorState extends State<TimelineEditor> {
         ...selectedClips.where((c) => c.id != primaryClip.id).map((c) {
           final relX = _calculatePosition(c.startTime) - primaryStartPos;
           final cTrackIdx = clipToTrackIdx[c.id] ?? primaryTrackIdx;
-          final relY = (cTrackIdx - primaryTrackIdx) * 48.0;
+          final trackHeight = context.read<EditorProvider>().timelineTrackHeight;
+          final relY = (cTrackIdx - primaryTrackIdx) * trackHeight;
 
           return Positioned(
             left: relX,
             top: relY,
-            height: 40, // Maintain consistent height for all ghosts
+            height: trackHeight - 8, // Maintain consistent height for all ghosts
             child: Opacity(
               opacity: 0.4,
               child: _buildClipContent(c, true, true),
@@ -1289,6 +1294,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
             child: Text(
               "+${count - 1}",
               style: const TextStyle(
+                fontFamily: 'KleeOne',
                 color: Colors.black, 
                 fontSize: 9, 
                 fontWeight: FontWeight.w900,
@@ -1370,6 +1376,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
                     style: TextStyle(
+                      fontFamily: 'KleeOne',
                       fontSize: 10, 
                       color: isSelected ? Colors.white : Colors.white70, 
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
@@ -1496,8 +1503,9 @@ class _TimelineEditorState extends State<TimelineEditor> {
   }
 
   Widget _buildLabelContainer(String label, Color color) {
+    final trackHeight = context.watch<EditorProvider>().timelineTrackHeight;
     return Container(
-      height: 48,
+      height: trackHeight,
       width: 40,
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.05))),
@@ -1508,6 +1516,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
           child: Text(
             label,
             style: TextStyle(
+              fontFamily: 'KleeOne',
               fontSize: 6.5,
               fontWeight: FontWeight.w900,
               color: color.withOpacity(0.7),
@@ -1575,6 +1584,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
   }
 
   Widget _buildEmptySpaceDragTarget(TrackType type) {
+    final trackHeight = context.watch<EditorProvider>().timelineTrackHeight;
     return DragTarget<Object>(
       onWillAccept: (data) => true,
       onAccept: (data) {
@@ -1587,7 +1597,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
             children: [
               SizedBox(
                 width: 52,
-                height: 48,
+                height: trackHeight,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -1598,7 +1608,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
               _buildLabelContainer(_getTrackTypeLabel(type), _getTrackTypeColor(type)),
               Expanded(
                 child: Container(
-                  height: 48,
+                  height: trackHeight,
                   decoration: BoxDecoration(
                     color: candidateData.isNotEmpty ? Colors.deepPurpleAccent.withOpacity(0.05) : Colors.transparent,
                     border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.05))),
@@ -1607,11 +1617,11 @@ class _TimelineEditorState extends State<TimelineEditor> {
                     child: candidateData.isNotEmpty
                       ? const Text(
                           "DROP TO CREATE NEW TRACK", 
-                          style: TextStyle(color: Colors.deepPurpleAccent, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1.0)
+                          style: TextStyle(fontFamily: 'KleeOne', color: Colors.deepPurpleAccent, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1.0)
                         )
                       : const Text(
                           "DROP CLIP TO CREATE TRACK",
-                          style: TextStyle(color: Colors.white10, fontSize: 7, fontWeight: FontWeight.bold, letterSpacing: 1.0),
+                          style: TextStyle(fontFamily: 'KleeOne', color: Colors.white10, fontSize: 7, fontWeight: FontWeight.bold, letterSpacing: 1.0),
                         ),
                   ),
                 ),
@@ -1751,7 +1761,7 @@ class RulerPainter extends CustomPainter {
         if (i % 5 == 0 || pixelsPerSecond > 100) {
           textPainter.text = TextSpan(
             text: "${i}s",
-            style: const TextStyle(color: Colors.white38, fontSize: 8),
+            style: const TextStyle(fontFamily: 'KleeOne', color: Colors.white38, fontSize: 8),
           );
           textPainter.layout();
           textPainter.paint(canvas, Offset(x + 4, 1));

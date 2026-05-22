@@ -132,6 +132,7 @@ class EditorProvider extends ChangeNotifier {
   double _aspectRatio = 16 / 9;
   int _backgroundColor = 0xFFFFFFFF;
   String? _backgroundImagePath;
+  String? _lastSyncedBackgroundId;
   double _backgroundScale = 1.0;
   double _backgroundRotation = 0.0;
   double _backgroundX = 0.0;
@@ -163,6 +164,13 @@ class EditorProvider extends ChangeNotifier {
   bool get showPanControls => _showPanControls;
   void toggleShowPanControls() {
     _showPanControls = !_showPanControls;
+    notifyListeners();
+  }
+
+  double _timelineTrackHeight = 48.0;
+  double get timelineTrackHeight => _timelineTrackHeight;
+  set timelineTrackHeight(double val) {
+    _timelineTrackHeight = val;
     notifyListeners();
   }
 
@@ -251,13 +259,49 @@ class EditorProvider extends ChangeNotifier {
     _focusEnd = null;
     notifyListeners();
   }
-  int get backgroundColor => selectedBackground?.color ?? _backgroundColor;
-  String? get backgroundImagePath => selectedBackground?.imagePath ?? _backgroundImagePath;
-  double get backgroundScale => selectedBackground?.scale ?? _backgroundScale;
-  double get backgroundRotation => selectedBackground?.rotation ?? _backgroundRotation;
-  double get backgroundX => selectedBackground?.x ?? _backgroundX;
-  double get backgroundY => selectedBackground?.y ?? _backgroundY;
-  int get backgroundFillMode => selectedBackground?.fillMode ?? _backgroundFillMode;
+  BackgroundClip? get activeBackgroundAtPlayhead {
+    for (var track in _backgroundTracks) {
+      for (var clip in track.backgrounds) {
+        if (_currentTime >= clip.startTime && _currentTime <= clip.endTime) {
+          return clip;
+        }
+      }
+    }
+    return null;
+  }
+
+  BackgroundClip? get _effectiveBackground => selectedBackground ?? activeBackgroundAtPlayhead;
+
+  int get backgroundColor => _effectiveBackground?.color ?? _backgroundColor;
+  String? get backgroundImagePath => _effectiveBackground?.imagePath ?? _backgroundImagePath;
+  double get backgroundScale => _effectiveBackground?.scale ?? _backgroundScale;
+  double get backgroundRotation => _effectiveBackground?.rotation ?? _backgroundRotation;
+  double get backgroundX => _effectiveBackground?.x ?? _backgroundX;
+  double get backgroundY => _effectiveBackground?.y ?? _backgroundY;
+  int get backgroundFillMode => _effectiveBackground?.fillMode ?? _backgroundFillMode;
+  
+  double get backgroundBrightness => _effectiveBackground?.brightness ?? 1.0;
+  double get backgroundSaturation => _effectiveBackground?.saturation ?? 1.0;
+  double get backgroundContrast => _effectiveBackground?.contrast ?? 1.0;
+  double get backgroundBlur => _effectiveBackground?.blur ?? 0.0;
+
+  void _syncBackgroundIfChanged() {
+    final currentBgId = _effectiveBackground?.id;
+    if (currentBgId != _lastSyncedBackgroundId) {
+      _lastSyncedBackgroundId = currentBgId;
+      _bridge.updateProjectSettings(
+        aspectRatio: _aspectRatio,
+        backgroundColor: backgroundColor,
+        backgroundImagePath: backgroundImagePath,
+        bgScale: backgroundScale,
+        bgRotation: backgroundRotation,
+        bgX: backgroundX,
+        bgY: backgroundY,
+        bgFillMode: backgroundFillMode,
+      );
+      notifyListeners();
+    }
+  }
 
   Duration _clampTime(Duration time) {
     if (time < Duration.zero) return Duration.zero;
@@ -571,6 +615,88 @@ class EditorProvider extends ChangeNotifier {
     }
   }
 
+  void extendSelectedBackgroundToFullDuration() {
+    final selected = selectedBackground;
+    if (selected == null) return;
+
+    saveState();
+
+    // Find the track index of the selected background
+    int selectedTrackIdx = -1;
+    for (int i = 0; i < _backgroundTracks.length; i++) {
+      if (_backgroundTracks[i].backgrounds.any((c) => c.id == selected.id)) {
+        selectedTrackIdx = i;
+        break;
+      }
+    }
+    if (selectedTrackIdx == -1) return;
+
+    final track = _backgroundTracks[selectedTrackIdx];
+    
+    // Save all OTHER clips on this track
+    final otherClips = track.backgrounds.where((c) => c.id != selected.id).toList();
+
+    // Resize the selected clip to start: 0, end: totalDuration
+    final resizedClip = selected.copyWith(
+      startTime: Duration.zero,
+      endTime: totalDuration,
+    );
+
+    // Update the track with ONLY the resized clip
+    _backgroundTracks[selectedTrackIdx] = track.copyWith(
+      backgrounds: [resizedClip],
+    );
+
+    // Now distribute other clips to empty background tracks or new tracks
+    for (var clip in otherClips) {
+      bool placed = false;
+      
+      // Check existing background tracks (excluding the resized one)
+      for (int i = 0; i < _backgroundTracks.length; i++) {
+        if (i == selectedTrackIdx) continue;
+        
+        final checkTrack = _backgroundTracks[i];
+        bool hasOverlap = false;
+        for (var c in checkTrack.backgrounds) {
+          if (c.startTime < clip.endTime && c.endTime > clip.startTime) {
+            hasOverlap = true;
+            break;
+          }
+        }
+        
+        if (!hasOverlap) {
+          // Add to this track by copying it
+          final newBgList = List<BackgroundClip>.from(checkTrack.backgrounds)..add(clip);
+          _backgroundTracks[i] = checkTrack.copyWith(backgrounds: newBgList);
+          placed = true;
+          break;
+        }
+      }
+      
+      // If we couldn't place it, create a new track
+      if (!placed) {
+        final newTrack = Track(
+          id: '${DateTime.now().millisecondsSinceEpoch}_b_${_backgroundTracks.length}',
+          name: 'Background Track ${_backgroundTracks.length + 1}',
+          type: TrackType.background,
+          backgrounds: [clip],
+        );
+        _backgroundTracks.add(newTrack);
+      }
+    }
+
+    // Sort all background tracks' clips chronologically
+    for (int i = 0; i < _backgroundTracks.length; i++) {
+      final sortedBg = List<BackgroundClip>.from(_backgroundTracks[i].backgrounds)
+        ..sort((a, b) => a.startTime.compareTo(b.startTime));
+      _backgroundTracks[i] = _backgroundTracks[i].copyWith(backgrounds: sortedBg);
+    }
+
+    syncToNative();
+    _markDirty();
+    notifyListeners();
+  }
+
   void setBackgroundScale(double scale) {
     final selected = selectedBackground;
     if (selected != null) {
@@ -628,6 +754,34 @@ class EditorProvider extends ChangeNotifier {
       _backgroundFillMode = mode;
       syncToNative();
       notifyListeners();
+    }
+  }
+
+  void setBackgroundBrightness(double brightness) {
+    final selected = selectedBackground;
+    if (selected != null) {
+      updateClip(selected.id, brightness: brightness);
+    }
+  }
+
+  void setBackgroundSaturation(double saturation) {
+    final selected = selectedBackground;
+    if (selected != null) {
+      updateClip(selected.id, saturation: saturation);
+    }
+  }
+
+  void setBackgroundContrast(double contrast) {
+    final selected = selectedBackground;
+    if (selected != null) {
+      updateClip(selected.id, contrast: contrast);
+    }
+  }
+
+  void setBackgroundBlur(double blur) {
+    final selected = selectedBackground;
+    if (selected != null) {
+      updateClip(selected.id, blur: blur);
     }
   }
 
@@ -1004,6 +1158,23 @@ class EditorProvider extends ChangeNotifier {
     String? imagePath,
     int? fillMode,
     CustomBlendMode? blendMode,
+    bool? isGlowEnabled,
+    bool? isBendingEnabled,
+    bool? isReflectionEnabled,
+    int? glowColor,
+    double? glowSize,
+    double? bendingAmount,
+    double? reflectionOffset,
+    double? reflectionOpacity,
+    int? reflectionColor,
+    bool? isGradientEnabled,
+    int? gradientColor1,
+    int? gradientColor2,
+    double? gradientAngle,
+    double? brightness,
+    double? saturation,
+    double? contrast,
+    double? blur,
     bool silent = false,
   }) {
     updateClips([id],
@@ -1026,6 +1197,7 @@ class EditorProvider extends ChangeNotifier {
       opacity: opacity,
       isShadowEnabled: isShadowEnabled,
       isBackgroundEnabled: isBackgroundEnabled,
+      isStrokeEnabled: isStrokeEnabled,
       fontFamily: fontFamily,
       entranceAnimation: entranceAnimation,
       exitAnimation: exitAnimation,
@@ -1035,6 +1207,23 @@ class EditorProvider extends ChangeNotifier {
       imagePath: imagePath,
       fillMode: fillMode,
       blendMode: blendMode,
+      isGlowEnabled: isGlowEnabled,
+      isBendingEnabled: isBendingEnabled,
+      isReflectionEnabled: isReflectionEnabled,
+      glowColor: glowColor,
+      glowSize: glowSize,
+      bendingAmount: bendingAmount,
+      reflectionOffset: reflectionOffset,
+      reflectionOpacity: reflectionOpacity,
+      reflectionColor: reflectionColor,
+      isGradientEnabled: isGradientEnabled,
+      gradientColor1: gradientColor1,
+      gradientColor2: gradientColor2,
+      gradientAngle: gradientAngle,
+      brightness: brightness,
+      saturation: saturation,
+      contrast: contrast,
+      blur: blur,
       silent: silent,
     );
   }
@@ -1158,6 +1347,10 @@ class EditorProvider extends ChangeNotifier {
     int? gradientColor1,
     int? gradientColor2,
     double? gradientAngle,
+    double? brightness,
+    double? saturation,
+    double? contrast,
+    double? blur,
     bool silent = false,
   }) {
     final idSet = ids.toSet();
@@ -1232,6 +1425,10 @@ class EditorProvider extends ChangeNotifier {
             gradientColor1: gradientColor1,
             gradientColor2: gradientColor2,
             gradientAngle: gradientAngle,
+            brightness: brightness,
+            saturation: saturation,
+            contrast: contrast,
+            blur: blur,
             keyframes: updatedKeyframes,
           );
         }
@@ -1294,6 +1491,10 @@ class EditorProvider extends ChangeNotifier {
             reflectionOffset: reflectionOffset,
             reflectionOpacity: reflectionOpacity,
             reflectionColor: reflectionColor,
+            brightness: brightness,
+            saturation: saturation,
+            contrast: contrast,
+            blur: blur,
             keyframes: updatedKeyframes,
           );
         }
@@ -1362,6 +1563,10 @@ class EditorProvider extends ChangeNotifier {
             entranceAnimation: entranceAnimation,
             exitAnimation: exitAnimation,
             loopAnimation: loopAnimation,
+            brightness: brightness,
+            saturation: saturation,
+            contrast: contrast,
+            blur: blur,
             keyframes: updatedKeyframes,
           );
         }
@@ -1438,16 +1643,18 @@ class EditorProvider extends ChangeNotifier {
     _recalculateTotalDuration();
     _bridge.setTotalDuration(_totalDuration.inMilliseconds);
 
+    _lastSyncedBackgroundId = _effectiveBackground?.id;
+
     _bridge.updateClips(uniqueClips.values.toList());
     _bridge.updateProjectSettings(
       aspectRatio: _aspectRatio,
-      backgroundColor: _backgroundColor,
-      backgroundImagePath: _backgroundImagePath,
-      bgScale: _backgroundScale,
-      bgRotation: _backgroundRotation,
-      bgX: _backgroundX,
-      bgY: _backgroundY,
-      bgFillMode: _backgroundFillMode,
+      backgroundColor: backgroundColor,
+      backgroundImagePath: backgroundImagePath,
+      bgScale: backgroundScale,
+      bgRotation: backgroundRotation,
+      bgX: backgroundX,
+      bgY: backgroundY,
+      bgFillMode: backgroundFillMode,
     );
     _pushAudioToNative();
   }
@@ -2077,6 +2284,7 @@ class EditorProvider extends ChangeNotifier {
       }
 
       playbackTime.value = _currentTime;
+      _syncBackgroundIfChanged();
     });
     
     notifyListeners();
@@ -2096,6 +2304,7 @@ class EditorProvider extends ChangeNotifier {
     
     _bridge.seekTo(_currentTime.inMilliseconds);
     _bridge.seekAudioEngine(_currentTime.inMilliseconds);
+    _syncBackgroundIfChanged();
     notifyListeners();
   }
 
@@ -2424,15 +2633,19 @@ class EditorProvider extends ChangeNotifier {
     // Determine background color: custom or preset derived
     int bgCol = customBgColor ?? 0xFF0A0A0E; // default sleek dark titanium/black
     if (customBgColor == null && styles.isNotEmpty) {
-      final styleNameLower = styles.first.name.toLowerCase();
-      if (styleNameLower.contains('cyberpunk')) {
-        bgCol = 0xFF07040B; 
-      } else if (styleNameLower.contains('minimal')) {
-        bgCol = 0xFF12131C; 
-      } else if (styleNameLower.contains('retro')) {
-        bgCol = 0xFF0E0A1E; 
-      } else if (styleNameLower.contains('nature')) {
-        bgCol = 0xFF0B1310; 
+      if (styles.first.colorPalette.length >= 4) {
+        bgCol = styles.first.colorPalette[0];
+      } else {
+        final styleNameLower = styles.first.name.toLowerCase();
+        if (styleNameLower.contains('cyberpunk')) {
+          bgCol = 0xFF07040B; 
+        } else if (styleNameLower.contains('minimal')) {
+          bgCol = 0xFF12131C; 
+        } else if (styleNameLower.contains('retro')) {
+          bgCol = 0xFF0E0A1E; 
+        } else if (styleNameLower.contains('nature')) {
+          bgCol = 0xFF0B1310; 
+        }
       }
     }
 

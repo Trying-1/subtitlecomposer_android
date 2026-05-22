@@ -300,6 +300,10 @@ class SubtitleClip implements TimelineClip {
   final int gradientColor1;
   final int gradientColor2;
   final double gradientAngle;
+  final double brightness;
+  final double saturation;
+  final double contrast;
+  final double blur;
   @override
   final Duration originalStartTime;
   @override
@@ -358,6 +362,10 @@ class SubtitleClip implements TimelineClip {
     this.gradientColor1 = 0xFFFFFFFF,
     this.gradientColor2 = 0xFF000000,
     this.gradientAngle = 0.0,
+    this.brightness = 1.0,
+    this.saturation = 1.0,
+    this.contrast = 1.0,
+    this.blur = 0.0,
     this.fontFamily = 'Poppins',
     this.entranceAnimation = const ClipAnimation(),
     this.exitAnimation = const ClipAnimation(),
@@ -411,6 +419,10 @@ class SubtitleClip implements TimelineClip {
     'gradientColor1': gradientColor1,
     'gradientColor2': gradientColor2,
     'gradientAngle': gradientAngle,
+    'brightness': brightness,
+    'saturation': saturation,
+    'contrast': contrast,
+    'blur': blur,
     'fontFamily': fontFamily,
     'entranceAnimation': entranceAnimation.toJson(),
     'exitAnimation': exitAnimation.toJson(),
@@ -454,6 +466,10 @@ class SubtitleClip implements TimelineClip {
     gradientColor1: json['gradientColor1'] as int? ?? 0xFFFFFFFF,
     gradientColor2: json['gradientColor2'] as int? ?? 0xFF000000,
     gradientAngle: (json['gradientAngle'] as num?)?.toDouble() ?? 0.0,
+    brightness: (json['brightness'] as num?)?.toDouble() ?? 1.0,
+    saturation: (json['saturation'] as num?)?.toDouble() ?? 1.0,
+    contrast: (json['contrast'] as num?)?.toDouble() ?? 1.0,
+    blur: (json['blur'] as num?)?.toDouble() ?? 0.0,
     glowColor: json['glowColor'] as int? ?? 0xFFFF0000,
     glowSize: (json['glowSize'] as num?)?.toDouble() ?? 0.0,
     bendingAmount: (json['bendingAmount'] as num?)?.toDouble() ?? 0.0,
@@ -511,6 +527,10 @@ class SubtitleClip implements TimelineClip {
     int? gradientColor1,
     int? gradientColor2,
     double? gradientAngle,
+    double? brightness,
+    double? saturation,
+    double? contrast,
+    double? blur,
     String? fontFamily,
     ClipAnimation? entranceAnimation,
     ClipAnimation? exitAnimation,
@@ -558,6 +578,10 @@ class SubtitleClip implements TimelineClip {
     gradientColor1: gradientColor1 ?? this.gradientColor1,
     gradientColor2: gradientColor2 ?? this.gradientColor2,
     gradientAngle: gradientAngle ?? this.gradientAngle,
+    brightness: brightness ?? this.brightness,
+    saturation: saturation ?? this.saturation,
+    contrast: contrast ?? this.contrast,
+    blur: blur ?? this.blur,
     fontFamily: fontFamily ?? this.fontFamily,
     entranceAnimation: entranceAnimation ?? this.entranceAnimation,
     exitAnimation: exitAnimation ?? this.exitAnimation,
@@ -605,6 +629,10 @@ class OverlayClip implements TimelineClip {
   final double reflectionOffset;
   final double reflectionOpacity;
   final int reflectionColor;
+  final double brightness;
+  final double saturation;
+  final double contrast;
+  final double blur;
   @override
   final Duration originalStartTime;
   @override
@@ -651,6 +679,10 @@ class OverlayClip implements TimelineClip {
     this.reflectionOffset = 0.0,
     this.reflectionOpacity = 0.5,
     this.reflectionColor = 0xFFFFFFFF,
+    this.brightness = 1.0,
+    this.saturation = 1.0,
+    this.contrast = 1.0,
+    this.blur = 0.0,
     this.entranceAnimation = const ClipAnimation(),
     this.exitAnimation = const ClipAnimation(),
     this.loopAnimation = const ClipAnimation(),
@@ -691,6 +723,10 @@ class OverlayClip implements TimelineClip {
     'reflectionOffset': reflectionOffset,
     'reflectionOpacity': reflectionOpacity,
     'reflectionColor': reflectionColor,
+    'brightness': brightness,
+    'saturation': saturation,
+    'contrast': contrast,
+    'blur': blur,
     'entranceAnimation': entranceAnimation.toJson(),
     'exitAnimation': exitAnimation.toJson(),
     'loopAnimation': loopAnimation.toJson(),
@@ -728,6 +764,10 @@ class OverlayClip implements TimelineClip {
     reflectionOffset: (json['reflectionOffset'] as num?)?.toDouble() ?? 0.0,
     reflectionOpacity: (json['reflectionOpacity'] as num?)?.toDouble() ?? 0.5,
     reflectionColor: json['reflectionColor'] as int? ?? 0xFFFFFFFF,
+    brightness: (json['brightness'] as num?)?.toDouble() ?? 1.0,
+    saturation: (json['saturation'] as num?)?.toDouble() ?? 1.0,
+    contrast: (json['contrast'] as num?)?.toDouble() ?? 1.0,
+    blur: (json['blur'] as num?)?.toDouble() ?? 0.0,
     entranceAnimation: ClipAnimation.fromJson(Map<String, dynamic>.from(json['entranceAnimation'])),
     exitAnimation: ClipAnimation.fromJson(Map<String, dynamic>.from(json['exitAnimation'])),
     loopAnimation: ClipAnimation.fromJson(Map<String, dynamic>.from(json['loopAnimation'] ?? {})),
@@ -768,6 +808,10 @@ class OverlayClip implements TimelineClip {
     ClipAnimation? entranceAnimation,
     ClipAnimation? exitAnimation,
     ClipAnimation? loopAnimation,
+    double? brightness,
+    double? saturation,
+    double? contrast,
+    double? blur,
     List<Keyframe>? keyframes,
     Duration? originalStartTime,
     Duration? originalEndTime,
@@ -799,6 +843,10 @@ class OverlayClip implements TimelineClip {
     reflectionOffset: reflectionOffset ?? this.reflectionOffset,
     reflectionOpacity: reflectionOpacity ?? this.reflectionOpacity,
     reflectionColor: reflectionColor ?? this.reflectionColor,
+    brightness: brightness ?? this.brightness,
+    saturation: saturation ?? this.saturation,
+    contrast: contrast ?? this.contrast,
+    blur: blur ?? this.blur,
     entranceAnimation: entranceAnimation ?? this.entranceAnimation,
     exitAnimation: exitAnimation ?? this.exitAnimation,
     loopAnimation: loopAnimation ?? this.loopAnimation,
@@ -848,6 +896,10 @@ class BackgroundClip implements TimelineClip {
   final int sourceDurationMs;
   final int assetWidth;
   final int assetHeight;
+  final double brightness;
+  final double saturation;
+  final double contrast;
+  final double blur;
   @override
   Duration get duration => endTime - startTime;
 
@@ -870,6 +922,10 @@ class BackgroundClip implements TimelineClip {
     this.sourceDurationMs = 0,
     this.assetWidth = 0,
     this.assetHeight = 0,
+    this.brightness = 1.0,
+    this.saturation = 1.0,
+    this.contrast = 1.0,
+    this.blur = 0.0,
     Duration? originalStartTime,
     Duration? originalEndTime,
     this.originalTrackId,
@@ -898,6 +954,10 @@ class BackgroundClip implements TimelineClip {
     'sourceDurationMs': sourceDurationMs,
     'assetWidth': assetWidth,
     'assetHeight': assetHeight,
+    'brightness': brightness,
+    'saturation': saturation,
+    'contrast': contrast,
+    'blur': blur,
     'originalStartTime': originalStartTime.inMilliseconds,
     'originalEndTime': originalEndTime.inMilliseconds,
     'originalTrackId': originalTrackId,
@@ -922,6 +982,10 @@ class BackgroundClip implements TimelineClip {
     sourceDurationMs: json['sourceDurationMs'] as int? ?? 0,
     assetWidth: json['assetWidth'] as int? ?? 0,
     assetHeight: json['assetHeight'] as int? ?? 0,
+    brightness: (json['brightness'] as num?)?.toDouble() ?? 1.0,
+    saturation: (json['saturation'] as num?)?.toDouble() ?? 1.0,
+    contrast: (json['contrast'] as num?)?.toDouble() ?? 1.0,
+    blur: (json['blur'] as num?)?.toDouble() ?? 0.0,
     originalStartTime: Duration(milliseconds: json['originalStartTime'] ?? json['startTime']),
     originalEndTime: Duration(milliseconds: json['originalEndTime'] ?? json['endTime']),
     originalTrackId: json['originalTrackId'],
@@ -946,6 +1010,10 @@ class BackgroundClip implements TimelineClip {
     int? sourceDurationMs,
     int? assetWidth,
     int? assetHeight,
+    double? brightness,
+    double? saturation,
+    double? contrast,
+    double? blur,
     Duration? originalStartTime,
     Duration? originalEndTime,
     String? originalTrackId,
@@ -968,6 +1036,10 @@ class BackgroundClip implements TimelineClip {
     sourceDurationMs: sourceDurationMs ?? this.sourceDurationMs,
     assetWidth: assetWidth ?? this.assetWidth,
     assetHeight: assetHeight ?? this.assetHeight,
+    brightness: brightness ?? this.brightness,
+    saturation: saturation ?? this.saturation,
+    contrast: contrast ?? this.contrast,
+    blur: blur ?? this.blur,
     originalStartTime: originalStartTime ?? this.originalStartTime,
     originalEndTime: originalEndTime ?? this.originalEndTime,
     originalTrackId: originalTrackId ?? this.originalTrackId,

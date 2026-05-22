@@ -156,11 +156,11 @@ class KineticPresets {
       AnimationType.scaleDown,
     ],
     animationDurationMs: 350,
-    enableStroke: true,
+    enableStroke: false,
     strokeColor: 0xFF000000,
     strokeWidth: 3.0,
     enableShadow: false,
-    enableGlow: true,
+    enableGlow: false,
     textCase: TextCase.upper,
   );
 
@@ -186,7 +186,7 @@ class KineticPresets {
     ],
     animationDurationMs: 500,
     enableStroke: false,
-    enableShadow: true,
+    enableShadow: false,
     enableGlow: false,
     textCase: TextCase.upper,
   );
@@ -216,10 +216,10 @@ class KineticPresets {
       AnimationType.zoomOut,
     ],
     animationDurationMs: 400,
-    enableStroke: true,
+    enableStroke: false,
     strokeColor: 0xFF000000,
     strokeWidth: 4.0,
-    enableShadow: true,
+    enableShadow: false,
     enableGlow: false,
     textCase: TextCase.upper,
   );
@@ -247,7 +247,7 @@ class KineticPresets {
     ],
     animationDurationMs: 600,
     enableStroke: false,
-    enableShadow: true,
+    enableShadow: false,
     enableGlow: false,
     textCase: TextCase.title,
   );
@@ -273,7 +273,7 @@ class KineticPresets {
     ],
     animationDurationMs: 400,
     enableStroke: false,
-    enableShadow: true,
+    enableShadow: false,
     enableGlow: false,
     textCase: TextCase.upper,
   );
@@ -298,7 +298,7 @@ class KineticPresets {
       AnimationType.fadeOut,
     ],
     animationDurationMs: 300,
-    enableStroke: true,
+    enableStroke: false,
     strokeColor: 0xFF000000,
     strokeWidth: 4.0,
     enableShadow: false,
@@ -325,10 +325,10 @@ class KineticPresets {
       AnimationType.slideDown,
     ],
     animationDurationMs: 400,
-    enableStroke: true,
+    enableStroke: false,
     strokeColor: 0xFF000000,
     strokeWidth: 3.0,
-    enableShadow: true,
+    enableShadow: false,
     enableGlow: false,
     textCase: TextCase.upper,
   );
@@ -353,8 +353,8 @@ class KineticPresets {
     ],
     animationDurationMs: 450,
     enableStroke: false,
-    enableShadow: true,
-    enableGlow: true,
+    enableShadow: false,
+    enableGlow: false,
     textCase: TextCase.title,
   );
 
@@ -378,10 +378,10 @@ class KineticPresets {
       AnimationType.fadeOut,
     ],
     animationDurationMs: 350,
-    enableStroke: true,
+    enableStroke: false,
     strokeColor: 0xFF000000,
     strokeWidth: 5.0,
-    enableShadow: true,
+    enableShadow: false,
     enableGlow: false,
     textCase: TextCase.upper,
   );
@@ -406,7 +406,7 @@ class KineticPresets {
     ],
     animationDurationMs: 600,
     enableStroke: false,
-    enableShadow: true,
+    enableShadow: false,
     enableGlow: false,
     textCase: TextCase.upper,
   );
@@ -431,8 +431,8 @@ class KineticPresets {
     ],
     animationDurationMs: 400,
     enableStroke: false,
-    enableShadow: true,
-    enableGlow: true,
+    enableShadow: false,
+    enableGlow: false,
     textCase: TextCase.upper,
   );
 
@@ -455,10 +455,10 @@ class KineticPresets {
       AnimationType.slideDown,
     ],
     animationDurationMs: 350,
-    enableStroke: true,
+    enableStroke: false,
     strokeColor: 0xFFFFFFFF,
     strokeWidth: 2.0,
-    enableShadow: true,
+    enableShadow: false,
     enableGlow: false,
     textCase: TextCase.title,
   );
@@ -484,7 +484,7 @@ class KineticPresets {
     ],
     animationDurationMs: 500,
     enableStroke: false,
-    enableShadow: true,
+    enableShadow: false,
     enableGlow: false,
     textCase: TextCase.upper,
   );
@@ -509,11 +509,11 @@ class KineticPresets {
       AnimationType.zoomOut,
     ],
     animationDurationMs: 600,
-    enableStroke: true,
+    enableStroke: false,
     strokeColor: 0xFF000000,
     strokeWidth: 3.0,
     enableShadow: false,
-    enableGlow: true,
+    enableGlow: false,
     textCase: TextCase.title,
   );
 
@@ -553,11 +553,11 @@ class KineticPresets {
       AnimationType.zoomOut,
     ],
     animationDurationMs: 400,
-    enableStroke: true,
+    enableStroke: false,
     strokeColor: 0xFF000000,
     strokeWidth: 2.5,
-    enableShadow: true,
-    enableGlow: true,
+    enableShadow: false,
+    enableGlow: false,
     textCase: TextCase.upper,
   );
 
@@ -583,7 +583,7 @@ class KineticPresets {
     ],
     animationDurationMs: 300,
     enableStroke: false,
-    enableShadow: true,
+    enableShadow: false,
     enableGlow: false,
     textCase: TextCase.upper,
   );

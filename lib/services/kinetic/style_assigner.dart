@@ -21,15 +21,27 @@ class StyleAssigner {
     for (int i = 0; i < clips.length; i++) {
       final clip = clips[i];
 
-      // --- Color: cycle through palette, avoid adjacent repeats ---
-      int colorIndex = _random.nextInt(style.colorPalette.length);
-      if (style.colorPalette.length > 1) {
-        while (colorIndex == lastColorIndex) {
-          colorIndex = _random.nextInt(style.colorPalette.length);
+      // --- Color: semantic role mapping if 4 slots available, else cycle through palette ---
+      final int color;
+      if (style.colorPalette.length >= 4) {
+        // Map roles semantically:
+        // - Index 0: BACKGROUND (used for canvas background, not text)
+        // - Index 1: MAIN TEXT (first word / focal point)
+        // - Index 2: SUB MAIN
+        // - Index 3: NORMAL TEXT
+        // Pattern: Main, Sub, Normal, Main, Sub, Normal...
+        final int roleIndex = (i % 3) + 1; // 1, 2, or 3
+        color = style.colorPalette[roleIndex];
+      } else {
+        int colorIndex = _random.nextInt(style.colorPalette.length);
+        if (style.colorPalette.length > 1) {
+          while (colorIndex == lastColorIndex) {
+            colorIndex = _random.nextInt(style.colorPalette.length);
+          }
         }
+        lastColorIndex = colorIndex;
+        color = style.colorPalette[colorIndex];
       }
-      lastColorIndex = colorIndex;
-      final color = style.colorPalette[colorIndex];
 
       // --- Font: random from pool, avoid adjacent repeats ---
       int fontIndex = _random.nextInt(style.fontPool.length);
@@ -93,16 +105,16 @@ class StyleAssigner {
         scale: scale,
         rotation: rotation,
         isStrokeEnabled: style.enableStroke,
-        strokeColor: style.enableStroke ? style.strokeColor : null,
-        strokeWidth: style.enableStroke ? style.strokeWidth : null,
+        strokeColor: style.enableStroke ? style.strokeColor : 0x00000000,
+        strokeWidth: style.enableStroke ? style.strokeWidth : 0.0,
         isShadowEnabled: style.enableShadow,
-        shadowColor: style.enableShadow ? 0x88000000 : null,
-        shadowBlur: style.enableShadow ? 8.0 : null,
-        shadowOffsetX: style.enableShadow ? 4.0 : null,
-        shadowOffsetY: style.enableShadow ? 4.0 : null,
+        shadowColor: style.enableShadow ? 0x88000000 : 0x00000000,
+        shadowBlur: style.enableShadow ? 8.0 : 0.0,
+        shadowOffsetX: style.enableShadow ? 4.0 : 0.0,
+        shadowOffsetY: style.enableShadow ? 4.0 : 0.0,
         isGlowEnabled: style.enableGlow,
-        glowColor: style.enableGlow ? color : null,
-        glowSize: style.enableGlow ? 6.0 : null,
+        glowColor: style.enableGlow ? color : 0x00000000,
+        glowSize: style.enableGlow ? 6.0 : 0.0,
         opacity: 1.0,
         textOpacity: 1.0,
       ));

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/editor_provider.dart';
 import 'dart:async';
 import '../video_player_screen.dart';
+import '../../services/app_review_service.dart';
 
 class ExportScreen extends StatefulWidget {
   const ExportScreen({super.key});
@@ -60,6 +61,7 @@ class _ExportScreenState extends State<ExportScreen> {
         _isFinished = true;
         _outputPath = path;
       });
+      AppReviewService.requestReviewIfNeeded();
     }).catchError((e) {
       _timer?.cancel();
       setState(() {

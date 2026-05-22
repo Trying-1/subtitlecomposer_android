@@ -519,7 +519,11 @@ class MainActivity : FlutterActivity() {
                 isGradientEnabled = it["isGradientEnabled"] as? Boolean ?: false,
                 gradientColor1 = (it["gradientColor1"] as? Number)?.toLong()?.toInt() ?: 0xFFFFFFFF.toInt(),
                 gradientColor2 = (it["gradientColor2"] as? Number)?.toLong()?.toInt() ?: 0xFF000000.toInt(),
-                gradientAngle = (it["gradientAngle"] as? Number)?.toFloat() ?: 0f
+                gradientAngle = (it["gradientAngle"] as? Number)?.toFloat() ?: 0f,
+                brightness = (it["brightness"] as? Number)?.toFloat() ?: 1.0f,
+                saturation = (it["saturation"] as? Number)?.toFloat() ?: 1.0f,
+                contrast = (it["contrast"] as? Number)?.toFloat() ?: 1.0f,
+                blur = (it["blur"] as? Number)?.toFloat() ?: 0.0f
             )
         }
     }

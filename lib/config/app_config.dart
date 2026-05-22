@@ -25,7 +25,7 @@ class AppConfig {
   static const bool showHomeNewProject = true;
   static const bool showHomeAssetsLibrary = true;
   static const bool showHomeTutorials = true;
-  static const bool showHomeNativePlayer = true;             //premium
+  static const bool showHomeNativePlayer = false;             //premium
   static const bool showHomeProfile = true;
 
   // Timeline Tools

@@ -188,6 +188,39 @@ class _BackgroundTabState extends State<BackgroundTab> {
             _buildDurationItem('Total', provider.selectedBackground!.endTime - provider.selectedBackground!.startTime, isTotal: true),
           ],
         ),
+        const SizedBox(height: 16),
+        InkWell(
+          onTap: () {
+            provider.extendSelectedBackgroundToFullDuration();
+          },
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+            decoration: BoxDecoration(
+              color: Colors.deepPurpleAccent.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.deepPurpleAccent.withOpacity(0.2)),
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.fullscreen_rounded, size: 16, color: Colors.deepPurpleAccent),
+                SizedBox(width: 8),
+                Text(
+                  'EXTEND TO FULL DURATION',
+                  style: TextStyle(
+                    fontFamily: 'KleeOne',
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
         const SizedBox(height: 24),
         const Text('TRANSFORMATIONS', style: TextStyle(fontSize: 8, color: Colors.deepPurpleAccent, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
         const SizedBox(height: 16),
@@ -205,6 +238,16 @@ class _BackgroundTabState extends State<BackgroundTab> {
         CommonControls.buildDialScrubber(context, 'Horizontal (X)', provider.backgroundX, -2.0, 2.0, (v) => provider.setBackgroundX(v), onReset: () => provider.setBackgroundX(0.0)),
         const SizedBox(height: 12),
         CommonControls.buildDialScrubber(context, 'Vertical (Y)', provider.backgroundY, -2.0, 2.0, (v) => provider.setBackgroundY(v), onReset: () => provider.setBackgroundY(0.0)),
+        const SizedBox(height: 24),
+        const Text('IMAGE ADJUSTMENTS', style: TextStyle(fontSize: 8, color: Colors.deepPurpleAccent, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+        const SizedBox(height: 16),
+        CommonControls.buildDialScrubber(context, 'Brightness', provider.backgroundBrightness, 0.0, 3.0, (v) => provider.setBackgroundBrightness(v), onReset: () => provider.setBackgroundBrightness(1.0)),
+        const SizedBox(height: 12),
+        CommonControls.buildDialScrubber(context, 'Saturation', provider.backgroundSaturation, 0.0, 3.0, (v) => provider.setBackgroundSaturation(v), onReset: () => provider.setBackgroundSaturation(1.0)),
+        const SizedBox(height: 12),
+        CommonControls.buildDialScrubber(context, 'Contrast', provider.backgroundContrast, 0.0, 3.0, (v) => provider.setBackgroundContrast(v), onReset: () => provider.setBackgroundContrast(1.0)),
+        const SizedBox(height: 12),
+        CommonControls.buildDialScrubber(context, 'Blur', provider.backgroundBlur, 0.0, 25.0, (v) => provider.setBackgroundBlur(v), onReset: () => provider.setBackgroundBlur(0.0)),
       ],
     );
   }

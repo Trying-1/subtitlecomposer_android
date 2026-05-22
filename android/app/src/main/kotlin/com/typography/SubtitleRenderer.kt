@@ -133,6 +133,16 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
     private var uWipeIntensityOESLoc: Int = 0
     private var uCharCountOESLoc: Int = 0
 
+    private var uBrightnessLoc: Int = 0
+    private var uSaturationLoc: Int = 0
+    private var uContrastLoc: Int = 0
+    private var uBlurAmountLoc: Int = 0
+
+    private var uBrightnessOESLoc: Int = 0
+    private var uSaturationOESLoc: Int = 0
+    private var uContrastOESLoc: Int = 0
+    private var uBlurAmountOESLoc: Int = 0
+
     private val vertexShaderCode = """
         precision highp float;
         attribute vec4 vPosition;
@@ -191,6 +201,11 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         uniform vec4 vColor;
         uniform vec2 uBlurVector;
         
+        uniform float uBrightness;
+        uniform float uSaturation;
+        uniform float uContrast;
+        uniform float uBlurAmount;
+        
         uniform int uEffectMode; 
         uniform vec4 uEffectColor;
         uniform vec2 uTexelSize;
@@ -246,7 +261,33 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
             }
             
             uv = clamp(uv, 0.0, 1.0); // Prevent wrapping artifacts
-            vec4 texColor = texture2D(sTexture, uv);
+            vec4 texColor;
+            if (uBlurAmount > 0.0) {
+                vec4 accum = vec4(0.0);
+                float totalWeight = 0.0;
+                float step = uBlurAmount * 2.0;
+                for (float x = -1.0; x <= 1.0; x += 1.0) {
+                    for (float y = -1.0; y <= 1.0; y += 1.0) {
+                        float weight = 1.0 / (1.0 + x*x + y*y);
+                        vec2 offset = vec2(x, y) * step * uTexelSize;
+                        accum += texture2D(sTexture, uv + offset) * weight;
+                        totalWeight += weight;
+                    }
+                }
+                texColor = accum / totalWeight;
+            } else {
+                texColor = texture2D(sTexture, uv);
+            }
+            
+            // Adjust brightness
+            texColor.rgb *= uBrightness;
+            
+            // Adjust contrast
+            texColor.rgb = (texColor.rgb - 0.5) * uContrast + 0.5;
+            
+            // Adjust saturation
+            float luma = dot(texColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+            texColor.rgb = mix(vec3(luma), texColor.rgb, uSaturation);
             
             vec4 finalColor = vColor;
             if (uGradientEnabled == 1) {
@@ -321,6 +362,11 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         uniform samplerExternalOES sTexture;
         uniform vec4 vColor;
         
+        uniform float uBrightness;
+        uniform float uSaturation;
+        uniform float uContrast;
+        uniform float uBlurAmount;
+        
         uniform int uEffectMode; 
         uniform vec4 uEffectColor;
         uniform vec2 uTexelSize;
@@ -377,8 +423,34 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
             
             uv = clamp(uv, 0.0, 1.0); // Prevent wrapping artifacts
             if (alphaMod <= 0.0) discard;
-
-            vec4 texColor = texture2D(sTexture, uv);
+ 
+            vec4 texColor;
+            if (uBlurAmount > 0.0) {
+                vec4 accum = vec4(0.0);
+                float totalWeight = 0.0;
+                float step = uBlurAmount * 2.0;
+                for (float x = -1.0; x <= 1.0; x += 1.0) {
+                    for (float y = -1.0; y <= 1.0; y += 1.0) {
+                        float weight = 1.0 / (1.0 + x*x + y*y);
+                        vec2 offset = vec2(x, y) * step * uTexelSize;
+                        accum += texture2D(sTexture, uv + offset) * weight;
+                        totalWeight += weight;
+                    }
+                }
+                texColor = accum / totalWeight;
+            } else {
+                texColor = texture2D(sTexture, uv);
+            }
+            
+            // Adjust brightness
+            texColor.rgb *= uBrightness;
+            
+            // Adjust contrast
+            texColor.rgb = (texColor.rgb - 0.5) * uContrast + 0.5;
+            
+            // Adjust saturation
+            float luma = dot(texColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+            texColor.rgb = mix(vec3(luma), texColor.rgb, uSaturation);
             
             vec4 finalColor = vColor;
             if (uGradientEnabled == 1) {
@@ -484,6 +556,11 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         uWipeIntensityLoc = GLES20.glGetUniformLocation(program, "uWipeIntensity")
         uCharCountLoc = GLES20.glGetUniformLocation(program, "uCharCount")
         
+        uBrightnessLoc = GLES20.glGetUniformLocation(program, "uBrightness")
+        uSaturationLoc = GLES20.glGetUniformLocation(program, "uSaturation")
+        uContrastLoc = GLES20.glGetUniformLocation(program, "uContrast")
+        uBlurAmountLoc = GLES20.glGetUniformLocation(program, "uBlurAmount")
+        
         vPositionOESLoc = GLES20.glGetAttribLocation(programOES, "vPosition")
         vTexCoordOESLoc = GLES20.glGetAttribLocation(programOES, "vTexCoord")
         uMVPMatrixOESLoc = GLES20.glGetUniformLocation(programOES, "uMVPMatrix")
@@ -507,6 +584,11 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         uGradientColor1OESLoc = GLES20.glGetUniformLocation(programOES, "uGradientColor1")
         uGradientColor2OESLoc = GLES20.glGetUniformLocation(programOES, "uGradientColor2")
         uGradientAngleOESLoc = GLES20.glGetUniformLocation(programOES, "uGradientAngle")
+        
+        uBrightnessOESLoc = GLES20.glGetUniformLocation(programOES, "uBrightness")
+        uSaturationOESLoc = GLES20.glGetUniformLocation(programOES, "uSaturation")
+        uContrastOESLoc = GLES20.glGetUniformLocation(programOES, "uContrast")
+        uBlurAmountOESLoc = GLES20.glGetUniformLocation(programOES, "uBlurAmount")
 
         GLES20.glEnable(GLES20.GL_BLEND)
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
@@ -751,6 +833,11 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
             (android.graphics.Color.alpha(clip.color) / 255f) * animState.opacity * clip.textOpacity)
 
         GLES20.glUniformMatrix4fv(uMVPMatrixLoc, 1, false, mvpMatrix, 0)
+        
+        GLES20.glUniform1f(uBrightnessLoc, clip.brightness)
+        GLES20.glUniform1f(uSaturationLoc, clip.saturation)
+        GLES20.glUniform1f(uContrastLoc, clip.contrast)
+        GLES20.glUniform1f(uBlurAmountLoc, clip.blur)
         
         // Pass Motion Blur Vector
         GLES20.glUniform2f(uBlurVectorLoc, blurX, blurY)
@@ -1042,6 +1129,16 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         if (!isOES) {
             GLES20.glUniform2f(uBlurVectorLoc, 0f, 0f) 
         }
+        
+        val uBright = if (isOES) uBrightnessOESLoc else uBrightnessLoc
+        val uSat = if (isOES) uSaturationOESLoc else uSaturationLoc
+        val uContr = if (isOES) uContrastOESLoc else uContrastLoc
+        val uBlurA = if (isOES) uBlurAmountOESLoc else uBlurAmountLoc
+        
+        GLES20.glUniform1f(uBright, clip.brightness)
+        GLES20.glUniform1f(uSat, clip.saturation)
+        GLES20.glUniform1f(uContr, clip.contrast)
+        GLES20.glUniform1f(uBlurA, clip.blur)
 
         val aspect = width.toFloat() / height.toFloat()
         

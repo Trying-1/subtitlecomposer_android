@@ -5,12 +5,13 @@ import '../editor_screen.dart';
 import 'tutorials_page.dart';
 import 'assets_library_screen.dart';
 import '../profile/profile_screen.dart';
-import '../video_player/video_player_screen.dart';
 import '../../config/app_config.dart';
+import 'more_tools_screen.dart';
 
 import 'package:intl/intl.dart';
 import '../../services/project_service.dart';
 import '../../models/editor_models.dart';
+import '../../services/app_update_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -20,6 +21,12 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    AppUpdateService.checkForUpdates();
+  }
+
   @override
   Widget build(BuildContext context) {
     final projects = ProjectService.getAllProjects();
@@ -67,18 +74,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 primary: true,
               ),
               const SizedBox(height: 20),
-              if (AppConfig.showHomeAssetsLibrary) ...[
-                _buildActionCard(
-                  context,
-                  title: 'Asset Library',
-                  subtitle: 'Manage your overlays and sounds',
-                  icon: Icons.auto_awesome_motion_rounded,
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const AssetsLibraryScreen()));
-                  },
-                ),
-                const SizedBox(height: 20),
-              ],
               if (AppConfig.showImportProjectButton) ...[
                 _buildActionCard(
                   context,
@@ -99,29 +94,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(height: 20),
               ],
-            ],
-            if (AppConfig.showHomeTutorials) ...[
-              _buildActionCard(
-                context,
-                title: 'Tutorials',
-                subtitle: 'Learn how to use the editor',
-                icon: Icons.play_circle_outline_rounded,
-                onTap: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const TutorialsPage()));
-                },
-              ),
-              const SizedBox(height: 20),
-            ],
-            if (AppConfig.showHomeNativePlayer) ...[
-              _buildActionCard(
-                context,
-                title: 'Native Player',
-                subtitle: 'Play videos with native engine',
-                icon: Icons.video_collection_rounded,
-                onTap: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const VideoPlayerScreen()));
-                },
-              ),
             ],
             const SizedBox(height: 40),
             const Text(

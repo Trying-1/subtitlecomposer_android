@@ -155,3 +155,7 @@ Optimize your workflow with higher-tier commands.
 | `git clean -fd` | Forcefully remove all untracked files and directories in your repository. |
 | `git shortlog -sn` | Display a summary list of contributors and their total commit counts. |
 | `git config --global alias.<shortcut> "<command>"` | Create custom shortcuts (e.g., `git config --global alias.co checkout` lets you run `git co`). |
+
+
+git restore .
+git clean -fd

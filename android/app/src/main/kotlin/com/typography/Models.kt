@@ -184,7 +184,11 @@ data class SubtitleClip(
     val isGradientEnabled: Boolean = false,
     val gradientColor1: Int = 0xFFFFFFFF.toInt(),
     val gradientColor2: Int = 0xFF000000.toInt(),
-    val gradientAngle: Float = 0f
+    val gradientAngle: Float = 0f,
+    val brightness: Float = 1.0f,
+    val saturation: Float = 1.0f,
+    val contrast: Float = 1.0f,
+    val blur: Float = 0.0f
 )
 
 /**

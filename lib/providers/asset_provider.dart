@@ -179,6 +179,35 @@ class AssetProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  int importPalettes(List<ColorPalette> imported) {
+    if (!_isInitialized) return 0;
+    int importedCount = 0;
+    for (var palette in imported) {
+      final bool exists = _palettes.any((p) {
+        if (p.name.toLowerCase() != palette.name.toLowerCase()) return false;
+        if (p.colors.length != palette.colors.length) return false;
+        for (int i = 0; i < p.colors.length; i++) {
+          if (p.colors[i] != palette.colors[i]) return false;
+        }
+        return true;
+      });
+
+      if (!exists) {
+        _palettes.add(ColorPalette(
+          id: const Uuid().v4(),
+          name: palette.name,
+          colors: palette.colors,
+        ));
+        importedCount++;
+      }
+    }
+    if (importedCount > 0) {
+      _persistAssets();
+      notifyListeners();
+    }
+    return importedCount;
+  }
+
   void deletePalette(String id) {
     if (!_isInitialized) return;
     _palettes.removeWhere((p) => p.id == id);

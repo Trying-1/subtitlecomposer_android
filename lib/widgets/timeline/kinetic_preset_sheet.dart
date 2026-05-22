@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../models/editor_models.dart';
+import '../../providers/asset_provider.dart';
+import '../../utils/palette_presets.dart';
 import '../../services/kinetic/kinetic_style.dart';
 import '../common/custom_color_picker.dart';
 
@@ -79,10 +82,10 @@ class _KineticPresetSheetState extends State<KineticPresetSheet> {
     final firstIndex = _selectedPresetIndices.isNotEmpty ? _selectedPresetIndices.first : 0;
     final preset = presets[firstIndex.clamp(0, presets.length - 1)];
     
-    // User manual selections are independent of the preset
+    // User manual selections default to the initial preset's settings if not remembered
     _selectedFonts = _rememberedFonts ?? {'Poppins', 'Michroma', 'LuckiestGuy'};
-    _enableStroke = _rememberedStroke ?? false;
-    _enableGlow = _rememberedGlow ?? false;
+    _enableStroke = _rememberedStroke ?? preset.enableStroke;
+    _enableGlow = _rememberedGlow ?? preset.enableGlow;
     
     _selectedEntrancePool = _rememberedEntrancePool ?? preset.entrancePool.toSet();
     _selectedExitPool = _rememberedExitPool ?? preset.exitPool.toSet();
@@ -192,6 +195,7 @@ class _KineticPresetSheetState extends State<KineticPresetSheet> {
                     fontPool: _selectedFonts.toList(),
                     enableStroke: _enableStroke,
                     enableGlow: _enableGlow,
+                    enableShadow: _enableGlow,
                     entrancePool: _selectedEntrancePool.toList(),
                     exitPool: _selectedExitPool.toList(),
                     enableEntranceAnimation: _selectedEntrancePool.isNotEmpty,
@@ -358,6 +362,7 @@ class _KineticPresetSheetState extends State<KineticPresetSheet> {
                       fontPool: _selectedFonts.toList(),
                       enableStroke: _enableStroke,
                       enableGlow: _enableGlow,
+                      enableShadow: _enableGlow,
                       entrancePool: _selectedEntrancePool.toList(),
                       exitPool: _selectedExitPool.toList(),
                       enableEntranceAnimation: _selectedEntrancePool.isNotEmpty,
@@ -719,6 +724,8 @@ class _KineticPresetSheetState extends State<KineticPresetSheet> {
                                   _rotationMode = preset.rotationMode;
                                   _minScale = preset.minScale;
                                   _maxScale = preset.maxScale;
+                                  _enableStroke = preset.enableStroke;
+                                  _enableGlow = preset.enableGlow;
                                 }
                               });
                             },
@@ -1005,102 +1012,11 @@ class _KineticPresetSheetState extends State<KineticPresetSheet> {
 
                   const SizedBox(height: 24),
 
-                  // BACKGROUND COLOR SELECTION (Horizontal Scrollable Selector!)
-                  const Text(
-                    'CANVAS BACKGROUND COLOR',
-                    style: TextStyle(
-                      fontFamily: 'KleeOne',
-                      color: Colors.white38,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.0,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    physics: const BouncingScrollPhysics(),
-                    child: Row(
-                      children: [
-                        // Custom Palette Button for custom background selection
-                        Padding(
-                          padding: const EdgeInsets.only(right: 12),
-                          child: GestureDetector(
-                            onTap: () {
-                              _showCustomColorPicker(
-                                context,
-                                Color(_selectedBgColor),
-                                (newColor) {
-                                  setState(() {
-                                    _selectedBgColor = newColor.value;
-                                  });
-                                },
-                              );
-                            },
-                            child: Container(
-                              width: 38,
-                              height: 38,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.05),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.white24, width: 1.5),
-                              ),
-                              child: const Icon(
-                                Icons.palette_outlined,
-                                size: 16,
-                                color: Colors.white70,
-                              ),
-                            ),
-                          ),
-                        ),
-                        // Curated swatches list
-                        ...[
-                          0xFF000000, // OLED Black
-                          0xFF07040B, // Cyber Charcoal
-                          0xFF12131C, // Nordic Slate
-                          0xFF0E0A1E, // Retro Arcade
-                          0xFF0B1310, // Forest Sage
-                          0xFFFFFFFF, // Pure White
-                          0xFFF5F2EB, // Warm Sand
-                        ].map((bgColorHex) {
-                          final isSelected = _selectedBgColor == bgColorHex;
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 12),
-                            child: GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _selectedBgColor = bgColorHex;
-                                });
-                              },
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                width: 38,
-                                height: 38,
-                                decoration: BoxDecoration(
-                                  color: Color(bgColorHex),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: isSelected
-                                        ? Colors.deepPurpleAccent
-                                        : Colors.white24,
-                                    width: isSelected ? 3.0 : 1.0,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // TEXT COLOR PALETTE SELECTION (Horizontal Scrollable Selector!)
+                  // UNIFIED COLOR PALETTE & ROLES SELECTION
                   Row(
                     children: [
                       const Text(
-                        'TEXT COLOR PALETTE',
+                        'COLOR PALETTE & ROLES',
                         style: TextStyle(
                           fontFamily: 'KleeOne',
                           color: Colors.white38,
@@ -1110,9 +1026,9 @@ class _KineticPresetSheetState extends State<KineticPresetSheet> {
                         ),
                       ),
                       const Spacer(),
-                      Text(
-                        '${_selectedTextColors.length} active',
-                        style: const TextStyle(
+                      const Text(
+                        'Unified Theme Active',
+                        style: TextStyle(
                           fontFamily: 'KleeOne',
                           color: Colors.deepPurpleAccent,
                           fontSize: 9.5,
@@ -1122,99 +1038,249 @@ class _KineticPresetSheetState extends State<KineticPresetSheet> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    physics: const BouncingScrollPhysics(),
-                    child: Row(
-                      children: [
-                        // Custom Palette Button for custom text color addition
-                        Padding(
-                          padding: const EdgeInsets.only(right: 12),
-                          child: GestureDetector(
-                            onTap: () {
-                              _showCustomColorPicker(
-                                context,
-                                Colors.deepPurpleAccent,
-                                (newColor) {
-                                  setState(() {
-                                    _selectedTextColors.add(newColor.value);
-                                  });
-                                },
-                              );
-                            },
-                            child: Container(
-                              width: 34,
-                              height: 34,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.05),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.white24, width: 1.5),
-                              ),
-                              child: const Icon(
-                                Icons.add_rounded,
-                                size: 16,
-                                color: Colors.white70,
-                              ),
+                  Consumer<AssetProvider>(
+                    builder: (context, assetProvider, child) {
+                      // Gather all custom and preset palettes
+                      final List<ColorPalette> allPalettes = [];
+                      
+                      // Custom saved palettes first
+                      allPalettes.addAll(assetProvider.palettes);
+                      
+                      // Preset categories next
+                      for (var cat in PalettePresets.categories) {
+                        allPalettes.addAll(cat.palettes);
+                      }
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            physics: const BouncingScrollPhysics(),
+                            child: Row(
+                              children: allPalettes.map((palette) {
+                                final isSelected = _selectedTextColors.length == palette.colors.length && 
+                                                   _selectedTextColors.every((c) => palette.colors.contains(c)) &&
+                                                   _selectedBgColor == palette.colors[0];
+                                
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 12),
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      setState(() {
+                                        // Assign background color (slot 0)
+                                        if (palette.colors.isNotEmpty) {
+                                          _selectedBgColor = palette.colors[0];
+                                        }
+                                        // Assign text colors (slots 0, 1, 2, 3)
+                                        _selectedTextColors = palette.colors.toSet();
+                                      });
+                                    },
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 200),
+                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? Colors.deepPurpleAccent.withValues(alpha: 0.12)
+                                            : Colors.white.withValues(alpha: 0.02),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: isSelected
+                                              ? Colors.deepPurpleAccent
+                                              : Colors.white.withValues(alpha: 0.06),
+                                          width: isSelected ? 1.8 : 1.0,
+                                        ),
+                                        boxShadow: [
+                                          if (isSelected)
+                                            BoxShadow(
+                                              color: Colors.deepPurpleAccent.withValues(alpha: 0.15),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 3),
+                                            ),
+                                        ],
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            palette.name.toUpperCase(),
+                                            style: TextStyle(
+                                              fontFamily: 'KleeOne',
+                                              fontSize: 8,
+                                              fontWeight: FontWeight.w900,
+                                              color: isSelected ? Colors.white : Colors.white38,
+                                              letterSpacing: 0.5,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            children: palette.colors.asMap().entries.map((entry) {
+                                              final idx = entry.key;
+                                              final c = entry.value;
+                                              // Render tiny circle for each role
+                                              return Container(
+                                                margin: const EdgeInsets.only(right: 5),
+                                                width: 14,
+                                                height: 14,
+                                                decoration: BoxDecoration(
+                                                  color: Color(c),
+                                                  shape: BoxShape.circle,
+                                                  border: Border.all(
+                                                    color: idx == 0 ? Colors.white30 : Colors.transparent,
+                                                    width: 0.5,
+                                                  ),
+                                                ),
+                                              );
+                                            }).toList(),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
                             ),
                           ),
-                        ),
-                        // Dynamic combined swatches list (all active text colors + curated colors, deduplicated)
-                        ...<int>{
-                          ..._selectedTextColors,
-                          0xFFFF0054, // Neon Pink
-                          0xFF00FFFF, // Cyan
-                          0xFF7000FF, // Purple
-                          0xFFFFBD00, // Lemon
-                          0xFFFF5400, // Orange
-                          0xFF52B788, // Mint
-                          0xFFFFFFFF, // White
-                          0xFFFE6D73, // Soft Rose
-                          0xFF00B4D8, // Sky Blue
-                        }.map((colorHex) {
-                          final isSelected = _selectedTextColors.contains(colorHex);
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 12),
-                            child: GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  if (isSelected) {
-                                    if (_selectedTextColors.length > 1) {
-                                      _selectedTextColors.remove(colorHex);
-                                    }
-                                  } else {
-                                    _selectedTextColors.add(colorHex);
-                                  }
-                                });
-                              },
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                width: 34,
-                                height: 34,
-                                decoration: BoxDecoration(
-                                  color: Color(colorHex),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: isSelected
-                                        ? Colors.white
-                                        : Colors.transparent,
-                                    width: isSelected ? 2.5 : 0,
-                                  ),
-                                  boxShadow: isSelected
-                                      ? [
-                                          BoxShadow(
-                                            color: Color(colorHex).withValues(alpha: 0.5),
-                                            blurRadius: 6,
-                                            spreadRadius: 1,
-                                          )
-                                        ]
-                                      : null,
-                                ),
-                              ),
+                          const SizedBox(height: 16),
+                          // Active Palette Roles Detail Card
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.015),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
                             ),
-                          );
-                        }).toList(),
-                      ],
-                    ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'SEMANTIC ROLES MAPPING (TAP TO EDIT)',
+                                  style: TextStyle(
+                                    fontFamily: 'KleeOne',
+                                    fontSize: 7.5,
+                                    fontWeight: FontWeight.w900,
+                                    color: Colors.white38,
+                                    letterSpacing: 0.8,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: List.generate(4, (index) {
+                                    // Slot colors:
+                                    // Slot 0: Background (_selectedBgColor)
+                                    // Slot 1, 2, 3: Text colors (_selectedTextColors)
+                                    final textColorsList = _selectedTextColors.toList();
+                                    final Color currentColor;
+                                    if (index == 0) {
+                                      currentColor = Color(_selectedBgColor);
+                                    } else {
+                                      // Ensure index matches a valid text color slot
+                                      final listIdx = index;
+                                      if (listIdx < textColorsList.length) {
+                                        currentColor = Color(textColorsList[listIdx]);
+                                      } else {
+                                        currentColor = Colors.white;
+                                      }
+                                    }
+
+                                    final String roleLabel;
+                                    switch (index) {
+                                      case 0:
+                                        roleLabel = 'BACKGROUND';
+                                        break;
+                                      case 1:
+                                        roleLabel = 'MAIN TEXT';
+                                        break;
+                                      case 2:
+                                        roleLabel = 'SUB MAIN';
+                                        break;
+                                      case 3:
+                                        roleLabel = 'NORMAL TEXT';
+                                        break;
+                                      default:
+                                        roleLabel = 'EXTRA';
+                                    }
+
+                                    return Expanded(
+                                      child: GestureDetector(
+                                        onTap: () {
+                                          _showCustomColorPicker(
+                                            context,
+                                            currentColor,
+                                            (newColor) {
+                                              setState(() {
+                                                if (index == 0) {
+                                                  _selectedBgColor = newColor.value;
+                                                  // Synchronize the first index of text colors if it exists
+                                                  final list = _selectedTextColors.toList();
+                                                  if (list.isNotEmpty) {
+                                                    list[0] = newColor.value;
+                                                    _selectedTextColors = list.toSet();
+                                                  }
+                                                } else {
+                                                  final list = _selectedTextColors.toList();
+                                                  while (list.length <= index) {
+                                                    list.add(Colors.white.value);
+                                                  }
+                                                  list[index] = newColor.value;
+                                                  _selectedTextColors = list.toSet();
+                                                }
+                                              });
+                                            },
+                                          );
+                                        },
+                                        child: Container(
+                                          margin: EdgeInsets.only(
+                                            left: index == 0 ? 0 : 3,
+                                            right: index == 3 ? 0 : 3,
+                                          ),
+                                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white.withValues(alpha: 0.02),
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                                          ),
+                                          child: Column(
+                                            children: [
+                                              Container(
+                                                width: 32,
+                                                height: 32,
+                                                decoration: BoxDecoration(
+                                                  color: currentColor,
+                                                  shape: BoxShape.circle,
+                                                  border: Border.all(
+                                                    color: index == 0 ? Colors.white30 : Colors.transparent,
+                                                    width: 0.8,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 6),
+                                              Text(
+                                                roleLabel,
+                                                style: const TextStyle(
+                                                  fontFamily: 'KleeOne',
+                                                  fontSize: 6.8,
+                                                  fontWeight: FontWeight.w900,
+                                                  color: Colors.white38,
+                                                  letterSpacing: 0.3,
+                                                ),
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
 
                   const SizedBox(height: 24),
@@ -1567,6 +1633,7 @@ class _KineticPresetSheetState extends State<KineticPresetSheet> {
                         rotationMode: _rotationMode,
                         enableStroke: _enableStroke,
                         enableGlow: _enableGlow,
+                        enableShadow: _enableGlow,
                         enableEntranceAnimation: _enableEntranceAnimation,
                         enableExitAnimation: _enableExitAnimation,
                         entrancePool: _selectedEntrancePool.isNotEmpty ? _selectedEntrancePool.toList() : p.entrancePool,

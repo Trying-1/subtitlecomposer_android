@@ -8,16 +8,17 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'providers/asset_provider.dart';
 import 'providers/font_provider.dart';
 
-import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/splash/splash_screen.dart';
 
 import 'services/project_service.dart';
+import 'services/ads/ad_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AdService.instance.init();
   await ProjectService.init();
   await Hive.openBox('asset_box');
   await Hive.openBox('font_box');
