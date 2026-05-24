@@ -61,7 +61,7 @@ class ProjectTab extends StatelessWidget {
             if (AppConfig.showNewProjectButton)
               CommonControls.buildSquareActionButton(
                 icon: Icons.create_new_folder_rounded, 
-                label: 'New', 
+                label: 'New Project', 
                 onTap: onNewProject,
                 color: Colors.redAccent.withOpacity(0.8),
               ),
@@ -69,16 +69,16 @@ class ProjectTab extends StatelessWidget {
             if (AppConfig.showSaveProjectButton)
               CommonControls.buildSquareActionButton(
                 icon: Icons.save_rounded, 
-                label: 'Save', 
+                label: 'Save Project', 
                 onTap: onSaveProject,
                 color: Colors.greenAccent.withOpacity(0.8),
               ),
             
             if (AppConfig.showImportAudioButton)
-              CommonControls.buildSquareActionButton(icon: Icons.audiotrack_rounded, label: 'Audio', onTap: onImportAudio),
+              CommonControls.buildSquareActionButton(icon: Icons.audiotrack_rounded, label: 'Main Audio', onTap: onImportAudio),
             
             if (AppConfig.showImportVideoButton)
-              CommonControls.buildSquareActionButton(icon: Icons.video_library_rounded, label: 'Video', onTap: onExtractAudio, color: Colors.blueAccent),
+              CommonControls.buildSquareActionButton(icon: Icons.video_library_rounded, label: 'Extract from Video', onTap: onExtractAudio, color: Colors.blueAccent),
             
             if (AppConfig.showSubtitlesButton)
               CommonControls.buildSquareActionButton(icon: Icons.subtitles_rounded, label: 'Subs', onTap: onImportSubtitles),

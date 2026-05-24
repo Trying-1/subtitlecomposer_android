@@ -563,18 +563,81 @@ class _EditorScreenState extends State<EditorScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(isJson ? 'JSON Editor' : 'Visual Editor', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                    if (!isJson) ListenableBuilder(
-                      listenable: provider,
-                      builder: (context, _) => IconButton(
-                        icon: Icon(provider.isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, color: Colors.orangeAccent, size: 28),
-                        onPressed: provider.togglePlay,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
+
+                // Audio Mini Player
+                if (!isJson && provider.audioPath != null) ...[
+                  ListenableBuilder(
+                    listenable: provider,
+                    builder: (context, _) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.03),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white.withOpacity(0.05)),
+                        ),
+                        child: Row(
+                          children: [
+                            IconButton(
+                              onPressed: () => provider.togglePlay(),
+                              icon: Icon(
+                                provider.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                                color: Colors.cyanAccent,
+                                size: 20,
+                              ),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ValueListenableBuilder<Duration>(
+                                valueListenable: provider.playbackTime,
+                                builder: (context, time, _) {
+                                  final total = provider.totalDuration;
+                                  final progress = total.inMilliseconds > 0 
+                                    ? time.inMilliseconds / total.inMilliseconds 
+                                    : 0.0;
+                                  return Column(
+                                    children: [
+                                      SliderTheme(
+                                        data: SliderTheme.of(context).copyWith(
+                                          trackHeight: 2,
+                                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 4),
+                                          overlayShape: const RoundSliderOverlayShape(overlayRadius: 10),
+                                          activeTrackColor: Colors.cyanAccent,
+                                          inactiveTrackColor: Colors.white10,
+                                          thumbColor: Colors.white,
+                                        ),
+                                        child: Slider(
+                                          value: progress.clamp(0.0, 1.0),
+                                          onChanged: (v) {
+                                            final target = Duration(milliseconds: (v * total.inMilliseconds).toInt());
+                                            provider.seekTo(target);
+                                          },
+                                        ),
+                                      ),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text(_formatDuration(time), style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 8)),
+                                          Text(_formatDuration(total), style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 8)),
+                                        ],
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 SizedBox(
                   height: 300,
                   child: isJson ? TextField(
@@ -600,10 +663,10 @@ class _EditorScreenState extends State<EditorScreen> {
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: SingleChildScrollView(
-                                child: ListenableBuilder(
-                                  listenable: provider,
-                                  builder: (context, _) {
-                                    final currentPosMs = provider.currentTime.inMilliseconds;
+                                child: ValueListenableBuilder<Duration>(
+                                  valueListenable: provider.playbackTime,
+                                  builder: (context, time, _) {
+                                    final currentPosMs = time.inMilliseconds;
                                     return Wrap(
                                       spacing: 4,
                                       runSpacing: 4,
@@ -969,14 +1032,17 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   Future<void> _handleExport(BuildContext context, EditorProvider provider) async {
-    await AdService.instance.showInterstitialAd(
-      onAdDismissed: () {
+    await AdService.instance.showRewardedAd(
+      onRewardEarned: () {
         if (context.mounted) {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const ExportScreen()),
           );
         }
+      },
+      onAdDismissed: () {
+        AdService.instance.loadRewardedAd();
       },
     );
   }

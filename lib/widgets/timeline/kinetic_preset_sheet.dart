@@ -5,6 +5,7 @@ import '../../providers/asset_provider.dart';
 import '../../utils/palette_presets.dart';
 import '../../services/kinetic/kinetic_style.dart';
 import '../common/custom_color_picker.dart';
+import '../../services/ads/ad_service.dart';
 
 class KineticPresetSheet extends StatefulWidget {
   final List<String> allFonts;
@@ -1603,46 +1604,53 @@ class _KineticPresetSheetState extends State<KineticPresetSheet> {
                 ),
                 child: ElevatedButton(
                   onPressed: () {
-                    // Persist session parameters
-                    _rememberedPresetIndices = _selectedPresetIndices;
-                    _rememberedMixedMode = _isMixedMode;
-                    _rememberedDoBurst = _doBurst;
-                    _rememberedFonts = _selectedFonts;
-                    _rememberedStroke = _enableStroke;
-                    _rememberedGlow = _enableGlow;
-                    _rememberedEntrancePool = _selectedEntrancePool;
-                    _rememberedExitPool = _selectedExitPool;
-                    _rememberedEnableEntrance = _enableEntranceAnimation;
-                    _rememberedEnableExit = _enableExitAnimation;
-                    _rememberedMinFontSize = _minFontSize;
-                    _rememberedMaxFontSize = _maxFontSize;
-                    _rememberedRotationMode = _rotationMode;
-                    _rememberedMinScale = _minScale;
-                    _rememberedMaxScale = _maxScale;
-                    _rememberedTextColors = _selectedTextColors;
-                    _rememberedBgColor = _selectedBgColor;
+                    AdService.instance.showAutoKineticRewardAd(
+                      onRewardEarned: () {
+                        // Persist session parameters
+                        _rememberedPresetIndices = _selectedPresetIndices;
+                        _rememberedMixedMode = _isMixedMode;
+                        _rememberedDoBurst = _doBurst;
+                        _rememberedFonts = _selectedFonts;
+                        _rememberedStroke = _enableStroke;
+                        _rememberedGlow = _enableGlow;
+                        _rememberedEntrancePool = _selectedEntrancePool;
+                        _rememberedExitPool = _selectedExitPool;
+                        _rememberedEnableEntrance = _enableEntranceAnimation;
+                        _rememberedEnableExit = _enableExitAnimation;
+                        _rememberedMinFontSize = _minFontSize;
+                        _rememberedMaxFontSize = _maxFontSize;
+                        _rememberedRotationMode = _rotationMode;
+                        _rememberedMinScale = _minScale;
+                        _rememberedMaxScale = _maxScale;
+                        _rememberedTextColors = _selectedTextColors;
+                        _rememberedBgColor = _selectedBgColor;
 
-                    final styles = _selectedPresetIndices.map((idx) {
-                      final p = presets[idx.clamp(0, presets.length - 1)];
-                      return p.copyWith(
-                        fontPool: _selectedFonts.toList(),
-                        minFontSize: _minFontSize,
-                        maxFontSize: _maxFontSize,
-                        minScale: _minScale,
-                        maxScale: _maxScale,
-                        rotationMode: _rotationMode,
-                        enableStroke: _enableStroke,
-                        enableGlow: _enableGlow,
-                        enableShadow: _enableGlow,
-                        enableEntranceAnimation: _enableEntranceAnimation,
-                        enableExitAnimation: _enableExitAnimation,
-                        entrancePool: _selectedEntrancePool.isNotEmpty ? _selectedEntrancePool.toList() : p.entrancePool,
-                        exitPool: _selectedExitPool.isNotEmpty ? _selectedExitPool.toList() : p.exitPool,
-                        colorPalette: _selectedTextColors.toList(),
-                      );
-                    }).toList();
-                    
-                    widget.onApply(styles, _doBurst, _selectedBgColor);
+                        final styles = _selectedPresetIndices.map((idx) {
+                          final p = presets[idx.clamp(0, presets.length - 1)];
+                          return p.copyWith(
+                            fontPool: _selectedFonts.toList(),
+                            minFontSize: _minFontSize,
+                            maxFontSize: _maxFontSize,
+                            minScale: _minScale,
+                            maxScale: _maxScale,
+                            rotationMode: _rotationMode,
+                            enableStroke: _enableStroke,
+                            enableGlow: _enableGlow,
+                            enableShadow: _enableGlow,
+                            enableEntranceAnimation: _enableEntranceAnimation,
+                            enableExitAnimation: _enableExitAnimation,
+                            entrancePool: _selectedEntrancePool.isNotEmpty ? _selectedEntrancePool.toList() : p.entrancePool,
+                            exitPool: _selectedExitPool.isNotEmpty ? _selectedExitPool.toList() : p.exitPool,
+                            colorPalette: _selectedTextColors.toList(),
+                          );
+                        }).toList();
+                        
+                        widget.onApply(styles, _doBurst, _selectedBgColor);
+                      },
+                      onAdDismissed: () {
+                        // ad closed
+                      },
+                    );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.transparent,

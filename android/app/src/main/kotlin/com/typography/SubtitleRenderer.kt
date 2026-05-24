@@ -260,7 +260,6 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                 if (uv.x > uWipeProgress) discard;
             }
             
-            uv = clamp(uv, 0.0, 1.0); // Prevent wrapping artifacts
             vec4 texColor;
             if (uBlurAmount > 0.0) {
                 vec4 accum = vec4(0.0);
@@ -277,6 +276,9 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                 texColor = accum / totalWeight;
             } else {
                 texColor = texture2D(sTexture, uv);
+            }
+            if (texColor.a > 0.0) {
+                texColor.rgb /= texColor.a;
             }
             
             // Adjust brightness
@@ -346,12 +348,17 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
             } else if (uEffectMode == 4) { // Reflection mode
                 vec2 reflUv = vec2(uv.x, 1.0 - uv.y);
                 vec4 texSample = texture2D(sTexture, reflUv);
+                if (texSample.a > 0.0) {
+                    texSample.rgb /= texSample.a;
+                }
                 float gradient = 1.0 - uv.y;
                 gl_FragColor = texSample * finalColor * uReflectionColor * alphaMod * uReflectionOpacity * gradient;
             } else { 
                 if (texColor.a < 0.01) discard;
                 gl_FragColor = texColor * finalColor * alphaMod;
             }
+            
+            gl_FragColor.rgb *= gl_FragColor.a;
         }
     """.trimIndent()
 
@@ -421,9 +428,6 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                 if (uv.x > uWipeProgress) discard;
             }
             
-            uv = clamp(uv, 0.0, 1.0); // Prevent wrapping artifacts
-            if (alphaMod <= 0.0) discard;
- 
             vec4 texColor;
             if (uBlurAmount > 0.0) {
                 vec4 accum = vec4(0.0);
@@ -440,6 +444,9 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                 texColor = accum / totalWeight;
             } else {
                 texColor = texture2D(sTexture, uv);
+            }
+            if (texColor.a > 0.0) {
+                texColor.rgb /= texColor.a;
             }
             
             // Adjust brightness
@@ -508,12 +515,17 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
             } else if (uEffectMode == 4) { // Reflection mode
                 vec2 reflUv = vec2(uv.x, 1.0 - uv.y);
                 vec4 texSample = texture2D(sTexture, reflUv);
+                if (texSample.a > 0.0) {
+                    texSample.rgb /= texSample.a;
+                }
                 float gradient = 1.0 - uv.y;
                 gl_FragColor = texSample * finalColor * uReflectionColor * alphaMod * uReflectionOpacity * gradient;
             } else { 
                 if (texColor.a < 0.01) discard;
                 gl_FragColor = texColor * finalColor * alphaMod;
             }
+            
+            gl_FragColor.rgb *= gl_FragColor.a;
         }
     """.trimIndent()
 
@@ -591,7 +603,7 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         uBlurAmountOESLoc = GLES20.glGetUniformLocation(programOES, "uBlurAmount")
 
         GLES20.glEnable(GLES20.GL_BLEND)
-        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+        GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA)
     }
 
     private fun useProgram(isOES: Boolean) {
@@ -609,12 +621,12 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
     private fun setBlendMode(mode: Int) {
         GLES20.glBlendEquation(GLES20.GL_FUNC_ADD) // Default
         when (mode) {
-            0 -> GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA) // Normal
+            0 -> GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA) // Normal (Pre-multiplied alpha correct)
             1 -> GLES20.glBlendFunc(GLES20.GL_DST_COLOR, GLES20.GL_ONE_MINUS_SRC_ALPHA) // Multiply
             2 -> GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_COLOR) // Screen
             // Note: Advanced modes like Overlay/Dodge/Burn require shader-based blending 
             // which needs frame-buffer access or a more complex multi-pass setup.
-            else -> GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+            else -> GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA)
         }
     }
 
@@ -646,7 +658,8 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
             cached.lastUsed = System.currentTimeMillis()
         } else {
             val baselineHeight = 1080f
-            val effectiveFontSize = clip.fontSize // Design is based on 1080p baseline
+            val qualityScale = 3.0f // Rasterize at 3x resolution for high-fidelity sharpness
+            val effectiveFontSize = clip.fontSize * qualityScale
 
             val paint = Paint().apply {
                 isAntiAlias = true
@@ -662,8 +675,8 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
             val bounds = Rect()
             paint.getTextBounds(clip.text, 0, clip.text.length, bounds)
             
-            val hPadding = (clip.shadowBlur + Math.abs(clip.shadowOffsetX) + 30f).coerceAtLeast(30f)
-            val vPadding = (clip.shadowBlur + Math.abs(clip.shadowOffsetY) + 30f).coerceAtLeast(30f)
+            val hPadding = ((clip.shadowBlur + Math.abs(clip.shadowOffsetX) + 30f).coerceAtLeast(30f)) * qualityScale
+            val vPadding = ((clip.shadowBlur + Math.abs(clip.shadowOffsetY) + 30f).coerceAtLeast(30f)) * qualityScale
 
             bmpWidth = (bounds.width() + hPadding * 2).toInt()
             bmpHeight = (bounds.height() + vPadding * 2).toInt()
@@ -681,17 +694,17 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                     style = Paint.Style.FILL
                 }
                 val rect = RectF(
-                    hPadding - 15f, 
-                    vPadding - 5f, 
-                    hPadding + bounds.width() + 15f, 
-                    vPadding + bounds.height() + 5f
+                    hPadding - 15f * qualityScale, 
+                    vPadding - 5f * qualityScale, 
+                    hPadding + bounds.width() + 15f * qualityScale, 
+                    vPadding + bounds.height() + 5f * qualityScale
                 )
-                canvas.drawRoundRect(rect, clip.backgroundRadius, clip.backgroundRadius, bgPaint)
+                canvas.drawRoundRect(rect, clip.backgroundRadius * qualityScale, clip.backgroundRadius * qualityScale, bgPaint)
             }
 
             if (clip.isShadowEnabled && Color.alpha(clip.shadowColor) > 0) {
-                val radius = if (clip.shadowBlur <= 0f) 0.1f else clip.shadowBlur
-                paint.setShadowLayer(radius, clip.shadowOffsetX, clip.shadowOffsetY, clip.shadowColor)
+                val radius = (if (clip.shadowBlur <= 0f) 0.1f else clip.shadowBlur) * qualityScale
+                paint.setShadowLayer(radius, clip.shadowOffsetX * qualityScale, clip.shadowOffsetY * qualityScale, clip.shadowColor)
             }
 
             val textCenterX = bmpWidth / 2f
@@ -699,7 +712,7 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
 
             if (clip.isStrokeEnabled && clip.strokeWidth > 0f) {
                 paint.style = Paint.Style.STROKE
-                paint.strokeWidth = clip.strokeWidth
+                paint.strokeWidth = clip.strokeWidth * qualityScale
                 paint.strokeJoin = Paint.Join.ROUND
                 paint.strokeCap = Paint.Cap.ROUND
                 paint.color = clip.strokeColor
@@ -715,11 +728,12 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
             GLES20.glGenTextures(1, textures, 0)
             textureId = textures[0]
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId)
-            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
             GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bitmap, 0)
+            GLES20.glGenerateMipmap(GLES20.GL_TEXTURE_2D)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR_MIPMAP_LINEAR)
             
             bitmap.recycle()
             textTextureCache[cacheKey] = CachedTextTexture(textureId, bmpWidth, bmpHeight, System.currentTimeMillis())
@@ -781,8 +795,9 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         
         val finalScale = animState.scale
         val baselineHeight = 1080f
-        val logW = (bmpWidth.toFloat() / baselineHeight) * 2 * finalScale * animState.scaleX
-        val logH = (bmpHeight.toFloat() / baselineHeight) * 2 * finalScale * animState.scaleY
+        val qualityScale = 3.0f // Match the 3x rasterization scale
+        val logW = (bmpWidth.toFloat() / (baselineHeight * qualityScale)) * 2 * finalScale * animState.scaleX
+        val logH = (bmpHeight.toFloat() / (baselineHeight * qualityScale)) * 2 * finalScale * animState.scaleY
         android.opengl.Matrix.scaleM(model, 0, logW, logH, 1f)
         
         android.opengl.Matrix.multiplyMM(mvpMatrix, 0, projection, 0, model, 0)

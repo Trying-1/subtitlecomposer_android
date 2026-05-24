@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../tools/image_sequence/image_sequence_maker.dart';
 import '../../tools/font_sequence/font_sequence_maker.dart';
+import '../../tools/image_text/image_text_studio.dart';
 
 class MoreToolsScreen extends StatelessWidget {
   const MoreToolsScreen({super.key});
@@ -21,6 +22,13 @@ class MoreToolsScreen extends StatelessWidget {
         'icon': Icons.font_download_rounded,
         'color': Colors.deepPurpleAccent,
         'action': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FontSequenceMaker())),
+      },
+      {
+        'title': 'Image Text Studio',
+        'desc': 'Design high-resolution custom posters with premium draggable text overlay layouts',
+        'icon': Icons.image_rounded,
+        'color': Colors.cyanAccent,
+        'action': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ImageTextStudio())),
       },
     ];
 

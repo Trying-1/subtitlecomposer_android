@@ -583,7 +583,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
 
                     if (AppConfig.showKineticButton) ...[
                       _buildVerticalToggle(
-                        "KINETIC", 
+                        "AUTO AI", 
                         false, 
                         () => _showKineticPresetPicker(context),
                         icon: Icons.auto_awesome_rounded,

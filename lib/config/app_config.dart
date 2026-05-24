@@ -3,22 +3,22 @@ class AppConfig {
   static const bool showNewProjectButton = true;
   static const bool showImportAudioButton = true;
   static const bool showImportVideoButton = true;
-  static const bool showSubtitlesButton = true;              //premium
-  static const bool showWordsButton = true;                  //premium
+  static const bool showSubtitlesButton = false;              //premium
+  static const bool showWordsButton = false;                  //premium
   static const bool showPasteButton = true;
-  static const bool showVoiceButton = true;                  //premium
-  static const bool showJsonButton = true;                   //premium
+  static const bool showVoiceButton = false;                  //premium
+  static const bool showJsonButton = false;                   //premium
   static const bool showEditButton = true;
-  static const bool showForceAlignButton = true;             //premium
+  static const bool showForceAlignButton = false;             //premium
   static const bool showAddMusicButton = true;
   static const bool showAddSFXButton = true;
-  static const bool showModelButton = true;                  //premium
+  static const bool showModelButton = false;                  //premium
   static const bool showAddTextButton = true;
   static const bool showExportButton = true;
-  static const bool showTimelineColors = true;               //premium
-  static const bool showTimelinePanControls = true;            //premium
-  static const bool showExportProjectButton = true;            //premium
-  static const bool showImportProjectButton = true;            //premium
+  static const bool showTimelineColors = false;               //premium
+  static const bool showTimelinePanControls = false;            //premium
+  static const bool showExportProjectButton = false;            //premium
+  static const bool showImportProjectButton = false;            //premium
   static const bool showSaveProjectButton = true;
 
   // Home Screen Elements
@@ -56,5 +56,5 @@ class AppConfig {
   static const bool showExportScreen = true;
 
   // Local developer master asset import toggle (only used in debug builds or when manually enabled)
-  static const bool showImportMasterFolderButton = true;
+  static const bool showImportMasterFolderButton = false;
 }

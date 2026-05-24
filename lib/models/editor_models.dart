@@ -458,7 +458,7 @@ class SubtitleClip implements TimelineClip {
     textOpacity: (json['textOpacity'] as num?)?.toDouble() ?? 1.0,
     isShadowEnabled: json['isShadowEnabled'] as bool? ?? false,
     isBackgroundEnabled: json['isBackgroundEnabled'] as bool? ?? false,
-    isStrokeEnabled: json['isStrokeEnabled'] as bool? ?? ((json['strokeWidth'] as num?)?.toDouble() ?? 0.0) > 0,
+    isStrokeEnabled: json['isStrokeEnabled'] as bool? ?? false,
     isGlowEnabled: json['isGlowEnabled'] as bool? ?? false,
     isBendingEnabled: json['isBendingEnabled'] as bool? ?? false,
     isReflectionEnabled: json['isReflectionEnabled'] as bool? ?? false,

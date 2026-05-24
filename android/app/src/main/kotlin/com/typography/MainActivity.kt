@@ -409,6 +409,72 @@ class MainActivity : FlutterActivity() {
                     setAudioClips(ids, paths, starts, ends, vols)
                     result.success(null)
                 }
+                "saveImageToGallery" -> {
+                    val bytes = call.argument<ByteArray>("bytes")
+                    val fileName = "TypographyExport_${System.currentTimeMillis()}.png"
+                    
+                    if (bytes != null) {
+                        Thread {
+                            try {
+                                val resolver = contentResolver
+                                val collection = android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                                var itemUri: android.net.Uri? = null
+                                
+                                try {
+                                    val values = android.content.ContentValues().apply {
+                                        put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, fileName)
+                                        put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png")
+                                        put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Movies/TypographyEditor")
+                                        put(android.provider.MediaStore.Images.Media.IS_PENDING, 1)
+                                    }
+                                    itemUri = resolver.insert(collection, values)
+                                } catch (e: Exception) {
+                                    val values = android.content.ContentValues().apply {
+                                        put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, fileName)
+                                        put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png")
+                                        put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/TypographyEditor")
+                                        put(android.provider.MediaStore.Images.Media.IS_PENDING, 1)
+                                    }
+                                    itemUri = resolver.insert(collection, values)
+                                }
+
+                                if (itemUri != null) {
+                                    val outStream = resolver.openOutputStream(itemUri)
+                                    if (outStream != null) {
+                                        outStream.use { os ->
+                                            os.write(bytes)
+                                        }
+                                    }
+                                    
+                                    val updateValues = android.content.ContentValues().apply {
+                                        put(android.provider.MediaStore.Images.Media.IS_PENDING, 0)
+                                    }
+                                    resolver.update(itemUri, updateValues, null, null)
+
+                                    android.media.MediaScannerConnection.scanFile(this@MainActivity, arrayOf(itemUri.toString()), null, null)
+                                    
+                                    runOnUiThread { result.success(itemUri.toString()) }
+                                } else {
+                                    runOnUiThread { result.error("URI_ERROR", "Failed to create MediaStore entry", null) }
+                                }
+                            } catch (e: Exception) {
+                                runOnUiThread { result.error("SAVE_ERROR", e.message, null) }
+                            }
+                        }.start()
+                    } else {
+                        result.error("INVALID_ARGS", "Bytes array is null", null)
+                    }
+                }
+                "scanFile" -> {
+                    val path = call.argument<String>("path") ?: ""
+                    if (path.isNotEmpty()) {
+                        android.media.MediaScannerConnection.scanFile(this@MainActivity, arrayOf(path), null) { _, uri ->
+                            runOnUiThread { result.success(uri?.toString()) }
+                        }
+                    } else {
+                        result.error("INVALID_PATH", "Path is empty", null)
+                    }
+                }
                 "decodeAudioToPcm" -> {
                     val path = call.argument<String>("audioPath") ?: ""
                     Thread {

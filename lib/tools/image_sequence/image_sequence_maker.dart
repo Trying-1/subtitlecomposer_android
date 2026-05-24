@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:just_audio/just_audio.dart';
 import '../../services/native_bridge.dart';
+import '../../services/ads/ad_service.dart';
 import '../../screens/video_player_screen.dart';
 
 class ImageSequenceMaker extends StatefulWidget {
@@ -1427,6 +1428,14 @@ class _ImageSequenceMakerState extends State<ImageSequenceMaker> with SingleTick
   void _simulateVideoCompilation() {
     _pausePlayback();
 
+    AdService.instance.showImageSequenceExportAd(
+      onAdDismissed: () {
+        _performVideoCompilation();
+      },
+    );
+  }
+
+  void _performVideoCompilation() {
     // Calculate dimensions based on aspect ratio choice
     final int width;
     final int height;

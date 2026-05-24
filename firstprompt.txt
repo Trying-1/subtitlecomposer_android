@@ -510,3 +510,47 @@ reduce the selection box stroke width, make it thinner just visible, and chose g
 [good but create a subtab for the first font selection and the others, just like we have in the main project tabs,  understood]
 [good, next lets remove the native player thing, we don't need that anymore in the homescreen, undestood]
 [next, now that we already using bottom navbar in home screen, let move the asset library, tutorial, more tool to navbar, keep only new project and import project in homescreen understood]
+
+
+===============version24==============
+
+[okay next in the more tool I want a new tool for creating image, with text overlay, user uuploads and image, we add text on it, postion, font, color size etc controls, keep the control UI similar to other two tools, bottom control tab type, understood]
+[save this image project, inside this tool so that we can re-edit them got it]
+[we don't necesarily need text background, and save the image to public directory, like the other tool ]
+[where is it getting save I don't see it in gallery.]
+[okay next for the UI lets use kleeone font on this screen, got it]
+[okay next add shadow x,y offset slider control, shadow color, shadow blur,  keep the label and slider in different row so that slider get full width, understood]
+[yo I still don't see the image in the gallery, and where is getting saved, ]
+[show the preview after export.]
+[for the colors, allow custom color picker as well, the one we used in the main project]
+[okay , I want the output to be 1080x1920, for 9:16, 1920x1080 for 16:9, 1080x1080 for 1:1, got it, ]
+[also for adding text allow direct input from the text tab as input field, intead of necessarily using the double tab, understood]
+[add letter spacing control slider]
+[for the effects add toggle for the enabling stroke, shadows understood]
+
+[okay next lets add real ad unit now, this an interstitial ads  use this ad unit ca-app-pub-5829296907403264/8997941664]
+[ca-app-pub-5829296907403264/6196518507 use this rewarded ad for typography export reward, got it]
+[name this ad unit specifically as typo-export-reward-ad, ]
+[next image-text-inter-ad, ca-app-pub-5829296907403264/6004946814 for exporting image text from the more tools image text screen]
+[image-sequence-export-ad, interstitial ad ca-app-pub-5829296907403264/2833885779]
+[font-sequence-inter-ad, ca-app-pub-5829296907403264/2111831047 for font sequence export]
+[app-open-ad, ca-app-pub-5829296907403264/5047088367 for app open ads]
+
+[good, next in the project tab, for extracting audio from video, lable it Extract from Video, instead of simply Video, its kind of misleading otherwise got it]
+[similarly for new project make it "New Project", for save project "Save Project got it, for audio, "Main Audio"]
+[for the Kinetic in the timeline toolbox,  use "Auto Ai" this way users will think its the AI doing stuff]
+
+[there's some issue with app open ads, its appearing randomly even while actively using app. wtf is that, shouldn't it appear only during app opening]
+[in the text edit dialog(visual editor) of project tab show the scrubale miniplayer similar to what we have in the paste dialog understood]
+[good but the highglight is  not being realtime, as we scrub or as audio is played]
+
+[awesome next update and redesign the onboarding, showing the kinectic layout text layouts animations showcase, for like masonary, blocky, stair, layouts animations, understood, this way users can understand what the app is capable of, of compleletly redesign the onboarding flow, understood]
+[wtf is this gooffy looking onboariding, its soo ugly as hell, told yo you  to completely redesign the onboarding flow from scratch. ]
+[keep it minimalis, use muted color palettes, use font variation, scale variations, just like we did in kinetic typography]
+[good but fuck those nested card based design. and improve the text content]
+[good but text content need improvement, like for the first screen, "Create trending typography Edits", for second "Grow your social media page", third "Seemles typography editor"]
+[yo not the title but the in the actual kinetic typography. understood]
+[theres issue that on the first time opening app, the bottom navbar are not visible in the home screen]
+[there is still issue in the app opening ad, its showing up, even without app start, or app open, what the main cause, of this, ]
+[okay next, in our main typography project I am still seeing thin text strokes in the output, they are not in the preiview then why are they appearing in the output. check on it, ]
+[and the quality issue, like the texts doesn't look sharp, crisp, looks like low quality, why is it so]

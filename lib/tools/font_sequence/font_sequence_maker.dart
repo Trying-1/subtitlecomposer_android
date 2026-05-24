@@ -11,6 +11,7 @@ import '../../providers/asset_provider.dart';
 import '../../providers/font_provider.dart';
 import '../../widgets/common/custom_color_picker.dart';
 import '../../services/native_bridge.dart';
+import '../../services/ads/ad_service.dart';
 import '../../screens/video_player_screen.dart';
 
 class FontSequenceMaker extends StatefulWidget {
@@ -1437,6 +1438,14 @@ class _FontSequenceMakerState extends State<FontSequenceMaker> with SingleTicker
   void _startVideoCompilation() {
     _pausePlayback();
 
+    AdService.instance.showFontSequenceExportAd(
+      onAdDismissed: () {
+        _performVideoCompilation();
+      },
+    );
+  }
+
+  void _performVideoCompilation() {
     final int width;
     final int height;
     if (_aspectRatio == '9:16') {
