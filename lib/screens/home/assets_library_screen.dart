@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
@@ -30,6 +32,9 @@ class _AssetsLibraryScreenState extends State<AssetsLibraryScreen> with SingleTi
   final AudioPlayer _audioPlayer = AudioPlayer();
   String? _playingPath;
   bool _isMasterImportAvailable = false;
+  
+  String _selectedOverlayImageCategory = 'All';
+  String _selectedOverlayVideoCategory = 'All';
 
   @override
   void initState() {
@@ -610,7 +615,7 @@ class _AssetsLibraryScreenState extends State<AssetsLibraryScreen> with SingleTi
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 16),
                     child: Text(
-                      'No valid subfolders (backgrounds, overlays, audio, fonts) or compatible assets found to import.',
+                      'No valid subfolders (backgrounds, overlays, audio, fonts, palettes) or compatible assets found to import.',
                       style: TextStyle(color: Colors.white60, fontSize: 13),
                     ),
                   )
@@ -627,6 +632,8 @@ class _AssetsLibraryScreenState extends State<AssetsLibraryScreen> with SingleTi
                   _buildResultRow(Icons.music_note_rounded, 'Audio & SFX', result.audiosCount),
                   const SizedBox(height: 10),
                   _buildResultRow(Icons.font_download_rounded, 'Fonts', result.fontsCount),
+                  const SizedBox(height: 10),
+                  _buildResultRow(Icons.palette_rounded, 'Palettes', result.palettesCount),
                 ],
                 if (result.warnings.isNotEmpty) ...[
                   const SizedBox(height: 24),
@@ -750,18 +757,22 @@ class _AssetsLibraryScreenState extends State<AssetsLibraryScreen> with SingleTi
             controller: _tabController,
             children: [
               // 1. Overlay Images
-              _buildGrid(
-                context, 
-                assetProvider.overlayAssets.where((p) => _isImage(p)).toList(), 
-                (path) => assetProvider.removeAsset(path), 
-                () => _showPickerOptions(context, assetProvider, isBackground: false)
+              _buildCategorizedOverlayGrid(
+                context: context,
+                paths: assetProvider.overlayAssets.where((p) => _isImage(p)).toList(),
+                selectedCategory: _selectedOverlayImageCategory,
+                onCategorySelected: (cat) => setState(() => _selectedOverlayImageCategory = cat),
+                onRemove: (path) => assetProvider.removeAsset(path),
+                onAdd: () => _showPickerOptions(context, assetProvider, isBackground: false),
               ),
               // 2. Overlay Videos
-              _buildGrid(
-                context, 
-                assetProvider.overlayAssets.where((p) => _isVideo(p)).toList(), 
-                (path) => assetProvider.removeAsset(path), 
-                () => _showPickerOptions(context, assetProvider, isBackground: false)
+              _buildCategorizedOverlayGrid(
+                context: context,
+                paths: assetProvider.overlayAssets.where((p) => _isVideo(p)).toList(),
+                selectedCategory: _selectedOverlayVideoCategory,
+                onCategorySelected: (cat) => setState(() => _selectedOverlayVideoCategory = cat),
+                onRemove: (path) => assetProvider.removeAsset(path),
+                onAdd: () => _showPickerOptions(context, assetProvider, isBackground: false),
               ),
               // 3. Background Images
               _buildGrid(
@@ -826,6 +837,266 @@ class _AssetsLibraryScreenState extends State<AssetsLibraryScreen> with SingleTi
         _buildAddButton('ADD ASSETS', onAdd),
       ],
     );
+  }
+
+  String _getOverlayCategory(String path) {
+    try {
+      final file = File(path);
+      final parentDir = file.parent;
+      final parentName = p.basename(parentDir.path);
+      if (parentName.toLowerCase() == 'overlays' || parentName.toLowerCase() == 'overlay') {
+        return 'Default';
+      }
+      if (parentName.isEmpty) return 'Default';
+      return parentName[0].toUpperCase() + parentName.substring(1);
+    } catch (_) {
+      return 'Default';
+    }
+  }
+
+  Widget _buildCategorizedOverlayGrid({
+    required BuildContext context,
+    required List<String> paths,
+    required String selectedCategory,
+    required ValueChanged<String> onCategorySelected,
+    required Function(String) onRemove,
+    required VoidCallback onAdd,
+  }) {
+    // 1. Collect all unique categories
+    final categories = ['All'];
+    for (final path in paths) {
+      final cat = _getOverlayCategory(path);
+      if (!categories.contains(cat)) {
+        categories.add(cat);
+      }
+    }
+
+    // 2. Filter paths based on selected category
+    final filteredPaths = selectedCategory == 'All'
+        ? paths
+        : paths.where((p) => _getOverlayCategory(p) == selectedCategory).toList();
+
+    return Column(
+      children: [
+        // Horizontal Scrollable Category Chips (Only show if multiple classifications exist)
+        if (paths.isNotEmpty && categories.length > 2)
+          Container(
+            height: 48,
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: categories.length,
+              itemBuilder: (context, index) {
+                final cat = categories[index];
+                final isSelected = cat == selectedCategory;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: FilterChip(
+                    label: Text(
+                      cat,
+                      style: TextStyle(
+                        color: isSelected ? Colors.white : Colors.white60,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    selected: isSelected,
+                    onSelected: (_) => onCategorySelected(cat),
+                    backgroundColor: Colors.white.withOpacity(0.02),
+                    selectedColor: Colors.deepPurpleAccent,
+                    checkmarkColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(
+                        color: isSelected ? Colors.deepPurpleAccent : Colors.white.withOpacity(0.05),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        
+        Expanded(
+          child: filteredPaths.isEmpty
+              ? _buildEmptyState('No assets in this category', Icons.collections_outlined)
+              : GridView.builder(
+                  padding: const EdgeInsets.all(16),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 1,
+                  ),
+                  itemCount: filteredPaths.length,
+                  itemBuilder: (context, index) {
+                    final path = filteredPaths[index];
+                    return _buildAssetItem(context, path, onRemove, isOverlay: true);
+                  },
+                ),
+        ),
+        _buildAddButton('ADD ASSETS', onAdd),
+      ],
+    );
+  }
+
+  void _showClassifyOverlayDialog(BuildContext context, AssetProvider provider, String path) {
+    final currentCategory = _getOverlayCategory(path);
+    final controller = TextEditingController();
+    
+    // Get all existing categories to present as quick choices
+    final existingCategories = <String>{};
+    for (final p in provider.overlayAssets) {
+      existingCategories.add(_getOverlayCategory(p));
+    }
+    existingCategories.remove('Default');
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF161622),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Classify Overlay Category',
+            style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Current Category: $currentCategory',
+                  style: const TextStyle(color: Colors.white60, fontSize: 12)),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'Enter new category name',
+                  hintStyle: const TextStyle(color: Colors.white24, fontSize: 13),
+                  filled: true,
+                  fillColor: Colors.white.withOpacity(0.03),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              if (existingCategories.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                const Text('Or choose existing:',
+                    style: TextStyle(color: Colors.white60, fontSize: 11, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: existingCategories.map((cat) {
+                    return InkWell(
+                      onTap: () {
+                        controller.text = cat;
+                      },
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.04),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.white.withOpacity(0.08)),
+                        ),
+                        child: Text(
+                          cat,
+                          style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCEL', style: TextStyle(color: Colors.white38, fontSize: 12)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newCat = controller.text.trim();
+              if (newCat.isNotEmpty) {
+                await _moveOverlayToCategory(context, provider, path, newCat);
+              }
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurpleAccent),
+            child: const Text('SAVE',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _moveOverlayToCategory(
+      BuildContext context, AssetProvider provider, String path, String category) async {
+    try {
+      final file = File(path);
+      if (!file.existsSync()) return;
+
+      // Safe overlays directory resolution
+      var overlaysDir = file.parent;
+      while (p.basename(overlaysDir.path).toLowerCase() != 'overlays' && 
+             overlaysDir.parent != overlaysDir) {
+        overlaysDir = overlaysDir.parent;
+      }
+      
+      if (p.basename(overlaysDir.path).toLowerCase() != 'overlays') {
+        final docDir = await getApplicationDocumentsDirectory();
+        overlaysDir = Directory(p.join(docDir.path, 'overlays'));
+      }
+
+      // 1. Target directory resolution
+      final sanitizedCategory = category.trim();
+      final Directory targetDir = sanitizedCategory.toLowerCase() == 'default'
+          ? overlaysDir
+          : Directory(p.join(overlaysDir.path, sanitizedCategory.toLowerCase()));
+          
+      if (!targetDir.existsSync()) {
+        targetDir.createSync(recursive: true);
+      }
+
+      // 2. Target file path resolution
+      final fileName = p.basename(path);
+      final targetPath = p.join(targetDir.path, fileName);
+
+      if (targetPath == path) {
+        return; // Already matches target category
+      }
+
+      // 3. Move file physically
+      final newFile = await file.copy(targetPath);
+      await file.delete();
+
+      // 4. Update path inside AssetProvider state & Hive box
+      provider.updateAssetPath(path, newFile.path);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Successfully classified to "$sanitizedCategory"!'),
+            backgroundColor: Colors.greenAccent,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to classify overlay: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildPalettesTab(AssetProvider provider) {
@@ -1200,41 +1471,61 @@ class _AssetsLibraryScreenState extends State<AssetsLibraryScreen> with SingleTi
     );
   }
 
-  Widget _buildAssetItem(BuildContext context, String path, Function(String) onRemove) {
+  Widget _buildAssetItem(BuildContext context, String path, Function(String) onRemove, {bool isOverlay = false}) {
     final isVideo = path.toLowerCase().endsWith('.mp4') || path.toLowerCase().endsWith('.mov');
-    return Stack(
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(0.1)),
-            image: isVideo
-                ? null
-                : DecorationImage(
-                    image: FileImage(File(path)),
-                    fit: BoxFit.cover,
-                  ),
+    final assetProvider = Provider.of<AssetProvider>(context, listen: false);
+    return GestureDetector(
+      onLongPress: isOverlay ? () => _showClassifyOverlayDialog(context, assetProvider, path) : null,
+      child: Stack(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withOpacity(0.1)),
+              image: isVideo
+                  ? null
+                  : DecorationImage(
+                      image: FileImage(File(path)),
+                      fit: BoxFit.cover,
+                    ),
+            ),
+            child: isVideo
+                ? const Center(child: Icon(Icons.videocam_rounded, color: Colors.white38, size: 32))
+                : null,
           ),
-          child: isVideo
-              ? const Center(child: Icon(Icons.videocam_rounded, color: Colors.white38, size: 32))
-              : null,
-        ),
-        Positioned(
-          top: 4,
-          right: 4,
-          child: GestureDetector(
-            onTap: () => onRemove(path),
-            child: Container(
-              padding: const EdgeInsets.all(4),
-              decoration: const BoxDecoration(
-                color: Colors.black54,
-                shape: BoxShape.circle,
+          if (isOverlay)
+            Positioned(
+              top: 4,
+              left: 4,
+              child: GestureDetector(
+                onTap: () => _showClassifyOverlayDialog(context, assetProvider, path),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.label_outline_rounded, color: Colors.amberAccent, size: 12),
+                ),
               ),
-              child: const Icon(Icons.close, color: Colors.redAccent, size: 12),
+            ),
+          Positioned(
+            top: 4,
+            right: 4,
+            child: GestureDetector(
+              onTap: () => onRemove(path),
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: const BoxDecoration(
+                  color: Colors.black54,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.close, color: Colors.redAccent, size: 12),
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

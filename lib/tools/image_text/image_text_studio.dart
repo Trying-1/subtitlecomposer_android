@@ -15,7 +15,9 @@ import '../../providers/font_provider.dart';
 import '../../providers/asset_provider.dart';
 import '../../services/native_bridge.dart';
 import '../../services/ads/ad_service.dart';
+import '../../services/image_text_export_service.dart';
 import '../../widgets/common/custom_color_picker.dart';
+import '../../config/app_config.dart';
 
 class ImageTextStudio extends StatefulWidget {
   const ImageTextStudio({super.key});
@@ -129,6 +131,7 @@ class _ImageTextStudioState extends State<ImageTextStudio> {
 
   @override
   void dispose() {
+    _autoSaveLastActiveProject();
     _textOverlayController.dispose();
     super.dispose();
   }
@@ -191,6 +194,7 @@ class _ImageTextStudioState extends State<ImageTextStudio> {
         _bgImagePath = image.path;
       });
       _showSnackBar('Background image loaded successfully!');
+      _autoSaveLastActiveProject();
     }
   }
 
@@ -198,6 +202,7 @@ class _ImageTextStudioState extends State<ImageTextStudio> {
     setState(() {
       _bgImagePath = null;
     });
+    _autoSaveLastActiveProject();
   }
 
   Future<void> _compileAndExportPoster() async {
@@ -346,6 +351,11 @@ class _ImageTextStudioState extends State<ImageTextStudio> {
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'KleeOne'),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.add_box_rounded, color: Colors.white70),
+            tooltip: 'New Project',
+            onPressed: _resetToNewProject,
+          ),
           IconButton(
             icon: const Icon(Icons.save_rounded, color: Colors.white70),
             tooltip: 'Save Poster Project',
@@ -1720,15 +1730,84 @@ class _ImageTextStudioState extends State<ImageTextStudio> {
   Future<void> _initHive() async {
     _projectsBox = await Hive.openBox('image_text_projects');
     _loadSavedProjectsList();
+    
+    // Silent auto-resume last active project
+    final lastState = _projectsBox!.get('last_active_project_state');
+    if (lastState != null) {
+      final stateMap = Map<String, dynamic>.from(lastState as Map);
+      _loadLastActiveProject(stateMap);
+    }
+  }
+
+  Future<void> _autoSaveLastActiveProject() async {
+    if (_projectsBox == null) return;
+    final projectData = {
+      'aspectRatio': _aspectRatio,
+      'bgImagePath': _bgImagePath,
+      'canvasBgColorValue': _canvasBgColor.value,
+      'useGradientBg': _useGradientBg,
+      'gradientEndColorValue': _gradientEndColor.value,
+      'customText': _customText,
+      'fontSize': _fontSize,
+      'letterSpacing': _letterSpacing,
+      'textColorValue': _textColor.value,
+      'selectedFont': _selectedFont,
+      'textX': _textX,
+      'textY': _textY,
+      'rotationAngle': _rotationAngle,
+      'enableStroke': _enableStroke,
+      'enableShadow': _enableShadow,
+      'strokeWidth': _strokeWidth,
+      'strokeColorValue': _strokeColor.value,
+      'shadowColorValue': _shadowColor.value,
+      'shadowBlur': _shadowBlur,
+      'shadowOffsetX': _shadowOffsetX,
+      'shadowOffsetY': _shadowOffsetY,
+      'boxColorValue': _boxColor.value,
+      'boxOpacity': _boxOpacity,
+      'boxRadius': _boxRadius,
+    };
+    await _projectsBox!.put('last_active_project_state', projectData);
+  }
+
+  void _loadLastActiveProject(Map<String, dynamic> proj) {
+    setState(() {
+      _aspectRatio = proj['aspectRatio'] ?? '9:16';
+      _bgImagePath = proj['bgImagePath'];
+      _canvasBgColor = Color(proj['canvasBgColorValue'] ?? const Color(0xFF1E1E2C).value);
+      _useGradientBg = proj['useGradientBg'] ?? false;
+      _gradientEndColor = Color(proj['gradientEndColorValue'] ?? const Color(0xFF0F0F1A).value);
+      _customText = proj['customText'] ?? 'Typography text';
+      _textOverlayController.text = _customText;
+      _fontSize = (proj['fontSize'] as num?)?.toDouble() ?? 45.0;
+      _letterSpacing = (proj['letterSpacing'] as num?)?.toDouble() ?? 0.0;
+      _textColor = Color(proj['textColorValue'] ?? Colors.white.value);
+      _selectedFont = proj['selectedFont'] ?? 'Poppins';
+      _textX = (proj['textX'] as num?)?.toDouble() ?? 0.5;
+      _textY = (proj['textY'] as num?)?.toDouble() ?? 0.5;
+      _rotationAngle = (proj['rotationAngle'] as num?)?.toDouble() ?? 0.0;
+      _enableStroke = proj['enableStroke'] ?? (((proj['strokeWidth'] as num?)?.toDouble() ?? 0.0) > 0);
+      _enableShadow = proj['enableShadow'] ?? true;
+      _strokeWidth = (proj['strokeWidth'] as num?)?.toDouble() ?? 2.0;
+      _strokeColor = Color(proj['strokeColorValue'] ?? Colors.black.value);
+      _shadowColor = Color(proj['shadowColorValue'] ?? Colors.black.withOpacity(0.5).value);
+      _shadowBlur = (proj['shadowBlur'] as num?)?.toDouble() ?? 4.0;
+      _shadowOffsetX = (proj['shadowOffsetX'] as num?)?.toDouble() ?? 2.0;
+      _shadowOffsetY = (proj['shadowOffsetY'] as num?)?.toDouble() ?? 2.0;
+      _boxColor = Color(proj['boxColorValue'] ?? Colors.transparent.value);
+      _boxOpacity = (proj['boxOpacity'] as num?)?.toDouble() ?? 0.6;
+      _boxRadius = (proj['boxRadius'] as num?)?.toDouble() ?? 8.0;
+    });
   }
 
   void _loadSavedProjectsList() {
     if (_projectsBox == null) return;
     setState(() {
       _savedProjects = _projectsBox!.values
+          .where((v) => v is Map && v.containsKey('id') && v.containsKey('lastModified'))
           .map((v) => Map<String, dynamic>.from(v as Map))
           .toList()
-        ..sort((a, b) => (b['lastModified'] as String).compareTo(a['lastModified'] as String));
+        ..sort((a, b) => (b['lastModified'] as String? ?? '').compareTo(a['lastModified'] as String? ?? ''));
     });
   }
 
@@ -1768,6 +1847,7 @@ class _ImageTextStudioState extends State<ImageTextStudio> {
     await _projectsBox!.put(id, projectData);
     _loadSavedProjectsList();
     _showSnackBar('Project "$name" saved successfully!');
+    _autoSaveLastActiveProject();
   }
 
   void _loadProject(Map<String, dynamic> proj) {
@@ -1799,6 +1879,7 @@ class _ImageTextStudioState extends State<ImageTextStudio> {
       _boxRadius = (proj['boxRadius'] as num?)?.toDouble() ?? 8.0;
     });
     _showSnackBar('Project "${proj['name']}" loaded!');
+    _autoSaveLastActiveProject();
   }
 
   Future<void> _deleteSavedProject(String id) async {
@@ -1806,6 +1887,135 @@ class _ImageTextStudioState extends State<ImageTextStudio> {
     await _projectsBox!.delete(id);
     _loadSavedProjectsList();
     _showSnackBar('Project deleted.');
+  }
+
+  void _showRenameProjectDialog(Map<String, dynamic> proj, StateSetter setDialogState) {
+    final controller = TextEditingController(text: proj['name']);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF161622),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Rename Project',
+            style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+        content: TextField(
+          controller: controller,
+          style: const TextStyle(color: Colors.white, fontSize: 14),
+          decoration: InputDecoration(
+            hintText: 'New Project Name',
+            hintStyle: const TextStyle(color: Colors.white24, fontSize: 13),
+            filled: true,
+            fillColor: Colors.white.withOpacity(0.03),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCEL', style: TextStyle(color: Colors.white38, fontSize: 12)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newName = controller.text.trim();
+              if (newName.isNotEmpty) {
+                await _renameSavedProject(proj['id'], newName);
+                setDialogState(() {});
+              }
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurpleAccent),
+            child: const Text('RENAME',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _renameSavedProject(String id, String newName) async {
+    if (_projectsBox == null) return;
+    final projData = _projectsBox!.get(id);
+    if (projData != null) {
+      final updatedData = Map<String, dynamic>.from(projData as Map);
+      updatedData['name'] = newName;
+      updatedData['lastModified'] = DateTime.now().toIso8601String();
+      await _projectsBox!.put(id, updatedData);
+      _loadSavedProjectsList();
+      _showSnackBar('Project renamed to "$newName" successfully!');
+      _autoSaveLastActiveProject();
+    }
+  }
+
+  void _resetToNewProject() {
+    setState(() {
+      _aspectRatio = '9:16';
+      _bgImagePath = null;
+      _canvasBgColor = const Color(0xFF1E1E2C);
+      _useGradientBg = false;
+      _gradientEndColor = const Color(0xFF0F0F1A);
+      _customText = 'Typography text';
+      _textOverlayController.text = _customText;
+      _fontSize = 45.0;
+      _letterSpacing = 0.0;
+      _textColor = Colors.white;
+      
+      final allFonts = _getAllAvailableFonts();
+      if (allFonts.contains('KleeOne')) {
+        _selectedFont = 'KleeOne';
+      } else if (allFonts.isNotEmpty) {
+        _selectedFont = allFonts.first;
+      } else {
+        _selectedFont = 'Poppins';
+      }
+      
+      _textX = 0.5;
+      _textY = 0.5;
+      _rotationAngle = 0.0;
+      _enableStroke = false;
+      _enableShadow = true;
+      _strokeWidth = 2.0;
+      _strokeColor = Colors.black;
+      _shadowColor = Colors.black.withOpacity(0.5);
+      _shadowBlur = 4.0;
+      _shadowOffsetX = 2.0;
+      _shadowOffsetY = 2.0;
+      _boxColor = Colors.transparent;
+      _boxOpacity = 0.6;
+      _boxRadius = 8.0;
+    });
+    _showSnackBar('New Project workspace initialized!');
+    _autoSaveLastActiveProject();
+  }
+
+  Future<void> _importProject() async {
+    try {
+      final imported = await ImageTextExportService.importProjectsFromFile();
+      if (imported.isEmpty) return;
+
+      if (_projectsBox == null) return;
+      int count = 0;
+      for (var proj in imported) {
+        final String newId = '${DateTime.now().millisecondsSinceEpoch}_$count';
+        final projectData = Map<String, dynamic>.from(proj);
+        projectData['id'] = newId;
+
+        final originalName = projectData['name'] ?? 'Imported Poster';
+        projectData['name'] = '$originalName (Imported)';
+        projectData['lastModified'] = DateTime.now().toIso8601String();
+
+        await _projectsBox!.put(newId, projectData);
+        count++;
+      }
+
+      _loadSavedProjectsList();
+      _showSnackBar('Successfully imported $count project(s)!');
+    } catch (e) {
+      debugPrint('Error importing project: $e');
+      _showSnackBar('Failed to import project: $e');
+    }
   }
 
   // DIALOG SHEETS
@@ -1864,8 +2074,22 @@ class _ImageTextStudioState extends State<ImageTextStudio> {
             return AlertDialog(
               backgroundColor: const Color(0xFF161622),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: const Text('Saved Poster Projects',
-                  style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+              title: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Saved Poster Projects',
+                      style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+                  if (AppConfig.showImageTextImportExport)
+                    IconButton(
+                      icon: const Icon(Icons.file_download_outlined, color: Colors.deepPurpleAccent, size: 20),
+                      tooltip: 'Import Project (.typostudio)',
+                      onPressed: () async {
+                        await _importProject();
+                        setDialogState(() {});
+                      },
+                    ),
+                ],
+              ),
               content: SizedBox(
                 width: double.maxFinite,
                 height: 300,
@@ -1881,51 +2105,100 @@ class _ImageTextStudioState extends State<ImageTextStudio> {
                         itemBuilder: (context, index) {
                           final proj = _savedProjects[index];
                           return Container(
-                            margin: const EdgeInsets.only(bottom: 10),
+                            margin: const EdgeInsets.only(bottom: 12),
                             decoration: BoxDecoration(
                               color: Colors.white.withOpacity(0.02),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.white.withOpacity(0.05)),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.white.withOpacity(0.06)),
                             ),
-                            child: ListTile(
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                              leading: Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: Colors.deepPurpleAccent.withOpacity(0.1),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(Icons.palette_rounded,
-                                    color: Colors.deepPurpleAccent, size: 16),
-                              ),
-                              title: Text(
-                                proj['name'] ?? 'Untitled Poster',
-                                style: const TextStyle(
-                                    color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                              ),
-                              subtitle: Text(
-                                'Modified: ${proj['lastModified'] != null ? proj['lastModified'].toString().substring(0, 10) : ""}',
-                                style: const TextStyle(color: Colors.white38, fontSize: 9),
-                              ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.delete_outline_rounded,
-                                        color: Colors.redAccent, size: 18),
-                                    onPressed: () async {
-                                      await _deleteSavedProject(proj['id']);
-                                      setDialogState(() {});
-                                    },
-                                  ),
-                                  const Icon(Icons.arrow_forward_ios_rounded,
-                                      color: Colors.white24, size: 12),
-                                ],
-                              ),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(16),
                               onTap: () {
                                 _loadProject(proj);
                                 Navigator.pop(context);
                               },
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: Colors.deepPurpleAccent.withOpacity(0.12),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(Icons.palette_rounded,
+                                          color: Colors.deepPurpleAccent, size: 18),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            proj['name'] ?? 'Untitled Poster',
+                                            style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.bold,
+                                                overflow: TextOverflow.ellipsis),
+                                            maxLines: 1,
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Modified: ${proj['lastModified'] != null ? proj['lastModified'].toString().substring(0, 10) : ""}',
+                                            style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 10),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          constraints: const BoxConstraints(),
+                                          padding: const EdgeInsets.all(6),
+                                          icon: const Icon(Icons.edit_rounded,
+                                              color: Colors.amberAccent, size: 18),
+                                          tooltip: 'Rename Project',
+                                          onPressed: () => _showRenameProjectDialog(proj, setDialogState),
+                                        ),
+                                        if (AppConfig.showImageTextImportExport)
+                                          IconButton(
+                                            constraints: const BoxConstraints(),
+                                            padding: const EdgeInsets.all(6),
+                                            icon: const Icon(Icons.share_rounded,
+                                                color: Colors.blueAccent, size: 18),
+                                            tooltip: 'Export/Share Project',
+                                            onPressed: () async {
+                                              final success = await ImageTextExportService.exportProject(proj);
+                                              if (success) {
+                                                _showSnackBar('Project exported successfully!');
+                                              } else {
+                                                _showSnackBar('Failed to export project.');
+                                              }
+                                            },
+                                          ),
+                                        IconButton(
+                                          constraints: const BoxConstraints(),
+                                          padding: const EdgeInsets.all(6),
+                                          icon: const Icon(Icons.delete_outline_rounded,
+                                              color: Colors.redAccent, size: 18),
+                                          tooltip: 'Delete Project',
+                                          onPressed: () async {
+                                            await _deleteSavedProject(proj['id']);
+                                            setDialogState(() {});
+                                          },
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Icon(Icons.arrow_forward_ios_rounded,
+                                            color: Colors.white.withOpacity(0.2), size: 12),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                           );
                         },

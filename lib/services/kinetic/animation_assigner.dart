@@ -81,6 +81,21 @@ class AnimationAssigner {
       AnimationType.staggeredSlideUp: AnimationType.slideDown,
       AnimationType.staggeredSlideFromTop: AnimationType.slideDown,
       AnimationType.staggeredSlideFromBottom: AnimationType.slideUp,
+      AnimationType.rotateIn: AnimationType.fadeOut,
+      AnimationType.flipX: AnimationType.fadeOut,
+      AnimationType.flipY: AnimationType.fadeOut,
+      AnimationType.gradientWipe: AnimationType.fadeOut,
+      AnimationType.radialWipe: AnimationType.fadeOut,
+      AnimationType.wavyBend: AnimationType.fadeOut,
+      AnimationType.ripple: AnimationType.fadeOut,
+      AnimationType.elasticStretch: AnimationType.scaleDown,
+      AnimationType.spiralDrop: AnimationType.zoomOut,
+      AnimationType.glitch: AnimationType.fadeOut,
+      AnimationType.typewriter: AnimationType.fadeOut,
+      AnimationType.throwback: AnimationType.zoomOut,
+      AnimationType.spin3D: AnimationType.zoomOut,
+      AnimationType.flip3D_X: AnimationType.fadeOut,
+      AnimationType.flip3D_Y: AnimationType.fadeOut,
     };
 
     // Try complement first

@@ -9,7 +9,7 @@ import '../../services/ads/ad_service.dart';
 
 class KineticPresetSheet extends StatefulWidget {
   final List<String> allFonts;
-  final Function(List<KineticStyle>, bool, int) onApply;
+  final Function(List<KineticStyle>, bool, bool, int) onApply;
 
   const KineticPresetSheet({
     super.key,
@@ -25,6 +25,7 @@ class _KineticPresetSheetState extends State<KineticPresetSheet> {
   static Set<int>? _rememberedPresetIndices;
   static bool? _rememberedMixedMode;
   static bool? _rememberedDoBurst;
+  static int? _rememberedTimingMode;
   static Set<String>? _rememberedFonts;
   static bool? _rememberedStroke;
   static bool? _rememberedGlow;
@@ -45,6 +46,7 @@ class _KineticPresetSheetState extends State<KineticPresetSheet> {
   Set<int> _selectedPresetIndices = {0};
   bool _isMixedMode = false;
   bool _doBurst = true;
+  int _timingMode = 0;
   late Set<String> _selectedFonts;
   late bool _enableStroke;
   late bool _enableGlow;
@@ -62,14 +64,61 @@ class _KineticPresetSheetState extends State<KineticPresetSheet> {
 
   // Available animation subsets for the UI picker
   final List<AnimationType> _availableEntranceAnimations = const [
-    AnimationType.fadeIn, AnimationType.slideUp, AnimationType.smoothSlideUp,
-    AnimationType.bounceIn, AnimationType.zoomIn, AnimationType.elasticDrop,
-    AnimationType.glitch, AnimationType.typewriter, AnimationType.throwback,
-    AnimationType.spin3D, AnimationType.flip3D_X, AnimationType.scaleUp,
+    AnimationType.fadeIn,
+    AnimationType.slideUp,
+    AnimationType.slideDown,
+    AnimationType.slideLeft,
+    AnimationType.slideRight,
+    AnimationType.smoothSlideUp,
+    AnimationType.staggeredSlideUp,
+    AnimationType.slideFromTop,
+    AnimationType.slideFromBottom,
+    AnimationType.staggeredSlideFromTop,
+    AnimationType.staggeredSlideFromBottom,
+    AnimationType.scaleUp,
+    AnimationType.scaleDown,
+    AnimationType.bounceIn,
+    AnimationType.rotateIn,
+    AnimationType.zoomIn,
+    AnimationType.zoomOut,
+    AnimationType.flipX,
+    AnimationType.flipY,
+    AnimationType.elasticDrop,
+    AnimationType.elasticStretch,
+    AnimationType.spiralDrop,
+    AnimationType.gradientWipe,
+    AnimationType.radialWipe,
+    AnimationType.throwback,
+    AnimationType.wavyBend,
+    AnimationType.ripple,
+    AnimationType.glitch,
+    AnimationType.typewriter,
+    AnimationType.spin3D,
+    AnimationType.flip3D_X,
+    AnimationType.flip3D_Y,
   ];
 
   final List<AnimationType> _availableExitAnimations = const [
-    AnimationType.fadeOut, AnimationType.slideDown, AnimationType.zoomOut, AnimationType.scaleDown,
+    AnimationType.fadeOut,
+    AnimationType.slideUp,
+    AnimationType.slideDown,
+    AnimationType.slideLeft,
+    AnimationType.slideRight,
+    AnimationType.scaleUp,
+    AnimationType.scaleDown,
+    AnimationType.zoomIn,
+    AnimationType.zoomOut,
+    AnimationType.flipX,
+    AnimationType.flipY,
+    AnimationType.elasticDrop,
+    AnimationType.gradientWipe,
+    AnimationType.radialWipe,
+    AnimationType.throwback,
+    AnimationType.wavyBend,
+    AnimationType.ripple,
+    AnimationType.spin3D,
+    AnimationType.flip3D_X,
+    AnimationType.flip3D_Y,
   ];
 
   @override
@@ -78,6 +127,7 @@ class _KineticPresetSheetState extends State<KineticPresetSheet> {
     _selectedPresetIndices = _rememberedPresetIndices ?? {0};
     _isMixedMode = _rememberedMixedMode ?? false;
     _doBurst = _rememberedDoBurst ?? true;
+    _timingMode = _rememberedTimingMode ?? (_rememberedDoBurst == false ? 2 : 0);
 
     final presets = [...KineticPresets.all, ..._customPresets];
     final firstIndex = _selectedPresetIndices.isNotEmpty ? _selectedPresetIndices.first : 0;
@@ -851,51 +901,46 @@ class _KineticPresetSheetState extends State<KineticPresetSheet> {
                   
                   const SizedBox(height: 24),
 
-                  // Stagger & Stack Timing Card
+                   // Stagger & Stack Timing Card
                   Container(
-                    padding: const EdgeInsets.all(14),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: const Color(0xFF13131A),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: Colors.white.withValues(alpha: 0.03)),
                     ),
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(
-                          Icons.speed_rounded,
-                          color: Colors.white38,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Burst & Stagger Timing',
-                                style: TextStyle(
-                                  fontFamily: 'KleeOne',
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.speed_rounded,
+                              color: Colors.white38,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'WORD SPLIT & TIMING MODE',
+                              style: TextStyle(
+                                fontFamily: 'KleeOne',
+                                color: Colors.white38,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.0,
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'Stack words inside the sentence duration limits.',
-                                style: TextStyle(
-                                  fontFamily: 'KleeOne',
-                                  color: Colors.white38,
-                                  fontSize: 9.5,
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                        Switch.adaptive(
-                          value: _doBurst,
-                          onChanged: (val) => setState(() => _doBurst = val),
-                          activeColor: Colors.deepPurpleAccent,
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            _buildTimingChip(0, 'BURST', 'Sequential', Icons.flare_rounded),
+                            const SizedBox(width: 8),
+                            _buildTimingChip(1, 'TOGETHER', 'Simultaneous', Icons.splitscreen_rounded),
+                            const SizedBox(width: 8),
+                            _buildTimingChip(2, 'DISABLED', 'Scene Block', Icons.block_rounded),
+                          ],
                         ),
                       ],
                     ),
@@ -1645,7 +1690,15 @@ class _KineticPresetSheetState extends State<KineticPresetSheet> {
                           );
                         }).toList();
                         
-                        widget.onApply(styles, _doBurst, _selectedBgColor);
+                        _rememberedDoBurst = _timingMode == 0;
+                        _rememberedTimingMode = _timingMode;
+                        
+                        widget.onApply(
+                          styles,
+                          _timingMode == 0,
+                          _timingMode == 1,
+                          _selectedBgColor,
+                        );
                       },
                       onAdDismissed: () {
                         // ad closed
@@ -1864,6 +1917,56 @@ class _KineticPresetSheetState extends State<KineticPresetSheet> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildTimingChip(int mode, String label, String subtitle, IconData icon) {
+    final isSelected = _timingMode == mode;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _timingMode = mode),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.deepPurpleAccent.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.02),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected ? Colors.deepPurpleAccent.withValues(alpha: 0.6) : Colors.white.withValues(alpha: 0.05),
+              width: 1.5,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                color: isSelected ? Colors.deepPurpleAccent : Colors.white38,
+                size: 18,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontFamily: 'KleeOne',
+                  color: isSelected ? Colors.white : Colors.white70,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontFamily: 'KleeOne',
+                  color: isSelected ? Colors.deepPurpleAccent.withValues(alpha: 0.8) : Colors.white24,
+                  fontSize: 8,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

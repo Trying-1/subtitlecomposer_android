@@ -116,6 +116,7 @@ class KineticPresets {
   static final List<KineticStyle> all = [
     cyberpunkBurst,
     minimalStack,
+    neonTogether,
     retroPop,
     natureFlow,
     bentoBlocky,
@@ -188,6 +189,35 @@ class KineticPresets {
     enableStroke: false,
     enableShadow: false,
     enableGlow: false,
+    textCase: TextCase.upper,
+  );
+
+  static const neonTogether = KineticStyle(
+    name: 'Neon Together',
+    icon: '🔮',
+    colorPalette: [0xFFFF00F0, 0xFF00FFCC, 0xFF3300FF, 0xFFFFFF00, 0xFFFFFFFF],
+    fontPool: _defaultFonts,
+    minFontSize: 32.0,
+    maxFontSize: 60.0,
+    minScale: 0.9,
+    maxScale: 1.3,
+    maxRotation: 0.0,
+    layoutPreset: LayoutPreset.column,
+    entrancePool: [
+      AnimationType.zoomIn,
+      AnimationType.fadeIn,
+      AnimationType.smoothSlideUp,
+    ],
+    exitPool: [
+      AnimationType.zoomOut,
+      AnimationType.fadeOut,
+    ],
+    animationDurationMs: 400,
+    enableStroke: true,
+    strokeColor: 0xFF000000,
+    strokeWidth: 3.5,
+    enableShadow: true,
+    enableGlow: true,
     textCase: TextCase.upper,
   );
 

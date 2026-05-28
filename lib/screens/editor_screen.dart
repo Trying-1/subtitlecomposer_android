@@ -1233,6 +1233,7 @@ class _EditorScreenState extends State<EditorScreen> {
                           onMerge: () => provider.mergeSelectedClips(),
                           onSplitToWords: () => provider.splitSelectedClipToWords(),
                           onBurstSelected: () => provider.burstSelectedClipToStackedWords(),
+                          onTogetherSelected: () => provider.togetherSelectedClipToStackedWords(),
                           onDelete: () => provider.deleteSelectedClips(),
                           onActionStart: () => provider.saveState(),
                           onUndo: () => provider.undo(),

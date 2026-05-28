@@ -2426,69 +2426,111 @@ class EditorProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  int? _parseClipOrderIndex(SubtitleClip clip) {
+    final reg = RegExp(r'_(\d+)$');
+    final match = reg.firstMatch(clip.id);
+    if (match != null) {
+      return int.tryParse(match.group(1)!);
+    }
+    return null;
+  }
+
+  int _getClipTrackIndex(SubtitleClip clip) {
+    for (int i = 0; i < _tracks.length; i++) {
+      if (_tracks[i].clips.any((c) => c.id == clip.id)) {
+        return i;
+      }
+    }
+    return 999;
+  }
+
+  int _compareClipsWordOrder(SubtitleClip a, SubtitleClip b) {
+    final cmp = a.startTime.compareTo(b.startTime);
+    if (cmp != 0) return cmp;
+    
+    final idxA = _parseClipOrderIndex(a);
+    final idxB = _parseClipOrderIndex(b);
+    if (idxA != null && idxB != null) {
+      return idxA.compareTo(idxB);
+    }
+    
+    final trackA = _getClipTrackIndex(a);
+    final trackB = _getClipTrackIndex(b);
+    return trackB.compareTo(trackA);
+  }
+
   void mergeSelectedClips() {
     if (_selectedClipIds.length < 2) return;
     
     saveState();
     
-    // Find target track and ensure all selected clips are on it
-    Track? targetTrack;
     final List<SubtitleClip> selectedClips = [];
+    final List<int> trackIndices = [];
     
-    for (final track in _tracks) {
-      bool hasSome = false;
-      bool hasAllFromSelection = true;
-      final List<SubtitleClip> foundInTrack = [];
-      
+    for (int i = 0; i < _tracks.length; i++) {
+      final track = _tracks[i];
       for (final clip in track.clips) {
         if (_selectedClipIds.contains(clip.id)) {
-          foundInTrack.add(clip);
-          hasSome = true;
+          selectedClips.add(clip);
+          if (!trackIndices.contains(i)) {
+            trackIndices.add(i);
+          }
         }
-      }
-      
-      if (hasSome) {
-        if (targetTrack != null) {
-          // Already found clips in another track, merging across tracks not supported
-          return;
-        }
-        targetTrack = track;
-        selectedClips.addAll(foundInTrack);
       }
     }
     
-    if (targetTrack == null || selectedClips.length != _selectedClipIds.length) {
+    if (selectedClips.isEmpty || selectedClips.length != _selectedClipIds.length) {
       return;
     }
     
-    // Sort by start time to check consecutiveness
-    selectedClips.sort((a, b) => a.startTime.compareTo(b.startTime));
+    // Sort by word order
+    selectedClips.sort(_compareClipsWordOrder);
     
-    // Check if they are consecutive in the track's sorted clips list
-    final allClipsInTrack = List<SubtitleClip>.from(targetTrack.clips);
-    allClipsInTrack.sort((a, b) => a.startTime.compareTo(b.startTime));
-    
-    int firstIndex = allClipsInTrack.indexWhere((c) => c.id == selectedClips.first.id);
-    for (int i = 0; i < selectedClips.length; i++) {
-      if (allClipsInTrack[firstIndex + i].id != selectedClips[i].id) {
-        // Not consecutive
-        return;
+    Track targetTrack;
+    if (trackIndices.length == 1) {
+      targetTrack = _tracks[trackIndices.first];
+      
+      // Check if they are consecutive in the track's sorted clips list
+      final allClipsInTrack = List<SubtitleClip>.from(targetTrack.clips);
+      allClipsInTrack.sort((a, b) => a.startTime.compareTo(b.startTime));
+      
+      int firstIndex = allClipsInTrack.indexWhere((c) => c.id == selectedClips.first.id);
+      for (int i = 0; i < selectedClips.length; i++) {
+        if (allClipsInTrack[firstIndex + i].id != selectedClips[i].id) {
+          // Not consecutive
+          return;
+        }
       }
+    } else {
+      // Stacked/vertical multi-track merge (e.g. Together)
+      final minTrackIdx = trackIndices.reduce((a, b) => a < b ? a : b);
+      targetTrack = _tracks[minTrackIdx];
     }
     
     // Create merged clip
     final first = selectedClips.first;
-    final last = selectedClips.last;
+    
+    // Find min startTime and max endTime among all selected clips
+    var minStart = first.startTime;
+    var maxEnd = first.endTime;
+    for (final c in selectedClips) {
+      if (c.startTime < minStart) minStart = c.startTime;
+      if (c.endTime > maxEnd) maxEnd = c.endTime;
+    }
     
     final mergedClip = first.copyWith(
       text: selectedClips.map((c) => c.text).join(' '),
-      endTime: last.endTime,
+      startTime: minStart,
+      endTime: maxEnd,
       id: "merged_${DateTime.now().millisecondsSinceEpoch}",
       keyframes: [...first.keyframes], // Keep first clip keyframes
     );
     
-    // Remove old clips
-    targetTrack.clips.removeWhere((c) => _selectedClipIds.contains(c.id));
+    // Remove old clips from all tracks
+    for (var track in _tracks) {
+      track.clips.removeWhere((c) => _selectedClipIds.contains(c.id));
+    }
+    
     targetTrack.clips.add(mergedClip);
     targetTrack.clips.sort((a, b) => a.startTime.compareTo(b.startTime));
     
@@ -2498,28 +2540,67 @@ class EditorProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void splitSelectedClipToWords() {
-    final clip = selectedTimelineClip;
-    if (clip == null || clip is! SubtitleClip) return;
+  SubtitleClip? _getSelectedOrRecombinedClip() {
+    if (_selectedClipIds.isEmpty) return null;
     
-    final subtitleClip = clip as SubtitleClip;
+    if (_selectedClipIds.length == 1) {
+      final clip = selectedTimelineClip;
+      if (clip is SubtitleClip) return clip;
+      return null;
+    }
+    
+    // Multiple clips selected
+    final List<SubtitleClip> selectedClips = [];
+    for (final track in _tracks) {
+      for (final clip in track.clips) {
+        if (_selectedClipIds.contains(clip.id)) {
+          selectedClips.add(clip);
+        }
+      }
+    }
+    
+    if (selectedClips.isEmpty) return null;
+    
+    // Sort by word order
+    selectedClips.sort(_compareClipsWordOrder);
+    
+    final first = selectedClips.first;
+    var minStart = first.startTime;
+    var maxEnd = first.endTime;
+    for (final c in selectedClips) {
+      if (c.startTime < minStart) minStart = c.startTime;
+      if (c.endTime > maxEnd) maxEnd = c.endTime;
+    }
+    
+    return first.copyWith(
+      text: selectedClips.map((c) => c.text).join(' '),
+      startTime: minStart,
+      endTime: maxEnd,
+      keyframes: [],
+    );
+  }
+
+  void splitSelectedClipToWords() {
+    final subtitleClip = _getSelectedOrRecombinedClip();
+    if (subtitleClip == null) return;
+    
     final words = subtitleClip.text.trim().split(RegExp(r'\s+'));
     if (words.length <= 1) return;
     
     saveState();
     
-    final totalDuration = subtitleClip.duration;
-    final durationPerWord = Duration(microseconds: (totalDuration.inMicroseconds / words.length).toInt());
-    
-    Track? targetTrack;
-    for (final track in _tracks) {
-      if (track.clips.any((c) => c.id == subtitleClip.id)) {
-        targetTrack = track;
+    // Find target track
+    int targetTrackIdx = 0;
+    for (int i = 0; i < _tracks.length; i++) {
+      if (_tracks[i].clips.any((c) => _selectedClipIds.contains(c.id))) {
+        targetTrackIdx = i;
         break;
       }
     }
-    if (targetTrack == null) return;
-
+    
+    final totalDuration = subtitleClip.duration;
+    final durationPerWord = Duration(microseconds: (totalDuration.inMicroseconds / words.length).toInt());
+    
     final List<SubtitleClip> newClips = [];
     var currentStart = subtitleClip.startTime;
     
@@ -2538,10 +2619,13 @@ class EditorProvider extends ChangeNotifier {
       currentStart = endTime;
     }
     
-    // Replace old clip with new clips
-    targetTrack.clips.removeWhere((c) => c.id == clip.id);
-    targetTrack.clips.addAll(newClips);
-    targetTrack.clips.sort((a, b) => a.startTime.compareTo(b.startTime));
+    // Remove old clips from all tracks
+    for (var track in _tracks) {
+      track.clips.removeWhere((c) => _selectedClipIds.contains(c.id));
+    }
+    
+    _tracks[targetTrackIdx].clips.addAll(newClips);
+    _tracks[targetTrackIdx].clips.sort((a, b) => a.startTime.compareTo(b.startTime));
     
     // Select all child segments by default and enable multi-select
     _selectedClipIds = newClips.map((c) => c.id).toSet();
@@ -2552,25 +2636,21 @@ class EditorProvider extends ChangeNotifier {
   }
 
   void burstSelectedClipToStackedWords() {
-    final clip = selectedTimelineClip;
-    if (clip == null || clip is! SubtitleClip) return;
+    final subtitleClip = _getSelectedOrRecombinedClip();
+    if (subtitleClip == null) return;
     
-    final subtitleClip = clip as SubtitleClip;
     final words = subtitleClip.text.trim().split(RegExp(r'\s+'));
     if (words.length <= 1) return;
     
     saveState();
     
-    Track? targetTrack;
-    int baseTrackIndex = 999;
+    int baseTrackIndex = 0;
     for (int i = 0; i < _tracks.length; i++) {
-      if (_tracks[i].clips.any((c) => c.id == subtitleClip.id)) {
-        targetTrack = _tracks[i];
+      if (_tracks[i].clips.any((c) => _selectedClipIds.contains(c.id))) {
         baseTrackIndex = i;
         break;
       }
     }
-    if (targetTrack == null) return;
 
     final List<SubtitleClip> newClips = [];
     
@@ -2599,8 +2679,72 @@ class EditorProvider extends ChangeNotifier {
       currentStart = endTime;
     }
     
-    // Replace old clip with new clips in vertically stacked tracks
-    targetTrack.clips.removeWhere((c) => c.id == clip.id);
+    // Remove old clips from all tracks
+    for (var track in _tracks) {
+      track.clips.removeWhere((c) => _selectedClipIds.contains(c.id));
+    }
+    
+    for (int i = 0; i < newClips.length; i++) {
+        int targetTrackIdx = baseTrackIndex + (newClips.length - 1 - i);
+
+        while (_tracks.length <= targetTrackIdx) {
+            _tracks.add(Track(
+                id: DateTime.now().millisecondsSinceEpoch.toString() + _tracks.length.toString(),
+                name: 'Track ${_tracks.length + 1}',
+                clips: [],
+            ));
+        }
+
+        _resolveCollisions(newClips[i], targetTrackIdx);
+    }
+    
+    // Select all the new words so they can be laid out
+    _selectedClipIds = newClips.map((c) => c.id).toSet();
+    _isMultiSelectMode = true;
+    
+    syncToNative();
+    notifyListeners();
+  }
+
+  void togetherSelectedClipToStackedWords() {
+    final subtitleClip = _getSelectedOrRecombinedClip();
+    if (subtitleClip == null) return;
+    
+    final words = subtitleClip.text.trim().split(RegExp(r'\s+'));
+    if (words.length <= 1) return;
+    
+    saveState();
+    
+    int baseTrackIndex = 0;
+    for (int i = 0; i < _tracks.length; i++) {
+      if (_tracks[i].clips.any((c) => _selectedClipIds.contains(c.id))) {
+        baseTrackIndex = i;
+        break;
+      }
+    }
+
+    final List<SubtitleClip> newClips = [];
+    
+    const double gap = 0.12;
+    final double totalHeight = (words.length - 1) * gap;
+    final double startY = (1.0 - totalHeight) / 2;
+    
+    for (var i = 0; i < words.length; i++) {
+      newClips.add(subtitleClip.copyWith(
+        id: "together_${DateTime.now().millisecondsSinceEpoch}_$i",
+        text: words[i],
+        x: 0.5,
+        y: startY + (i * gap),
+        startTime: subtitleClip.startTime,
+        endTime: subtitleClip.endTime,
+        keyframes: [], 
+      ));
+    }
+    
+    // Remove old clips from all tracks
+    for (var track in _tracks) {
+      track.clips.removeWhere((c) => _selectedClipIds.contains(c.id));
+    }
     
     for (int i = 0; i < newClips.length; i++) {
         int targetTrackIdx = baseTrackIndex + (newClips.length - 1 - i);
@@ -2627,7 +2771,7 @@ class EditorProvider extends ChangeNotifier {
   /// One-click kinetic typography automation.
   /// Bursts each selected sentence into words, stacks them, then applies
   /// the full KineticEngine pipeline (style, layout, animation).
-  void applyKineticStyle(List<KineticStyle> styles, {bool doBurst = true, int? customBgColor}) {
+  void applyKineticStyle(List<KineticStyle> styles, {bool doBurst = true, bool doTogether = false, int? customBgColor}) {
     saveState();
 
     // Determine background color: custom or preset derived
@@ -2679,8 +2823,8 @@ class EditorProvider extends ChangeNotifier {
 
     if (targetClips.isEmpty) return;
 
-    // Sort by start time
-    targetClips.sort((a, b) => a.startTime.compareTo(b.startTime));
+    // Sort by start time and preserve word order for identical start times
+    targetClips.sort(_compareClipsWordOrder);
 
     // Group targetClips by time overlap (co-visible clips form a "sentence/scene" group)
     final List<List<SubtitleClip>> groups = [];
@@ -2715,33 +2859,67 @@ class EditorProvider extends ChangeNotifier {
       final currentStyle = styles[styleIndex % styles.length];
       styleIndex++;
 
-      List<SubtitleClip> sentenceClips = [];
-      if (doBurst) {
-        for (final clip in group) {
-          final words = clip.text.trim().split(RegExp(r'\s+'));
-          if (words.length <= 1) {
-            sentenceClips.add(clip);
-          } else {
-            final totalDuration = clip.duration;
-            final durationPerWord = Duration(
-              microseconds: (totalDuration.inMicroseconds / words.length).toInt(),
-            );
-            var currentStart = clip.startTime;
+      // Recombine overlapping/stacked clips back into a single sentence clip if group.length > 1
+      SubtitleClip combinedClip;
+      if (group.length > 1) {
+        group.sort(_compareClipsWordOrder);
+        final first = group.first;
+        var minStart = first.startTime;
+        var maxEnd = first.endTime;
+        for (final c in group) {
+          if (c.startTime < minStart) minStart = c.startTime;
+          if (c.endTime > maxEnd) maxEnd = c.endTime;
+        }
+        combinedClip = first.copyWith(
+          text: group.map((c) => c.text).join(' '),
+          startTime: minStart,
+          endTime: maxEnd,
+          keyframes: [],
+        );
+      } else {
+        combinedClip = group.first;
+      }
 
-            for (int i = 0; i < words.length; i++) {
-              sentenceClips.add(clip.copyWith(
-                id: 'kinetic_${DateTime.now().millisecondsSinceEpoch}_${idCounter++}',
-                text: words[i],
-                startTime: currentStart,
-                endTime: clip.endTime, // Keep within parent's duration & stack!
-                keyframes: [],
-              ));
-              currentStart = currentStart + durationPerWord;
-            }
+      List<SubtitleClip> sentenceClips = [];
+      if (doTogether) {
+        final words = combinedClip.text.trim().split(RegExp(r'\s+'));
+        if (words.length <= 1) {
+          sentenceClips.add(combinedClip);
+        } else {
+          for (int i = 0; i < words.length; i++) {
+            sentenceClips.add(combinedClip.copyWith(
+              id: 'kinetic_${DateTime.now().millisecondsSinceEpoch}_${idCounter++}',
+              text: words[i],
+              startTime: combinedClip.startTime,
+              endTime: combinedClip.endTime,
+              keyframes: [],
+            ));
+          }
+        }
+      } else if (doBurst) {
+        final words = combinedClip.text.trim().split(RegExp(r'\s+'));
+        if (words.length <= 1) {
+          sentenceClips.add(combinedClip);
+        } else {
+          final totalDuration = combinedClip.duration;
+          final durationPerWord = Duration(
+            microseconds: (totalDuration.inMicroseconds / words.length).toInt(),
+          );
+          var currentStart = combinedClip.startTime;
+
+          for (int i = 0; i < words.length; i++) {
+            sentenceClips.add(combinedClip.copyWith(
+              id: 'kinetic_${DateTime.now().millisecondsSinceEpoch}_${idCounter++}',
+              text: words[i],
+              startTime: currentStart,
+              endTime: combinedClip.endTime,
+              keyframes: [],
+            ));
+            currentStart = currentStart + durationPerWord;
           }
         }
       } else {
-        sentenceClips.addAll(group);
+        sentenceClips.add(combinedClip);
       }
 
       // Apply KineticEngine (style + layout + animation) per sentence group
@@ -3082,7 +3260,7 @@ class EditorProvider extends ChangeNotifier {
 
     if (selectedClips.isEmpty) return;
 
-    selectedClips.sort((a, b) => a.startTime.compareTo(b.startTime));
+    selectedClips.sort(_compareClipsWordOrder);
 
     Duration maxEndTime = Duration.zero;
     for (var clip in selectedClips) {

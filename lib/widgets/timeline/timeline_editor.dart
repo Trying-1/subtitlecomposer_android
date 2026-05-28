@@ -59,6 +59,7 @@ class TimelineEditor extends StatefulWidget {
   final VoidCallback onMerge;
   final VoidCallback onSplitToWords;
   final VoidCallback onBurstSelected;
+  final VoidCallback onTogetherSelected;
   final VoidCallback onDelete;
   final VoidCallback onActionStart; // For undo saving
   final bool isPlaying;
@@ -126,6 +127,7 @@ class TimelineEditor extends StatefulWidget {
     required this.onMerge,
     required this.onSplitToWords,
     required this.onBurstSelected,
+    required this.onTogetherSelected,
     required this.onDelete,
     required this.onActionStart,
     required this.onUndo,
@@ -560,7 +562,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
                         false, 
                         widget.onSplitToWords, 
                         icon: Icons.format_list_bulleted_rounded,
-                        color: widget.selectedClipIds.length == 1 ? Colors.white : Colors.white10
+                        color: widget.selectedClipIds.isNotEmpty ? Colors.white : Colors.white10
                       ),
                       const SizedBox(width: 16),
                     ],
@@ -571,7 +573,18 @@ class _TimelineEditorState extends State<TimelineEditor> {
                         false, 
                         widget.onBurstSelected, 
                         icon: Icons.flare_rounded,
-                        color: widget.selectedClipIds.length == 1 ? Colors.white : Colors.white10
+                        color: widget.selectedClipIds.isNotEmpty ? Colors.white : Colors.white10
+                      ),
+                      const SizedBox(width: 16),
+                    ],
+
+                    if (AppConfig.showTimelineTogether) ...[
+                      _buildVerticalToggle(
+                        "TOGETHER", 
+                        false, 
+                        widget.onTogetherSelected, 
+                        icon: Icons.splitscreen_rounded,
+                        color: widget.selectedClipIds.isNotEmpty ? Colors.white : Colors.white10
                       ),
                       const SizedBox(width: 16),
                     ],
@@ -601,6 +614,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
                         AppConfig.showTimelineMerge || 
                         AppConfig.showTimelineDivide || 
                         AppConfig.showTimelineBurst || 
+                        AppConfig.showTimelineTogether || 
                         AppConfig.showTimelineDelete ||
                         AppConfig.showTimelineStack ||
                         AppConfig.showTimelineReset)
@@ -926,7 +940,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
 
   Widget _buildJunctionWidget(dynamic clipA, dynamic clipB) {
     final centerX = _calculatePosition(clipA.endTime);
-    const double handleWidth = 20.0;
+    const double handleWidth = 28.0;
     
     return Positioned(
       left: centerX - (handleWidth / 2),
@@ -986,21 +1000,65 @@ class _TimelineEditorState extends State<TimelineEditor> {
           });
         },
         child: Center(
-          child: Container(
-            width: 6,
-            height: 24,
-            decoration: BoxDecoration(
-              color: _junctionClipAId == clipA.id ? Colors.cyanAccent : Colors.white24,
-              borderRadius: BorderRadius.circular(3),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black26,
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedOpacity(
+                duration: const Duration(milliseconds: 150),
+                opacity: _junctionClipAId == clipA.id ? 0.95 : 0.25,
+                child: Icon(
+                  Icons.chevron_left_rounded,
+                  size: 10,
+                  color: _junctionClipAId == clipA.id ? Colors.cyanAccent : Colors.white,
                 ),
-              ],
-            ),
-            child: Icon(Icons.unfold_more_rounded, size: 6, color: Colors.black),
+              ),
+              const SizedBox(width: 1),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: _junctionClipAId == clipA.id ? 14.0 : 10.0,
+                height: _junctionClipAId == clipA.id ? 14.0 : 10.0,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _junctionClipAId == clipA.id 
+                      ? Colors.cyanAccent 
+                      : Colors.white.withValues(alpha: 0.85),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _junctionClipAId == clipA.id 
+                          ? Colors.cyanAccent.withValues(alpha: 0.45) 
+                          : Colors.black45,
+                      blurRadius: _junctionClipAId == clipA.id ? 8.0 : 4.0,
+                      spreadRadius: _junctionClipAId == clipA.id ? 1.5 : 0.0,
+                    ),
+                  ],
+                  border: Border.all(
+                    color: _junctionClipAId == clipA.id ? Colors.white : Colors.white24,
+                    width: 1.2,
+                  ),
+                ),
+                child: Center(
+                  child: Container(
+                    width: 3.0,
+                    height: 3.0,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _junctionClipAId == clipA.id ? Colors.black : Colors.black38,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 1),
+              AnimatedOpacity(
+                duration: const Duration(milliseconds: 150),
+                opacity: _junctionClipAId == clipA.id ? 0.95 : 0.25,
+                child: Icon(
+                  Icons.chevron_right_rounded,
+                  size: 10,
+                  color: _junctionClipAId == clipA.id ? Colors.cyanAccent : Colors.white,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1675,9 +1733,9 @@ class _TimelineEditorState extends State<TimelineEditor> {
       builder: (sheetContext) {
         return KineticPresetSheet(
           allFonts: allFonts,
-          onApply: (styles, doBurst, bgColor) {
+          onApply: (styles, doBurst, doTogether, bgColor) {
             Navigator.pop(sheetContext);
-            provider.applyKineticStyle(styles, doBurst: doBurst, customBgColor: bgColor);
+            provider.applyKineticStyle(styles, doBurst: doBurst, doTogether: doTogether, customBgColor: bgColor);
           },
         );
       },

@@ -554,3 +554,27 @@ reduce the selection box stroke width, make it thinner just visible, and chose g
 [there is still issue in the app opening ad, its showing up, even without app start, or app open, what the main cause, of this, ]
 [okay next, in our main typography project I am still seeing thin text strokes in the output, they are not in the preiview then why are they appearing in the output. check on it, ]
 [and the quality issue, like the texts doesn't look sharp, crisp, looks like low quality, why is it so]
+
+
+===============version25==============
+[good next in our master asset import lets also import our custom palettes as well, the file which we export from this app the .typopalette, I will put the file there got it]
+[in the tutorial screen, youtube button on top right that redirects to our youtube channel, for now just add a button, assets/images/youtube.png use this image as as icon button, got it]
+[in the tools image text, add add import and export project feature as well, so that I can restore projects even after uninstalling and reinstalling app, understood]
+[add a  app config for this, whether to show this feature or not, ]
+[for the image text remember the last project, understood, use app storage and remember the last project so that users don't have to import and  everytime if they want to work on the same image, got it]
+[wtf, not even the project is being saved, once I am leaving the screen it gone, and even after saving project its not showing under save projects, and there is no option for export project]
+[add new project button on top as well]
+[good but the project card design in the save poster project dialog is bad, like the project name is getting horrible new lined, and seems like icon, name, share, delete etc all are in single row.fix its layout]
+[add rename project ]
+[good, next in the main project and master asset import, for overlay look into the subfolders inside the overlay folder, if there are further classification of overlay based on their type, like anime sticker, funny sticker, or other custom overlays, understood, and display them accordingly in the asset library, got it, ]
+[good, users to classify manually after import as well, got it]
+[good next now lets show this classified overlays inside the editor as well. got it]
+
+[okay next in the auto kinetic typograhy feature, right now we are breaking a sentence into word then the showing them one by one, like using burst and then stack right, like this it create a stair step in the timeline, now I also want a feature to show all the segment together, instead of one by one, understood, so like all the child segment will be of same duration on of sentence segment duration, in different track, understood, so add a new button along with divide, burst, stack understood for this feature got it]
+[good, now in the auto kinetic, lets add this feature as well,  create style preset that use this instead of the burst and stack, understood. ]
+[good, a UX improvement, remember the word order before the together, so that we can revert back if we use burst or stack again on those understood]
+[now next for the auto kinetic, we should be able to switch between the burst and together anytime want, understood, ]
+[next, right we don't have all the entrance animation in the auto kinectic that we have in the animations like slide left, right many others]
+[good next lets improve the junction point between two close segments design, like big circular dot type, it will be easier for user experience,  understood]
+[good add small arrows on left and right of if like <<O>> this type]
+

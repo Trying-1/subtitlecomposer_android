@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class TutorialItem {
   final String title;
@@ -129,6 +130,24 @@ class _TutorialsPageState extends State<TutorialsPage> {
     ],
   };
 
+  Future<void> _launchYouTubeChannel() async {
+    final Uri url = Uri.parse('https://www.youtube.com/@typoedit-app');
+    try {
+      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Could not open YouTube channel link.'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error launching YouTube: $e');
+    }
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -152,6 +171,18 @@ class _TutorialsPageState extends State<TutorialsPage> {
                 onPressed: () => Navigator.pop(context),
               )
             : null,
+        actions: [
+          IconButton(
+            icon: Image.asset(
+              'assets/images/youtube.png',
+              width: 24,
+              height: 24,
+            ),
+            tooltip: 'YouTube Channel',
+            onPressed: _launchYouTubeChannel,
+          ),
+          const SizedBox(width: 12),
+        ],
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

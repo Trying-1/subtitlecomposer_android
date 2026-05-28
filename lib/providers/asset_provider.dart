@@ -84,6 +84,19 @@ class AssetProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void updateAssetPath(String oldPath, String newPath) {
+    if (!_isInitialized) return;
+    final index = _overlayAssets.indexOf(oldPath);
+    if (index != -1) {
+      _overlayAssets[index] = newPath;
+      if (_customNames.containsKey(oldPath)) {
+        _customNames[newPath] = _customNames.remove(oldPath)!;
+      }
+      _persistAssets();
+      notifyListeners();
+    }
+  }
+
   void addAssets(List<String> paths) {
     if (!_isInitialized) return;
     bool changed = false;

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:path/path.dart' as p;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -35,6 +36,7 @@ class OverlayTab extends StatefulWidget {
 
 class _OverlayTabState extends State<OverlayTab> {
   int _activeTab = 0; // 0: Control, 1: Assets
+  String _selectedCategory = 'All';
 
   @override
   void initState() {
@@ -79,7 +81,41 @@ class _OverlayTabState extends State<OverlayTab> {
     }
   }
 
+  String _getOverlayCategory(String path) {
+    try {
+      final file = File(path);
+      final parentDir = file.parent;
+      final parentName = p.basename(parentDir.path);
+      if (parentName.toLowerCase() == 'overlays' || parentName.toLowerCase() == 'overlay') {
+        return 'Default';
+      }
+      if (parentName.isEmpty) return 'Default';
+      return parentName[0].toUpperCase() + parentName.substring(1);
+    } catch (_) {
+      return 'Default';
+    }
+  }
+
   Widget _buildAssetsView(BuildContext context, AssetProvider assetProvider) {
+    // 1. Gather all unique categories dynamically
+    final categories = ['All'];
+    for (final path in assetProvider.assets) {
+      final cat = _getOverlayCategory(path);
+      if (!categories.contains(cat)) {
+        categories.add(cat);
+      }
+    }
+
+    // Reset selected category to 'All' if the category is no longer valid/available
+    if (!categories.contains(_selectedCategory)) {
+      _selectedCategory = 'All';
+    }
+
+    // 2. Filter assets by category
+    final filteredAssets = _selectedCategory == 'All'
+        ? assetProvider.assets
+        : assetProvider.assets.where((p) => _getOverlayCategory(p) == _selectedCategory).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -96,7 +132,50 @@ class _OverlayTabState extends State<OverlayTab> {
           ],
         ),
         const SizedBox(height: 12),
-        if (assetProvider.assets.isEmpty)
+        
+        // 3. Render dynamic category filter chips
+        if (assetProvider.assets.isNotEmpty && categories.length > 2) ...[
+          SizedBox(
+            height: 32,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: categories.length,
+              itemBuilder: (context, index) {
+                final cat = categories[index];
+                final isSelected = cat == _selectedCategory;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: FilterChip(
+                    padding: EdgeInsets.zero,
+                    labelPadding: const EdgeInsets.symmetric(horizontal: 8),
+                    label: Text(
+                      cat,
+                      style: TextStyle(
+                        color: isSelected ? Colors.white : Colors.white60,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    selected: isSelected,
+                    onSelected: (_) => setState(() => _selectedCategory = cat),
+                    backgroundColor: Colors.white.withOpacity(0.02),
+                    selectedColor: Colors.deepPurpleAccent,
+                    checkmarkColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(
+                        color: isSelected ? Colors.deepPurpleAccent : Colors.white.withOpacity(0.05),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+
+        if (filteredAssets.isEmpty)
           Center(
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 24),
@@ -104,7 +183,10 @@ class _OverlayTabState extends State<OverlayTab> {
                 children: [
                   Icon(Icons.photo_library_outlined, color: Colors.white.withOpacity(0.05), size: 48),
                   const SizedBox(height: 12),
-                  const Text('No assets imported', style: TextStyle(color: Colors.white24, fontSize: 11)),
+                  Text(
+                    _selectedCategory == 'All' ? 'No assets imported' : 'No assets in category "$_selectedCategory"',
+                    style: const TextStyle(color: Colors.white24, fontSize: 11),
+                  ),
                 ],
               ),
             ),
@@ -118,9 +200,9 @@ class _OverlayTabState extends State<OverlayTab> {
               crossAxisSpacing: 8,
               mainAxisSpacing: 8,
             ),
-            itemCount: assetProvider.assets.length,
+            itemCount: filteredAssets.length,
             itemBuilder: (context, index) {
-              final path = assetProvider.assets[index];
+              final path = filteredAssets[index];
               final isReplacing = widget.selectedOverlay != null;
               
               return Stack(
