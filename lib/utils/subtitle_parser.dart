@@ -15,6 +15,7 @@ class SubtitleParser {
         text: item['text'] ?? '',
         startTime: Duration(milliseconds: ((item['start'] as num) * 1000).toInt()),
         endTime: Duration(milliseconds: ((item['end'] as num) * 1000).toInt()),
+        originalTrackId: item['track']?.toString(),
       );
     }).toList();
   }

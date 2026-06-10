@@ -4,6 +4,7 @@ import '../../../../models/editor_models.dart';
 import '../../../../utils/animation_presets.dart';
 import '../../../../providers/asset_provider.dart';
 import '../../../common/custom_color_picker.dart';
+import '../../../../utils/palette_presets.dart';
 
 class CommonControls {
   static Widget buildSlider(BuildContext context, String label, double value, double min, double max, ValueChanged<double> onChanged, {VoidCallback? onReset}) {
@@ -116,15 +117,6 @@ class CommonControls {
     );
   }
 
-  static final List<ColorPalette> premiumPalettes = [
-    ColorPalette(id: 'luxury_gold', name: 'Classic Gold & Black', colors: [0xFF000000, 0xFFD4AF37, 0xFFFFFFFF, 0xFFC5A028, 0xFF1A1A1A]),
-    ColorPalette(id: 'royal_velvet', name: 'Royal Velvet', colors: [0xFF2D0A31, 0xFFFFFFFF, 0xFF8105D8, 0xFFC0C0C0, 0xFF4A0E4E]),
-    ColorPalette(id: 'emerald_elite', name: 'Emerald & Gold', colors: [0xFF043927, 0xFFD4AF37, 0xFFFFFFFF, 0xFFF5F5F5, 0xFF0B6623]),
-    ColorPalette(id: 'midnight_silver', name: 'Midnight Luxe', colors: [0xFF0F0F13, 0xFFFFFFFF, 0xFFBDBDBD, 0xFF4A4A4A, 0xFF1C1C21]),
-    ColorPalette(id: 'rose_quartz', name: 'Champagne Rose', colors: [0xFF2D1B22, 0xFFF7E7CE, 0xFFB76E79, 0xFFFFFFFF, 0xFFD4AF37]),
-    ColorPalette(id: 'ocean_pearl', name: 'Deep Sea Pearl', colors: [0xFF002366, 0xFFFFFFFF, 0xFFE0E0E0, 0xFF0055D4, 0xFF003399]),
-  ];
-
   static String _getColorRoleLabel(int index) {
     switch (index) {
       case 0:
@@ -143,15 +135,17 @@ class CommonControls {
   static Widget buildPalettesOnly(BuildContext context, int current, ValueChanged<int> onChanged) {
     return Consumer<AssetProvider>(
       builder: (context, assetProvider, child) {
-        final allPalettes = [...premiumPalettes, ...assetProvider.palettes];
+        final presets = PalettePresets.categories.expand((c) => c.palettes).toList();
+        final allPalettes = [...assetProvider.palettes, ...presets];
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('PREMIUM PALETTES', style: TextStyle(fontSize: 8, color: Colors.amberAccent, fontWeight: FontWeight.w900, letterSpacing: 0.8)),
-            const SizedBox(height: 16),
+            if (allPalettes.isNotEmpty) ...[
+              const Text('PALETTES', style: TextStyle(fontSize: 8, color: Colors.amberAccent, fontWeight: FontWeight.w900, letterSpacing: 0.8)),
+              const SizedBox(height: 16),
+            ],
             ...allPalettes.map((palette) {
-              final isPremium = premiumPalettes.contains(palette);
               return Padding(
                 padding: const EdgeInsets.only(bottom: 20),
                 child: Column(
@@ -159,60 +153,51 @@ class CommonControls {
                   children: [
                     Row(
                       children: [
-                        Text(palette.name.toUpperCase(), style: TextStyle(fontSize: 8, color: isPremium ? Colors.amberAccent.withOpacity(0.5) : Colors.white38, fontWeight: FontWeight.bold)),
-                        if (isPremium) ...[
-                          const SizedBox(width: 6),
-                          const Icon(Icons.stars_rounded, size: 8, color: Colors.amberAccent),
-                        ],
+                        Text(palette.name.toUpperCase(), style: const TextStyle(fontSize: 8, color: Colors.white38, fontWeight: FontWeight.bold)),
                       ],
                     ),
                     const SizedBox(height: 10),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: palette.colors.asMap().entries.map((entry) {
-                          final idx = entry.key;
-                          final c = entry.value;
-                          final label = _getColorRoleLabel(idx);
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 16),
-                            child: GestureDetector(
-                              onTap: () => onChanged(c),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  Container(
-                                    width: 36,
-                                    height: 36,
-                                    decoration: BoxDecoration(
-                                      color: Color(c),
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                        color: current == c ? Colors.deepPurpleAccent : Colors.white12, 
-                                        width: current == c ? 2.5 : 1,
-                                      ),
-                                      boxShadow: [
-                                        if (current == c) BoxShadow(color: Colors.deepPurpleAccent.withOpacity(0.4), blurRadius: 8)
-                                      ],
-                                    ),
+                    Row(
+                      children: palette.colors.asMap().entries.map((entry) {
+                        final idx = entry.key;
+                        final c = entry.value;
+                        final label = _getColorRoleLabel(idx);
+                        return Expanded(
+                          child: GestureDetector(
+                            onTap: () => onChanged(c),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Container(
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: Color(c),
+                                    border: current == c 
+                                        ? Border.all(color: Colors.deepPurpleAccent, width: 2.5)
+                                        : null,
+                                    boxShadow: [
+                                      if (current == c) BoxShadow(color: Colors.deepPurpleAccent.withOpacity(0.4), blurRadius: 8)
+                                    ],
                                   ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    label,
-                                    style: TextStyle(
-                                      fontSize: 6.5,
-                                      fontWeight: FontWeight.w900,
-                                      color: current == c ? Colors.deepPurpleAccent : Colors.white38,
-                                      letterSpacing: 0.5,
-                                    ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  label,
+                                  style: TextStyle(
+                                    fontSize: 6.5,
+                                    fontWeight: FontWeight.w900,
+                                    color: current == c ? Colors.deepPurpleAccent : Colors.white38,
+                                    letterSpacing: 0.5,
                                   ),
-                                ],
-                              ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
                             ),
-                          );
-                        }).toList(),
-                      ),
+                          ),
+                        );
+                      }).toList(),
                     ),
                   ],
                 ),

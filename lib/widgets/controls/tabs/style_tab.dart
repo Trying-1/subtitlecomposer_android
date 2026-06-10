@@ -42,9 +42,9 @@ class _StyleTabState extends State<StyleTab> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CommonControls.buildPalettesOnly(context, widget.clip.color, (c) => widget.onUpdate(color: c)),
-              const SizedBox(height: 16),
               CommonControls.buildDialScrubber(context, 'Text Opacity', widget.clip.textOpacity, 0, 1, (v) => widget.onUpdate(textOpacity: v), onReset: () => widget.onUpdate(textOpacity: 1.0)),
+              const SizedBox(height: 16),
+              CommonControls.buildPalettesOnly(context, widget.clip.color, (c) => widget.onUpdate(color: c)),
             ],
           )
         else if (_activeSubTabIndex == 1)

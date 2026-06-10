@@ -14,6 +14,8 @@ import 'package:path/path.dart' as p;
 import 'export/export_screen.dart';
 import 'dart:math' as math;
 import '../services/ads/ad_service.dart';
+import '../services/ass_export_service.dart';
+import '../services/json_export_service.dart';
 
 class EditorScreen extends StatefulWidget {
   const EditorScreen({super.key});
@@ -41,6 +43,36 @@ class _EditorScreenState extends State<EditorScreen> {
       final path = result.files.single.path!;
       final format = path.endsWith('.json') ? 'json' : 'ass';
       provider.loadSubtitles(path, format);
+    }
+  }
+
+  Future<void> _pickTyposync(BuildContext context, EditorProvider provider) async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['typosync', 'zip'],
+    );
+    if (result != null && context.mounted) {
+      final path = result.files.single.path!;
+      try {
+        await provider.loadTyposync(path);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Audio and Subtitles imported successfully from Typosync package!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to import Typosync: $e'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -1047,6 +1079,30 @@ class _EditorScreenState extends State<EditorScreen> {
     );
   }
 
+  Future<void> _handleExportAss(BuildContext context, EditorProvider provider) async {
+    final success = await AssExportService.exportToAss(provider.currentProject);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(success ? 'ASS Subtitles exported successfully!' : 'Failed to export ASS subtitles.'),
+          backgroundColor: success ? Colors.green : Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleExportJson(BuildContext context, EditorProvider provider) async {
+    final success = await JsonExportService.exportToJson(provider.currentProject);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(success ? 'JSON Subtitles exported successfully!' : 'Failed to export JSON subtitles.'),
+          backgroundColor: success ? Colors.green : Colors.redAccent,
+        ),
+      );
+    }
+  }
+
   void _handleNewProject(BuildContext context, EditorProvider provider) {
     showDialog(
       context: context,
@@ -1292,9 +1348,12 @@ class _EditorScreenState extends State<EditorScreen> {
                           onImportAudio: () => _pickAudio(context, provider),
                           onExtractAudio: () => _extractAudioFromVideo(context, provider),
                           onImportSubtitles: () => _pickSubtitles(context, provider),
+                          onImportTyposync: () => _pickTyposync(context, provider),
                           onImportPlainText: () => _pickPlainText(context, provider),
                           onPasteSubtitles: () => _showPasteSubtitlesDialog(context, provider),
                           onExport: () => _handleExport(context, provider),
+                          onExportAss: () => _handleExportAss(context, provider),
+                          onExportJson: () => _handleExportJson(context, provider),
                           onAddClip: () => _showAddTextDialog(context, provider),
                           onNewProject: () => _handleNewProject(context, provider),
                           onTranscribe: () => _showTranscribeDialog(context, provider),

@@ -29,7 +29,7 @@ class _KineticPresetSheetState extends State<KineticPresetSheet> {
   static Set<String>? _rememberedFonts;
   static bool? _rememberedStroke;
   static bool? _rememberedGlow;
-  static Set<int>? _rememberedTextColors;
+  static List<int>? _rememberedTextColors;
   static int? _rememberedBgColor;
   static Set<AnimationType>? _rememberedEntrancePool;
   static Set<AnimationType>? _rememberedExitPool;
@@ -50,7 +50,7 @@ class _KineticPresetSheetState extends State<KineticPresetSheet> {
   late Set<String> _selectedFonts;
   late bool _enableStroke;
   late bool _enableGlow;
-  late Set<int> _selectedTextColors;
+  late List<int> _selectedTextColors;
   late int _selectedBgColor;
   late Set<AnimationType> _selectedEntrancePool;
   late Set<AnimationType> _selectedExitPool;
@@ -149,7 +149,7 @@ class _KineticPresetSheetState extends State<KineticPresetSheet> {
     _maxScale = _rememberedMaxScale ?? preset.maxScale;
 
     // Default complementary text colors
-    _selectedTextColors = _rememberedTextColors ?? {0xFFFFFFFF, 0xFFFF0054, 0xFF00FFFF};
+    _selectedTextColors = _rememberedTextColors ?? preset.colorPalette.toList();
 
     // Default background color
     _selectedBgColor = _rememberedBgColor ?? 0xFF07040B;
@@ -1106,8 +1106,8 @@ class _KineticPresetSheetState extends State<KineticPresetSheet> {
                             child: Row(
                               children: allPalettes.map((palette) {
                                 final isSelected = _selectedTextColors.length == palette.colors.length && 
-                                                   _selectedTextColors.every((c) => palette.colors.contains(c)) &&
-                                                   _selectedBgColor == palette.colors[0];
+                                                   _selectedTextColors.asMap().entries.every((e) => palette.colors[e.key] == e.value) &&
+                                                   _selectedBgColor == (palette.colors.isNotEmpty ? palette.colors[0] : 0xFF000000);
                                 
                                 return Padding(
                                   padding: const EdgeInsets.only(right: 12),
@@ -1119,7 +1119,7 @@ class _KineticPresetSheetState extends State<KineticPresetSheet> {
                                           _selectedBgColor = palette.colors[0];
                                         }
                                         // Assign text colors (slots 0, 1, 2, 3)
-                                        _selectedTextColors = palette.colors.toSet();
+                                        _selectedTextColors = palette.colors.toList();
                                       });
                                     },
                                     child: AnimatedContainer(
@@ -1260,18 +1260,14 @@ class _KineticPresetSheetState extends State<KineticPresetSheet> {
                                                 if (index == 0) {
                                                   _selectedBgColor = newColor.value;
                                                   // Synchronize the first index of text colors if it exists
-                                                  final list = _selectedTextColors.toList();
-                                                  if (list.isNotEmpty) {
-                                                    list[0] = newColor.value;
-                                                    _selectedTextColors = list.toSet();
+                                                  if (_selectedTextColors.isNotEmpty) {
+                                                    _selectedTextColors[0] = newColor.value;
                                                   }
                                                 } else {
-                                                  final list = _selectedTextColors.toList();
-                                                  while (list.length <= index) {
-                                                    list.add(Colors.white.value);
+                                                  while (_selectedTextColors.length <= index) {
+                                                    _selectedTextColors.add(Colors.white.value);
                                                   }
-                                                  list[index] = newColor.value;
-                                                  _selectedTextColors = list.toSet();
+                                                  _selectedTextColors[index] = newColor.value;
                                                 }
                                               });
                                             },

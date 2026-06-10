@@ -100,6 +100,7 @@ enum LayoutPreset {
   target,
   explosion,
   perspective,
+  hero,
 }
 
 class ClipAnimation {

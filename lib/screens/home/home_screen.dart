@@ -2,11 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/editor_provider.dart';
 import '../editor_screen.dart';
-import 'tutorials_page.dart';
-import 'assets_library_screen.dart';
 import '../profile/profile_screen.dart';
 import '../../config/app_config.dart';
-import 'more_tools_screen.dart';
 
 import 'package:intl/intl.dart';
 import '../../services/project_service.dart';
@@ -81,7 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   subtitle: 'Load project from device storage',
                   icon: Icons.file_download_outlined,
                   onTap: () async {
-                    final success = await ProjectService.importProject();
+                    final success = await ProjectService.importProject(context);
                     if (success) {
                       setState(() {});
                       if (mounted) {

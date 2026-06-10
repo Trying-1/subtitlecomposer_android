@@ -33,10 +33,13 @@ class StyleAssigner {
         final int roleIndex = (i % 3) + 1; // 1, 2, or 3
         color = style.colorPalette[roleIndex];
       } else {
-        int colorIndex = _random.nextInt(style.colorPalette.length);
-        if (style.colorPalette.length > 1) {
+        int minIndex = style.colorPalette.length > 1 ? 1 : 0;
+        int maxExclusive = style.colorPalette.length;
+        
+        int colorIndex = minIndex + _random.nextInt(maxExclusive - minIndex);
+        if ((maxExclusive - minIndex) > 1) {
           while (colorIndex == lastColorIndex) {
-            colorIndex = _random.nextInt(style.colorPalette.length);
+            colorIndex = minIndex + _random.nextInt(maxExclusive - minIndex);
           }
         }
         lastColorIndex = colorIndex;

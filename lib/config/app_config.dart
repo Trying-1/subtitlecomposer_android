@@ -15,10 +15,13 @@ class AppConfig {
   static const bool showModelButton = true;                  //premium
   static const bool showAddTextButton = true;
   static const bool showExportButton = true;
+  static const bool showExportAssButton = true;
+  static const bool showExportJsonButton = true;
   static const bool showTimelineColors = true;               //premium
   static const bool showTimelinePanControls = true;            //premium
   static const bool showExportProjectButton = true;            //premium
   static const bool showImportProjectButton = true;            //premium
+  static const bool showImportTyposyncButton = true;
   static const bool showSaveProjectButton = true;
   static const bool showImageTextImportExport = true;
 

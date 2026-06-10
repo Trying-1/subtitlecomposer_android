@@ -1,10 +1,62 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../providers/font_provider.dart';
 import '../settings/settings_screen.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  String _appVersion = 'v1.0.0';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersionInfo();
+  }
+
+  Future<void> _loadVersionInfo() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      setState(() {
+        _appVersion = 'v${packageInfo.version} (${packageInfo.buildNumber})';
+      });
+    } catch (e) {
+      debugPrint('Error loading package info: $e');
+    }
+  }
+
+  Future<void> _launchPlayStore() async {
+    String packageName = 'com.typography';
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      if (packageInfo.packageName.isNotEmpty) {
+        packageName = packageInfo.packageName;
+      }
+    } catch (e) {
+      debugPrint('Error getting package name: $e');
+    }
+    
+    final marketUri = Uri.parse('market://details?id=$packageName');
+    final webUri = Uri.parse('https://play.google.com/store/apps/details?id=$packageName');
+    
+    try {
+      await launchUrl(marketUri, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      debugPrint('Could not launch market URI, trying browser: $e');
+      try {
+        await launchUrl(webUri, mode: LaunchMode.externalApplication);
+      } catch (err) {
+        debugPrint('Failed to launch browser: $err');
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,8 +90,10 @@ class ProfileScreen extends StatelessWidget {
             _buildListTile('Cloud Backup', Icons.cloud_outlined, 'Active'),
             const SizedBox(height: 32),
             _buildSection('Other'),
+            _buildListTile('Rate Us', Icons.star_rate_rounded, null, onTap: _launchPlayStore),
+            _buildListTile('Feedback', Icons.feedback_outlined, null, onTap: _launchPlayStore),
             _buildListTile('Help Center', Icons.help_outline_rounded, null),
-            _buildListTile('About', Icons.info_outline_rounded, 'v1.0.0'),
+            _buildListTile('About', Icons.info_outline_rounded, _appVersion),
             const SizedBox(height: 48),
             SizedBox(
               width: double.infinity,

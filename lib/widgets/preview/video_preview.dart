@@ -192,8 +192,8 @@ class _VideoPreviewState extends State<VideoPreview> {
                       final dpr = MediaQuery.of(context).devicePixelRatio;
                       // Sync actual dimensions to native only when they change
                       WidgetsBinding.instance.addPostFrameCallback((_) {
-                        final width = (constraints.maxWidth * dpr).toInt();
-                        final height = (constraints.maxHeight * dpr).toInt();
+                        final width = (constraints.maxWidth * dpr * provider.previewZoom).toInt();
+                        final height = (constraints.maxHeight * dpr * provider.previewZoom).toInt();
                         if (width != provider.lastRenderWidth || height != provider.lastRenderHeight) {
                           provider.updateProjectSync(width: width, height: height);
                         }
@@ -264,6 +264,10 @@ class _VideoPreviewState extends State<VideoPreview> {
     final clip = visibleSelected.first;
     final centerX = clip.x * constraints.maxWidth;
     final centerY = clip.y * constraints.maxHeight;
+    final boxSize = math.max(maxX - minX, maxY - minY);
+    
+    final bgColor = Color(provider.backgroundColor);
+    final selectionColor = bgColor.computeLuminance() > 0.5 ? Colors.black : Colors.white;
 
     return Stack(
       children: [
@@ -282,20 +286,20 @@ class _VideoPreviewState extends State<VideoPreview> {
                 child: IgnorePointer(
                   child: Container(
                     decoration: BoxDecoration(
-                      border: Border.all(color: Colors.white, width: 1.0),
+                      border: Border.all(color: selectionColor, width: 1.0 / provider.previewZoom),
                     ),
                   ),
                 ),
               ),
               
               // Corner Handles (Dots)
-              _buildHandle(minX, minY, 0, provider, constraints, clip), // Top Left
-              _buildHandle(maxX, minY, 1, provider, constraints, clip), // Top Right
-              _buildHandle(minX, maxY, 2, provider, constraints, clip), // Bottom Left
-              _buildHandle(maxX, maxY, 3, provider, constraints, clip), // Bottom Right
+              _buildHandle(minX, minY, 0, boxSize, provider, constraints, clip, selectionColor), // Top Left
+              _buildHandle(maxX, minY, 1, boxSize, provider, constraints, clip, selectionColor), // Top Right
+              _buildHandle(minX, maxY, 2, boxSize, provider, constraints, clip, selectionColor), // Bottom Left
+              _buildHandle(maxX, maxY, 3, boxSize, provider, constraints, clip, selectionColor), // Bottom Right
               
               // Rotation Handle (Top Right, slightly offset)
-              _buildRotationHandle(maxX, minY, provider, constraints, clip),
+              _buildRotationHandle(maxX, minY, boxSize, provider, constraints, clip, selectionColor),
             ],
           ),
         ),
@@ -303,13 +307,15 @@ class _VideoPreviewState extends State<VideoPreview> {
     );
   }
 
-  Widget _buildRotationHandle(double x, double y, EditorProvider provider, BoxConstraints constraints, TimelineClip clip) {
-    const double handleSize = 24.0;
-    const double offset = 25.0; // Distance from corner
+  Widget _buildRotationHandle(double x, double y, double boxSize, EditorProvider provider, BoxConstraints constraints, TimelineClip clip, Color selectionColor) {
+    final double scaleFactor = math.min(1.0, math.max(0.3, boxSize / 150.0)) / provider.previewZoom;
+    final double handleSize = 24.0 * scaleFactor;
+    final double touchSize = math.max(30.0 / provider.previewZoom, handleSize * 1.5);
+    final double offset = 25.0 * scaleFactor; // Distance from corner
     
     return Positioned(
-      left: x + offset - (handleSize / 2),
-      top: y - offset - (handleSize / 2),
+      left: x + offset - (touchSize / 2),
+      top: y - offset - (touchSize / 2),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onScaleStart: (details) {
@@ -347,34 +353,43 @@ class _VideoPreviewState extends State<VideoPreview> {
           provider.notifyListeners();
         },
         child: Container(
-          width: handleSize,
-          height: handleSize,
-          decoration: BoxDecoration(
-            color: Colors.blueAccent,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.3),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: const Icon(
-            Icons.rotate_right,
-            size: 16,
-            color: Colors.white,
+          width: touchSize,
+          height: touchSize,
+          color: Colors.transparent, // Invisible touch target
+          alignment: Alignment.center,
+          child: Container(
+            width: handleSize,
+            height: handleSize,
+            decoration: BoxDecoration(
+              color: Colors.blueAccent,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 4 * scaleFactor,
+                  offset: Offset(0, 2 * scaleFactor),
+                ),
+              ],
+            ),
+            child: Icon(
+              Icons.rotate_right,
+              size: 16 * scaleFactor,
+              color: Colors.white,
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildHandle(double x, double y, int index, EditorProvider provider, BoxConstraints constraints, TimelineClip clip) {
-    const double handleSize = 14.0;
+  Widget _buildHandle(double x, double y, int index, double boxSize, EditorProvider provider, BoxConstraints constraints, TimelineClip clip, Color selectionColor) {
+    final double scaleFactor = math.min(1.0, math.max(0.3, boxSize / 150.0)) / provider.previewZoom;
+    final double handleSize = 14.0 * scaleFactor;
+    final double touchSize = math.max(24.0 / provider.previewZoom, handleSize * 1.5);
+    
     return Positioned(
-      left: x - (handleSize / 2),
-      top: y - (handleSize / 2),
+      left: x - (touchSize / 2),
+      top: y - (touchSize / 2),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onScaleStart: (details) {
@@ -418,19 +433,25 @@ class _VideoPreviewState extends State<VideoPreview> {
           provider.notifyListeners();
         },
         child: Container(
-          width: handleSize,
-          height: handleSize,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.blueAccent, width: 2.0),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.3),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-              ),
-            ],
+          width: touchSize,
+          height: touchSize,
+          color: Colors.transparent, // Invisible touch target
+          alignment: Alignment.center,
+          child: Container(
+            width: handleSize,
+            height: handleSize,
+            decoration: BoxDecoration(
+              color: selectionColor,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.blueAccent, width: math.max(0.5, 2.0 * scaleFactor)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 4 * scaleFactor,
+                  offset: Offset(0, 2 * scaleFactor),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -454,7 +475,18 @@ class _VideoPreviewState extends State<VideoPreview> {
         textDirection: TextDirection.ltr,
       )..layout();
       
-      double extraPadding = 4.0;
+      final lineMetrics = textPainter.computeLineMetrics();
+      double tightTextHeight;
+      if (lineMetrics.isNotEmpty) {
+        final lm = lineMetrics.first;
+        // lm.ascent + lm.descent gives full typographic height including invisible accent/tail padding.
+        // We multiply by 0.75 to strip this invisible padding and hug the actual letter ink.
+        tightTextHeight = (lm.ascent + lm.descent) * 0.75;
+      } else {
+        tightTextHeight = textPainter.height * 0.75;
+      }
+
+      double extraPadding = 0.0;
       if (clip.isStrokeEnabled) extraPadding += clip.strokeWidth;
       if (clip.isShadowEnabled) {
         extraPadding += clip.shadowBlur + math.max(clip.shadowOffsetX.abs(), clip.shadowOffsetY.abs());
@@ -463,7 +495,7 @@ class _VideoPreviewState extends State<VideoPreview> {
       }
       
       baseWidth = textPainter.width + extraPadding;
-      baseHeight = textPainter.height + extraPadding;
+      baseHeight = tightTextHeight + extraPadding;
     } else if (clip is OverlayClip) {
       if (_imageDimensions.containsKey(clip.imagePath)) {
         final imgSize = _imageDimensions[clip.imagePath]!;

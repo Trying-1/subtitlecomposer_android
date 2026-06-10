@@ -25,7 +25,7 @@ class LayoutSolver {
       if (group.length <= 1) continue; // Single clips don't need layout
 
       final groupIndices = group.map((c) => clips.indexOf(c)).toList();
-      final positioned = _applyLayout(group, preset, aspectRatio);
+      final positioned = applyLayoutGroup(group, preset, aspectRatio);
 
       for (int i = 0; i < positioned.length; i++) {
         result[groupIndices[i]] = positioned[i];
@@ -73,7 +73,7 @@ class LayoutSolver {
   }
 
   /// Applies the layout preset to a group of co-visible clips
-  List<SubtitleClip> _applyLayout(List<SubtitleClip> group, LayoutPreset preset, double aspectRatio) {
+  List<SubtitleClip> applyLayoutGroup(List<SubtitleClip> group, LayoutPreset preset, double aspectRatio) {
     final int count = group.length;
     final random = Random(group.first.id.hashCode);
     List<_Pos> positions;
@@ -124,20 +124,42 @@ class LayoutSolver {
       case LayoutPreset.perspective:
         positions = _layoutPerspective(count);
         break;
+      case LayoutPreset.hero:
+        for (int i = 0; i < count; i++) {
+          if (i == 0) {
+            group[i] = group[i].copyWith(scale: group[i].scale * 2.0);
+          } else {
+            group[i] = group[i].copyWith(scale: group[i].scale * 0.8);
+          }
+        }
+        positions = _layoutHero(count, group, aspectRatio);
+        break;
       default:
         positions = _layoutColumn(count);
     }
 
-    // Resolve collisions — nudge overlapping bounding boxes apart (skip for perfectly flush bento and masonry)
-    if (preset != LayoutPreset.bento && preset != LayoutPreset.masonry) {
+    // Resolve collisions — nudge overlapping bounding boxes apart (skip for perfectly flush layouts)
+    if (preset != LayoutPreset.bento && preset != LayoutPreset.masonry && preset != LayoutPreset.hero) {
       positions = _resolveCollisions(group, positions, aspectRatio);
     }
 
-    // Apply positions to clips
-    return List.generate(count, (i) => group[i].copyWith(
-      x: positions[i].x,
-      y: positions[i].y,
-    ));
+    // Apply positions to clips and constrain full bounding boxes inside screen
+    return List.generate(count, (i) {
+      final bounds = _estimateBounds(group[i], positions[i], aspectRatio);
+      double cx = positions[i].x;
+      double cy = positions[i].y;
+      
+      // Shift center if bounds leak off-screen
+      if (bounds.left < _safeMin) cx += (_safeMin - bounds.left);
+      if (bounds.right > _safeMax) cx -= (bounds.right - _safeMax);
+      if (bounds.top < _safeMin) cy += (_safeMin - bounds.top);
+      if (bounds.bottom > _safeMax) cy -= (bounds.bottom - _safeMax);
+      
+      return group[i].copyWith(
+        x: cx.clamp(_safeMin, _safeMax),
+        y: cy.clamp(_safeMin, _safeMax),
+      );
+    });
   }
 
   // --- Layout algorithms ---
@@ -409,10 +431,55 @@ class LayoutSolver {
     });
   }
 
+  /// Hero layout: index 0 in center, remaining placed dynamically in the 4 surrounding quadrants
+  List<_Pos> _layoutHero(int count, List<SubtitleClip> group, double aspectRatio) {
+    if (count <= 1) return [const _Pos(0.5, 0.5)];
+    
+    final List<_Pos> positions = List.filled(count, const _Pos(0.5, 0.5));
+    
+    // Estimate bounds of the massive center hero
+    final heroBounds = _estimateBounds(group[0], const _Pos(0.5, 0.5), aspectRatio);
+    
+    for (int i = 1; i < count; i++) {
+      final int posType = (i - 1) % 4;
+      final int ringOffset = (i - 1) ~/ 4;
+      
+      // Calculate the geometric centers of the 4 empty quadrants around the hero text
+      final double topLeftX = heroBounds.left / 2;
+      final double topLeftY = heroBounds.top / 2;
+      
+      final double bottomRightX = heroBounds.right + (1.0 - heroBounds.right) / 2;
+      final double bottomRightY = heroBounds.bottom + (1.0 - heroBounds.bottom) / 2;
+      
+      final double topRightX = heroBounds.right + (1.0 - heroBounds.right) / 2;
+      final double topRightY = heroBounds.top / 2;
+      
+      final double bottomLeftX = heroBounds.left / 2;
+      final double bottomLeftY = heroBounds.bottom + (1.0 - heroBounds.bottom) / 2;
+      
+      // Expand outward if many clips (distribute radially within quadrant)
+      final double ringExpX = ringOffset * 0.05;
+      final double ringExpY = ringOffset * 0.05;
+      
+      if (posType == 0) {
+        positions[i] = _Pos(topLeftX - ringExpX, topLeftY - ringExpY);
+      } else if (posType == 1) {
+        positions[i] = _Pos(bottomRightX + ringExpX, bottomRightY + ringExpY);
+      } else if (posType == 2) {
+        positions[i] = _Pos(topRightX + ringExpX, topRightY - ringExpY);
+      } else if (posType == 3) {
+        positions[i] = _Pos(bottomLeftX - ringExpX, bottomLeftY + ringExpY);
+      }
+    }
+    
+    return positions;
+  }
+
   // --- Collision resolution ---
 
   /// Estimates pixel-perfect bounding box dimensions for a text clip in normalized coords.
-  /// Matches video_preview.dart calculation exactly using TextPainter.
+  /// Uses computeLineMetrics() for tight ink-bounds instead of textPainter.height
+  /// which includes font leading/line-gap padding.
   _Rect _estimateBounds(SubtitleClip clip, _Pos pos, double aspectRatio) {
     const double virtualHeight = 1080.0;
     final double virtualWidth = virtualHeight * aspectRatio;
@@ -429,7 +496,19 @@ class LayoutSolver {
       textDirection: TextDirection.ltr,
     )..layout();
 
-    double extraPadding = 4.0;
+    // Use actual ink metrics (ascent + descent) instead of full line height
+    final lineMetrics = textPainter.computeLineMetrics();
+    double tightTextHeight;
+    if (lineMetrics.isNotEmpty) {
+      final lm = lineMetrics.first;
+      // lm.ascent + lm.descent gives full typographic height including invisible accent/tail padding.
+      // We multiply by 0.75 to strip this invisible padding and hug the actual letter ink.
+      tightTextHeight = (lm.ascent + lm.descent) * 0.75;
+    } else {
+      tightTextHeight = textPainter.height * 0.75;
+    }
+
+    double extraPadding = 0.0;
     if (clip.isStrokeEnabled) extraPadding += clip.strokeWidth;
     if (clip.isShadowEnabled) {
       extraPadding += clip.shadowBlur + max(clip.shadowOffsetX.abs(), clip.shadowOffsetY.abs());
@@ -438,7 +517,7 @@ class LayoutSolver {
     }
 
     final double rawW = (textPainter.width + extraPadding) * clip.scale;
-    final double rawH = (textPainter.height + extraPadding) * clip.scale;
+    final double rawH = (tightTextHeight + extraPadding) * clip.scale;
 
     final double rad = clip.rotation * pi / 180.0;
     final double absCos = cos(rad).abs();

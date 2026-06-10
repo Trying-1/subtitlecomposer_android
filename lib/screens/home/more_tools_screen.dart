@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../tools/image_sequence/image_sequence_maker.dart';
 import '../../tools/font_sequence/font_sequence_maker.dart';
 import '../../tools/image_text/image_text_studio.dart';
+import '../../tools/sync_packager/sync_packager.dart';
 
 class MoreToolsScreen extends StatelessWidget {
   const MoreToolsScreen({super.key});
@@ -29,6 +30,13 @@ class MoreToolsScreen extends StatelessWidget {
         'icon': Icons.image_rounded,
         'color': Colors.cyanAccent,
         'action': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ImageTextStudio())),
+      },
+      {
+        'title': 'Sync Packager Studio',
+        'desc': 'Package your audio and subtitle JSON into a single unified .typosync file',
+        'icon': Icons.sync_rounded,
+        'color': Colors.amberAccent,
+        'action': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SyncPackager())),
       },
     ];
 

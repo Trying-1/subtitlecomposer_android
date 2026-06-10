@@ -14,11 +14,13 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import '../services/force_align_service.dart';
 import '../services/project_service.dart';
+import '../services/typosync_service.dart';
 import 'package:uuid/uuid.dart';
 import '../utils/toast_utils.dart';
 import '../models/editor_models.dart';
 import '../services/kinetic/kinetic_engine.dart';
 import '../services/kinetic/kinetic_style.dart';
+import '../services/kinetic/layout_solver.dart';
 
 class HistoryState {
   final List<Track> tracks;
@@ -413,21 +415,8 @@ class EditorProvider extends ChangeNotifier {
   String get projectId => _projectId;
   String get projectName => _projectName;
 
-  void setProjectName(String name) {
-    _projectName = name;
-    notifyListeners();
-  }
-
-  Future<void> saveProject() async {
-    if (_tracks.isEmpty && 
-        _overlayTracks.isEmpty && 
-        _backgroundTracks.isEmpty && 
-        _audioTracks.isEmpty && 
-        _audioPath == null) {
-      return;
-    }
-
-    final project = Project(
+  Project get currentProject {
+    return Project(
       id: _projectId,
       name: _projectName,
       videoPath: _audioPath,
@@ -453,6 +442,23 @@ class EditorProvider extends ChangeNotifier {
       backgroundTimelineColor: _backgroundTimelineColor,
       lastModified: DateTime.now(),
     );
+  }
+
+  void setProjectName(String name) {
+    _projectName = name;
+    notifyListeners();
+  }
+
+  Future<void> saveProject() async {
+    if (_tracks.isEmpty && 
+        _overlayTracks.isEmpty && 
+        _backgroundTracks.isEmpty && 
+        _audioTracks.isEmpty && 
+        _audioPath == null) {
+      return;
+    }
+
+    final project = currentProject;
     await ProjectService.saveProject(project);
     _hasUnsavedChanges = false;
     notifyListeners();
@@ -2094,10 +2100,47 @@ class EditorProvider extends ChangeNotifier {
       clips = SubtitleParser.parseAss(content);
     }
 
-    _tracks = [Track(id: 'main', clips: clips.map((c) => c.copyWith(originalTrackId: 'main')).toList())];
+    final bool hasTrackData = clips.any((c) => c.originalTrackId != null);
+    
+    if (hasTrackData) {
+      final Map<String, List<SubtitleClip>> trackGroups = {};
+      for (var clip in clips) {
+        final trackId = clip.originalTrackId ?? 'main';
+        trackGroups.putIfAbsent(trackId, () => []).add(clip);
+      }
+      
+      _tracks = trackGroups.entries.map((e) => Track(
+        id: e.key,
+        name: 'Track ${e.key}',
+        clips: e.value,
+      )).toList();
+      
+      // Sort tracks so they display nicely if IDs are numeric like "0", "1", "2"
+      _tracks.sort((a, b) => (int.tryParse(a.id) ?? 0).compareTo(int.tryParse(b.id) ?? 0));
+      
+      // Update Y positions to create a column layout for overlapping times
+      final int numTracks = _tracks.length;
+      final double spacing = 0.08;
+      final double startY = 0.5 - ((numTracks - 1) * spacing) / 2;
+
+      for (int i = 0; i < numTracks; i++) {
+        final double yPos = startY + (i * spacing);
+        final updatedClips = _tracks[i].clips.map((c) => c.copyWith(y: yPos)).toList();
+        _tracks[i] = Track(id: _tracks[i].id, name: _tracks[i].name, clips: updatedClips);
+      }
+      
+      // Update the flat clips list so NativeBridge receives the new Y positions
+      clips = _tracks.expand((t) => t.clips).toList();
+    } else {
+      _tracks = [Track(id: 'main', clips: clips.map((c) => c.copyWith(originalTrackId: 'main')).toList())];
+    }
     
     await _bridge.updateClips(clips.map((c) => c.toJson()).toList());
     notifyListeners();
+  }
+
+  Future<void> loadTyposync(String path) async {
+    await TyposyncService.importTyposyncFile(path, this);
   }
 
   Future<void> importPlainText(String path) async {
@@ -3321,91 +3364,15 @@ class EditorProvider extends ChangeNotifier {
 
     final int count = selectedClips.length;
 
-    switch (preset) {
-      case LayoutPreset.column:
-        const double gap = 0.12;
-        final double totalHeight = (count - 1) * gap;
-        final double startY = (1.0 - totalHeight) / 2;
-        for (int i = 0; i < count; i++) {
-          updateClip(selectedClips[i].id, x: 0.5, y: startY + (i * gap));
-        }
-        break;
-      case LayoutPreset.grid:
-        final int cols = count <= 4 ? 2 : (count <= 9 ? 3 : 4);
-        final int rows = (count / cols).ceil();
-        final double cellW = 1.0 / cols;
-        final double cellH = 0.7 / rows; 
-        for (int i = 0; i < count; i++) {
-          final int r = i ~/ cols;
-          final int c = i % cols;
-          updateClip(selectedClips[i].id, 
-            x: (c + 0.5) * cellW, 
-            y: 0.15 + (r + 0.5) * cellH
-          );
-        }
-        break;
-      case LayoutPreset.bento:
-        final List<Map<String, double>> bentoOffsets = [
-          {'x': 0.3, 'y': 0.3}, {'x': 0.7, 'y': 0.35},
-          {'x': 0.25, 'y': 0.65}, {'x': 0.65, 'y': 0.7},
-          {'x': 0.5, 'y': 0.5}, {'x': 0.15, 'y': 0.45},
-          {'x': 0.85, 'y': 0.55}, {'x': 0.4, 'y': 0.8},
-        ];
-        for (int i = 0; i < count; i++) {
-          final offset = bentoOffsets[i % bentoOffsets.length];
-          updateClip(selectedClips[i].id, x: offset['x'], y: offset['y']);
-        }
-        break;
-      case LayoutPreset.random:
-        final random = DateTime.now().millisecondsSinceEpoch;
-        for (int i = 0; i < count; i++) {
-          final rx = (((random + i * 789) % 70) + 15) / 100.0;
-          final ry = (((random + i * 321) % 70) + 15) / 100.0;
-          updateClip(selectedClips[i].id, x: rx, y: ry);
-        }
-        break;
-      case LayoutPreset.staggered:
-        for (int i = 0; i < count; i++) {
-          final offset = (i % 2 == 0) ? -0.2 : 0.2;
-          updateClip(selectedClips[i].id, x: 0.5 + offset, y: 0.15 + (i * (0.7 / count)));
-        }
-        break;
-      case LayoutPreset.stairs:
-        for (int i = 0; i < count; i++) {
-          final stepX = 0.2 + (i * (0.6 / (count > 1 ? count - 1 : 1)));
-          final stepY = 0.2 + (i * (0.6 / (count > 1 ? count - 1 : 1)));
-          updateClip(selectedClips[i].id, x: stepX, y: stepY);
-        }
-        break;
-      case LayoutPreset.wave:
-        for (int i = 0; i < count; i++) {
-          final px = 0.15 + (i * (0.7 / (count > 1 ? count - 1 : 1)));
-          final py = 0.5 + math.sin(i * 0.8) * 0.25;
-          updateClip(selectedClips[i].id, x: px, y: py);
-        }
-        break;
-      case LayoutPreset.circle:
-        final double radius = 0.3;
-        for (int i = 0; i < count; i++) {
-          final angle = (i / count) * 2.0 * math.pi;
-          updateClip(selectedClips[i].id, 
-            x: 0.5 + math.cos(angle) * radius, 
-            y: 0.5 + math.sin(angle) * radius
-          );
-        }
-        break;
-      case LayoutPreset.spiral:
-        for (int i = 0; i < count; i++) {
-          final r = 0.05 + (i * 0.35 / count);
-          final angle = i * 0.8;
-          updateClip(selectedClips[i].id, 
-            x: 0.5 + math.cos(angle) * r, 
-            y: 0.5 + math.sin(angle) * r
-          );
-        }
-        break;
-      default:
-        break;
+    if (preset == LayoutPreset.none) {
+      for (var clip in selectedClips) {
+        updateClip(clip.id, x: 0.5, y: 0.5);
+      }
+    } else {
+      final positionedClips = LayoutSolver().applyLayoutGroup(selectedClips, preset, _aspectRatio);
+      for (var clip in positionedClips) {
+        updateClip(clip.id, x: clip.x, y: clip.y, scale: clip.scale);
+      }
     }
 
     syncToNative();

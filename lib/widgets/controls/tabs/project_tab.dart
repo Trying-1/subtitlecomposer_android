@@ -8,11 +8,14 @@ import 'common/common_controls.dart';
 class ProjectTab extends StatelessWidget {
   final VoidCallback? onImportAudio;
   final VoidCallback? onImportSubtitles;
+  final VoidCallback? onImportTyposync;
   final VoidCallback? onImportPlainText;
   final VoidCallback? onPasteSubtitles;
   final VoidCallback? onAddClip;
   final VoidCallback? onExtractAudio;
   final VoidCallback? onExport;
+  final VoidCallback? onExportAss;
+  final VoidCallback? onExportJson;
   final VoidCallback? onNewProject;
   final VoidCallback? onSaveProject;
   final VoidCallback? onTranscribe;
@@ -29,11 +32,14 @@ class ProjectTab extends StatelessWidget {
     super.key,
     this.onImportAudio,
     this.onImportSubtitles,
+    this.onImportTyposync,
     this.onImportPlainText,
     this.onPasteSubtitles,
     this.onAddClip,
     this.onExtractAudio,
     this.onExport,
+    this.onExportAss,
+    this.onExportJson,
     this.onNewProject,
     this.onSaveProject,
     this.onTranscribe,
@@ -83,6 +89,14 @@ class ProjectTab extends StatelessWidget {
             if (AppConfig.showSubtitlesButton)
               CommonControls.buildSquareActionButton(icon: Icons.subtitles_rounded, label: 'Subs', onTap: onImportSubtitles),
             
+            if (AppConfig.showImportTyposyncButton)
+              CommonControls.buildSquareActionButton(
+                icon: Icons.sync_rounded, 
+                label: 'Sync Import', 
+                onTap: onImportTyposync,
+                color: Colors.cyanAccent,
+              ),
+            
             if (AppConfig.showWordsButton)
               CommonControls.buildSquareActionButton(icon: Icons.format_quote_rounded, label: 'Words', onTap: onImportPlainText),
             
@@ -126,6 +140,22 @@ class ProjectTab extends StatelessWidget {
                 onTap: onExport, 
                 color: Colors.deepPurpleAccent,
                 isPrimary: true,
+              ),
+            
+            if (AppConfig.showExportAssButton)
+              CommonControls.buildSquareActionButton(
+                icon: Icons.subtitles_rounded, 
+                label: 'ASS Export', 
+                onTap: onExportAss, 
+                color: Colors.pinkAccent,
+              ),
+            
+            if (AppConfig.showExportJsonButton)
+              CommonControls.buildSquareActionButton(
+                icon: Icons.data_object_rounded, 
+                label: 'JSON Export', 
+                onTap: onExportJson, 
+                color: Colors.amberAccent,
               ),
           ],
         ),

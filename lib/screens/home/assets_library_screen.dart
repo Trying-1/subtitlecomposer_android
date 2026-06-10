@@ -1315,43 +1315,38 @@ class _AssetsLibraryScreenState extends State<AssetsLibraryScreen> with SingleTi
             ],
           ),
           const SizedBox(height: 12),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: palette.colors.asMap().entries.map((entry) {
-                final idx = entry.key;
-                final c = entry.value;
-                final label = _getColorRoleLabel(idx);
-                return Padding(
-                  padding: const EdgeInsets.only(right: 16),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: Color(c),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.white12, width: 1),
-                        ),
+          Row(
+            children: palette.colors.asMap().entries.map((entry) {
+              final idx = entry.key;
+              final c = entry.value;
+              final label = _getColorRoleLabel(idx);
+              return Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Container(
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Color(c),
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        label,
-                        style: const TextStyle(
-                          fontSize: 6.5,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white38,
-                          letterSpacing: 0.5,
-                        ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 6.5,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white38,
+                        letterSpacing: 0.5,
                       ),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
           ),
         ],
       ),

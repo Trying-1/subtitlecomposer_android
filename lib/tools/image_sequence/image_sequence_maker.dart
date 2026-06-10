@@ -769,56 +769,52 @@ class _ImageSequenceMakerState extends State<ImageSequenceMaker> with SingleTick
             }).toList(),
           ),
           const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const Text(
-                'IMAGE INTERVAL',
-                style: TextStyle(color: Colors.white38, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.2),
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 50,
-                    height: 22,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.02),
-                      border: Border.all(color: Colors.white10),
-                      borderRadius: BorderRadius.circular(4),
+          const Text(
+            'IMAGE INTERVAL',
+            style: TextStyle(color: Colors.white38, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.2),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            height: 36,
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.02),
+              border: Border.all(color: Colors.white10),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _intervalController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    textAlign: TextAlign.left,
+                    cursorColor: Colors.deepPurpleAccent,
+                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
+                      border: InputBorder.none,
                     ),
-                    child: TextField(
-                      controller: _intervalController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      textAlign: TextAlign.center,
-                      cursorColor: Colors.deepPurpleAccent,
-                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                      decoration: const InputDecoration(
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                        border: InputBorder.none,
-                      ),
-                      onChanged: (text) {
-                        final parsed = double.tryParse(text);
-                        if (parsed != null && parsed >= 0.01 && parsed <= 10.0) {
-                          setState(() {
-                            _secondsPerImage = parsed;
-                            _updateCurrentIndexFromTime();
-                          });
-                        }
-                      },
-                    ),
+                    onChanged: (text) {
+                      final parsed = double.tryParse(text);
+                      if (parsed != null && parsed >= 0.01 && parsed <= 10.0) {
+                        setState(() {
+                          _secondsPerImage = parsed;
+                          _updateCurrentIndexFromTime();
+                        });
+                      }
+                    },
                   ),
-                  const SizedBox(width: 6),
-                  const Text(
-                    's / frame',
-                    style: TextStyle(color: Colors.white38, fontSize: 9, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-            ],
+                ),
+                const Text(
+                  's / frame',
+                  style: TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
           ),
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
@@ -842,55 +838,51 @@ class _ImageSequenceMakerState extends State<ImageSequenceMaker> with SingleTick
             ),
           ),
           const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const Text(
-                'TOTAL DURATION',
-                style: TextStyle(color: Colors.white38, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.2),
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 50,
-                    height: 22,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.02),
-                      border: Border.all(color: Colors.white10),
-                      borderRadius: BorderRadius.circular(4),
+          const Text(
+            'TOTAL DURATION',
+            style: TextStyle(color: Colors.white38, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.2),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            height: 36,
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.02),
+              border: Border.all(color: Colors.white10),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _totalDurationController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    textAlign: TextAlign.left,
+                    cursorColor: Colors.deepPurpleAccent,
+                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
+                      border: InputBorder.none,
                     ),
-                    child: TextField(
-                      controller: _totalDurationController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      textAlign: TextAlign.center,
-                      cursorColor: Colors.deepPurpleAccent,
-                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                      decoration: const InputDecoration(
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                        border: InputBorder.none,
-                      ),
-                      onChanged: (text) {
-                        final parsed = double.tryParse(text);
-                        if (parsed != null && parsed >= 0.1 && parsed <= 300.0) {
-                          setState(() {
-                            _totalDurationSeconds = parsed;
-                          });
-                        }
-                      },
-                    ),
+                    onChanged: (text) {
+                      final parsed = double.tryParse(text);
+                      if (parsed != null && parsed >= 0.1 && parsed <= 300.0) {
+                        setState(() {
+                          _totalDurationSeconds = parsed;
+                        });
+                      }
+                    },
                   ),
-                  const SizedBox(width: 6),
-                  const Text(
-                    's total',
-                    style: TextStyle(color: Colors.white38, fontSize: 9, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-            ],
+                ),
+                const Text(
+                  's total',
+                  style: TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
           ),
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
@@ -1471,15 +1463,17 @@ class _ImageSequenceMakerState extends State<ImageSequenceMaker> with SingleTick
       Map<String, dynamic>? entranceAnim;
       Map<String, dynamic>? exitAnim;
 
+      final int transitionDuration = (durationPerImageMs * 0.4).round().clamp(10, 500);
+
       if (_transitionType == 'Fade') {
-        entranceAnim = {'type': 1, 'easing': 2, 'durationMs': 500, 'intensity': 1.0}; // fadeIn
-        exitAnim = {'type': 2, 'easing': 2, 'durationMs': 500, 'intensity': 1.0}; // fadeOut
+        entranceAnim = {'type': 1, 'easing': 2, 'durationMs': transitionDuration, 'intensity': 1.0}; // fadeIn
+        exitAnim = {'type': 2, 'easing': 2, 'durationMs': transitionDuration, 'intensity': 1.0}; // fadeOut
       } else if (_transitionType == 'Slide') {
-        entranceAnim = {'type': 5, 'easing': 2, 'durationMs': 500, 'intensity': 1.0}; // slideLeft
-        exitAnim = {'type': 6, 'easing': 2, 'durationMs': 500, 'intensity': 1.0}; // slideRight
+        entranceAnim = {'type': 5, 'easing': 2, 'durationMs': transitionDuration, 'intensity': 1.0}; // slideLeft
+        exitAnim = {'type': 6, 'easing': 2, 'durationMs': transitionDuration, 'intensity': 1.0}; // slideRight
       } else if (_transitionType == 'Ken Burns') {
-        entranceAnim = {'type': 8, 'easing': 2, 'durationMs': 500, 'intensity': 1.0}; // scaleUp
-        exitAnim = {'type': 9, 'easing': 2, 'durationMs': 500, 'intensity': 1.0}; // scaleDown
+        entranceAnim = {'type': 8, 'easing': 2, 'durationMs': transitionDuration, 'intensity': 1.0}; // scaleUp
+        exitAnim = {'type': 9, 'easing': 2, 'durationMs': transitionDuration, 'intensity': 1.0}; // scaleDown
       }
 
       clips.add({

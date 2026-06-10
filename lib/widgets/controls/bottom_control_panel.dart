@@ -27,9 +27,12 @@ class BottomControlPanel extends StatefulWidget {
   final Duration currentTime;
   final VoidCallback? onImportAudio;
   final VoidCallback? onImportSubtitles;
+  final VoidCallback? onImportTyposync;
   final VoidCallback? onImportPlainText;
   final VoidCallback? onPasteSubtitles;
   final VoidCallback? onExport;
+  final VoidCallback? onExportAss;
+  final VoidCallback? onExportJson;
   final VoidCallback? onAddClip;
   final VoidCallback? onExtractAudio;
   final VoidCallback? onNewProject;
@@ -100,11 +103,14 @@ class BottomControlPanel extends StatefulWidget {
     required this.currentTime,
     this.onImportAudio,
     this.onImportSubtitles,
+    this.onImportTyposync,
     this.onImportPlainText,
     this.onPasteSubtitles,
     this.onAddClip,
     this.onExtractAudio,
     this.onExport,
+    this.onExportAss,
+    this.onExportJson,
     this.onNewProject,
     this.onTranscribe,
     this.onImportModel,
@@ -357,11 +363,14 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
       case 14: return ProjectTab(
         onImportAudio: widget.onImportAudio,
         onImportSubtitles: widget.onImportSubtitles,
+        onImportTyposync: widget.onImportTyposync,
         onImportPlainText: widget.onImportPlainText,
         onPasteSubtitles: widget.onPasteSubtitles,
         onAddClip: widget.onAddClip,
         onExtractAudio: widget.onExtractAudio,
         onExport: widget.onExport,
+        onExportAss: widget.onExportAss,
+        onExportJson: widget.onExportJson,
         onNewProject: widget.onNewProject,
         onSaveProject: () async {
           final p = context.read<EditorProvider>();

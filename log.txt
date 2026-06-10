@@ -1,0 +1,5 @@
+lib/widgets/timeline/kinetic_preset_sheet.dart:152:52: Error: The getter 'initialPreset' isn't defined for the class '_KineticPresetSheetState'.
+ - '_KineticPresetSheetState' is from 'package:typgraphyeditor/widgets/timeline/kinetic_preset_sheet.dart' ('lib/widgets/timeline/kinetic_preset_sheet.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'initialPreset'.
+    _selectedTextColors = _rememberedTextColors ?? initialPreset.colorPalette.toList();
+                                                   ^^^^^^^^^^^^^
