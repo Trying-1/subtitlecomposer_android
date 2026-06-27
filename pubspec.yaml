@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.8+11
+version: 1.0.9+12
 
 environment:
   sdk: ^3.8.1
@@ -55,6 +55,7 @@ dependencies:
   youtube_player_flutter: ^9.0.1
   url_launcher: ^6.3.1
   package_info_plus: ^9.0.1
+  record: ^6.2.1
 
 dev_dependencies:
   flutter_test:
@@ -152,18 +153,22 @@ flutter:
         - asset: assets/fonts/NewTegomin-Regular.ttf
     - family: Poppins
       fonts:
-        - asset: assets/fonts/Poppins-Thin.ttf
-          weight: 100
-        - asset: assets/fonts/Poppins-Light.ttf
-          weight: 300
         - asset: assets/fonts/Poppins-Regular.ttf
-          weight: 400
+    - family: Poppins-Thin
+      fonts:
+        - asset: assets/fonts/Poppins-Thin.ttf
+    - family: Poppins-Light
+      fonts:
+        - asset: assets/fonts/Poppins-Light.ttf
+    - family: Poppins-Medium
+      fonts:
         - asset: assets/fonts/Poppins-Medium.ttf
-          weight: 500
+    - family: Poppins-SemiBold
+      fonts:
         - asset: assets/fonts/Poppins-SemiBold.ttf
-          weight: 600
+    - family: Poppins-Black
+      fonts:
         - asset: assets/fonts/Poppins-Black.ttf
-          weight: 900
     - family: ProtestRevolution
       fonts:
         - asset: assets/fonts/ProtestRevolution-Regular.ttf

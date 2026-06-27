@@ -1,3 +1,5 @@
+
+
 enum AnimationType {
   none,
   fadeIn,
@@ -33,8 +35,12 @@ enum AnimationType {
   staggeredSlideUp,
   slideFromTop,
   slideFromBottom,
+  slideFromLeft,
+  slideFromRight,
   staggeredSlideFromTop,
   staggeredSlideFromBottom,
+  staggeredSlideFromLeft,
+  staggeredSlideFromRight,
   elasticStretch,
   spiralDrop,
   glitch,
@@ -86,6 +92,7 @@ enum CustomBlendMode {
 enum LayoutPreset {
   none,
   column,
+  row,
   grid,
   bento,
   random,
@@ -634,6 +641,10 @@ class OverlayClip implements TimelineClip {
   final double saturation;
   final double contrast;
   final double blur;
+  final bool isChromaKeyEnabled;
+  final int chromaKeyColor;
+  final double chromaKeySimilarity;
+  final double chromaKeySmoothness;
   @override
   final Duration originalStartTime;
   @override
@@ -684,6 +695,10 @@ class OverlayClip implements TimelineClip {
     this.saturation = 1.0,
     this.contrast = 1.0,
     this.blur = 0.0,
+    this.isChromaKeyEnabled = false,
+    this.chromaKeyColor = 0xFF00FF00, // Default Green
+    this.chromaKeySimilarity = 0.1,
+    this.chromaKeySmoothness = 0.05,
     this.entranceAnimation = const ClipAnimation(),
     this.exitAnimation = const ClipAnimation(),
     this.loopAnimation = const ClipAnimation(),
@@ -728,6 +743,10 @@ class OverlayClip implements TimelineClip {
     'saturation': saturation,
     'contrast': contrast,
     'blur': blur,
+    'isChromaKeyEnabled': isChromaKeyEnabled,
+    'chromaKeyColor': chromaKeyColor,
+    'chromaKeySimilarity': chromaKeySimilarity,
+    'chromaKeySmoothness': chromaKeySmoothness,
     'entranceAnimation': entranceAnimation.toJson(),
     'exitAnimation': exitAnimation.toJson(),
     'loopAnimation': loopAnimation.toJson(),
@@ -769,6 +788,10 @@ class OverlayClip implements TimelineClip {
     saturation: (json['saturation'] as num?)?.toDouble() ?? 1.0,
     contrast: (json['contrast'] as num?)?.toDouble() ?? 1.0,
     blur: (json['blur'] as num?)?.toDouble() ?? 0.0,
+    isChromaKeyEnabled: json['isChromaKeyEnabled'] as bool? ?? false,
+    chromaKeyColor: json['chromaKeyColor'] as int? ?? 0xFF00FF00,
+    chromaKeySimilarity: (json['chromaKeySimilarity'] as num?)?.toDouble() ?? 0.1,
+    chromaKeySmoothness: (json['chromaKeySmoothness'] as num?)?.toDouble() ?? 0.05,
     entranceAnimation: ClipAnimation.fromJson(Map<String, dynamic>.from(json['entranceAnimation'])),
     exitAnimation: ClipAnimation.fromJson(Map<String, dynamic>.from(json['exitAnimation'])),
     loopAnimation: ClipAnimation.fromJson(Map<String, dynamic>.from(json['loopAnimation'] ?? {})),
@@ -813,6 +836,10 @@ class OverlayClip implements TimelineClip {
     double? saturation,
     double? contrast,
     double? blur,
+    bool? isChromaKeyEnabled,
+    int? chromaKeyColor,
+    double? chromaKeySimilarity,
+    double? chromaKeySmoothness,
     List<Keyframe>? keyframes,
     Duration? originalStartTime,
     Duration? originalEndTime,
@@ -848,6 +875,10 @@ class OverlayClip implements TimelineClip {
     saturation: saturation ?? this.saturation,
     contrast: contrast ?? this.contrast,
     blur: blur ?? this.blur,
+    isChromaKeyEnabled: isChromaKeyEnabled ?? this.isChromaKeyEnabled,
+    chromaKeyColor: chromaKeyColor ?? this.chromaKeyColor,
+    chromaKeySimilarity: chromaKeySimilarity ?? this.chromaKeySimilarity,
+    chromaKeySmoothness: chromaKeySmoothness ?? this.chromaKeySmoothness,
     entranceAnimation: entranceAnimation ?? this.entranceAnimation,
     exitAnimation: exitAnimation ?? this.exitAnimation,
     loopAnimation: loopAnimation ?? this.loopAnimation,
@@ -1167,6 +1198,7 @@ class Track {
   final List<BackgroundClip> backgrounds;
   final List<AudioClip> audioClips;
 
+
   Track({
     required this.id,
     this.name = "Track",
@@ -1175,6 +1207,7 @@ class Track {
     this.overlays = const [],
     this.backgrounds = const [],
     this.audioClips = const [],
+
   });
 
   Map<String, dynamic> toJson() => {
@@ -1185,6 +1218,7 @@ class Track {
     'overlays': overlays.map((c) => c.toJson()).toList(),
     'backgrounds': backgrounds.map((c) => c.toJson()).toList(),
     'audioClips': audioClips.map((c) => c.toJson()).toList(),
+
   };
 
   factory Track.fromJson(Map<String, dynamic> json) => Track(
@@ -1195,6 +1229,7 @@ class Track {
     overlays: (json['overlays'] as List? ?? []).map((o) => OverlayClip.fromJson(Map<String, dynamic>.from(o))).toList(),
     backgrounds: (json['backgrounds'] as List? ?? []).map((b) => BackgroundClip.fromJson(Map<String, dynamic>.from(b))).toList(),
     audioClips: (json['audioClips'] as List? ?? []).map((a) => AudioClip.fromJson(Map<String, dynamic>.from(a))).toList(),
+
   );
 
   Track copyWith({
@@ -1205,6 +1240,7 @@ class Track {
     List<OverlayClip>? overlays,
     List<BackgroundClip>? backgrounds,
     List<AudioClip>? audioClips,
+
   }) => Track(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -1213,6 +1249,7 @@ class Track {
     overlays: overlays ?? this.overlays,
     backgrounds: backgrounds ?? this.backgrounds,
     audioClips: audioClips ?? this.audioClips,
+
   );
 
   bool get isEmpty => clips.isEmpty && overlays.isEmpty && backgrounds.isEmpty && audioClips.isEmpty;
@@ -1222,6 +1259,7 @@ class Project {
   final String id;
   final String name;
   final String? videoPath;
+  final String? thumbnailPath;
   final double videoWidth;
   final double videoHeight;
   final double aspectRatio;
@@ -1243,6 +1281,7 @@ class Project {
     required this.id,
     required this.name,
     this.videoPath,
+    this.thumbnailPath,
     this.videoWidth = 1920,
     this.videoHeight = 1080,
     this.aspectRatio = 16 / 9,
@@ -1265,6 +1304,7 @@ class Project {
     'id': id,
     'name': name,
     'videoPath': videoPath,
+    'thumbnailPath': thumbnailPath,
     'videoWidth': videoWidth,
     'videoHeight': videoHeight,
     'aspectRatio': aspectRatio,
@@ -1287,6 +1327,7 @@ class Project {
     id: json['id'],
     name: json['name'],
     videoPath: json['videoPath'],
+    thumbnailPath: json['thumbnailPath'],
     videoWidth: (json['videoWidth'] as num?)?.toDouble() ?? 1920,
     videoHeight: (json['videoHeight'] as num?)?.toDouble() ?? 1080,
     aspectRatio: (json['aspectRatio'] as num?)?.toDouble() ?? 16 / 9,
@@ -1309,6 +1350,7 @@ class Project {
     String? id,
     String? name,
     String? videoPath,
+    String? thumbnailPath,
     double? videoWidth,
     double? videoHeight,
     double? aspectRatio,
@@ -1329,6 +1371,7 @@ class Project {
     id: id ?? this.id,
     name: name ?? this.name,
     videoPath: videoPath ?? this.videoPath,
+    thumbnailPath: thumbnailPath ?? this.thumbnailPath,
     videoWidth: videoWidth ?? this.videoWidth,
     videoHeight: videoHeight ?? this.videoHeight,
     aspectRatio: aspectRatio ?? this.aspectRatio,

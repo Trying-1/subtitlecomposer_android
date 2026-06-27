@@ -35,8 +35,12 @@ enum class AnimationType {
     STAGGERED_SLIDE_UP,
     SLIDE_FROM_TOP,
     SLIDE_FROM_BOTTOM,
+    SLIDE_FROM_LEFT,
+    SLIDE_FROM_RIGHT,
     STAGGERED_SLIDE_FROM_TOP,
     STAGGERED_SLIDE_FROM_BOTTOM,
+    STAGGERED_SLIDE_FROM_LEFT,
+    STAGGERED_SLIDE_FROM_RIGHT,
     ELASTIC_STRETCH,
     SPIRAL_DROP,
     GLITCH,
@@ -188,7 +192,11 @@ data class SubtitleClip(
     val brightness: Float = 1.0f,
     val saturation: Float = 1.0f,
     val contrast: Float = 1.0f,
-    val blur: Float = 0.0f
+    val blur: Float = 0.0f,
+    val isChromaKeyEnabled: Boolean = false,
+    val chromaKeyColor: Int = 0xFF00FF00.toInt(),
+    val chromaKeySimilarity: Float = 0.1f,
+    val chromaKeySmoothness: Float = 0.05f
 )
 
 /**

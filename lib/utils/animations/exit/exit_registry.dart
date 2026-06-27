@@ -1,4 +1,4 @@
-import '../../models/editor_models.dart';
+import '../../../models/editor_models.dart';
 import '../base/animated_text_state.dart';
 import 'fade_out.dart';
 import 'fade_in.dart';
@@ -21,8 +21,12 @@ import 'smooth_slide_up.dart';
 import 'staggered_slide_up.dart';
 import 'slide_from_top.dart';
 import 'slide_from_bottom.dart';
+import 'slide_from_left.dart';
+import 'slide_from_right.dart';
 import 'staggered_slide_from_top.dart';
 import 'staggered_slide_from_bottom.dart';
+import 'staggered_slide_from_left.dart';
+import 'staggered_slide_from_right.dart';
 import 'throwback.dart';
 import 'elastic_drop.dart';
 
@@ -52,8 +56,12 @@ class ExitRegistry {
       AnimationType.staggeredSlideUp => evaluateStaggeredSlideUp(t),
       AnimationType.slideFromTop => evaluateSlideFromTop(t),
       AnimationType.slideFromBottom => evaluateSlideFromBottom(t),
+      AnimationType.slideFromLeft => evaluateSlideFromLeft(t),
+      AnimationType.slideFromRight => evaluateSlideFromRight(t),
       AnimationType.staggeredSlideFromTop => evaluateStaggeredSlideFromTop(t),
       AnimationType.staggeredSlideFromBottom => evaluateStaggeredSlideFromBottom(t),
+      AnimationType.staggeredSlideFromLeft => evaluateStaggeredSlideFromLeft(t),
+      AnimationType.staggeredSlideFromRight => evaluateStaggeredSlideFromRight(t),
       AnimationType.throwback => evaluateThrowback(t),
       AnimationType.elasticDrop => evaluateElasticDrop(t),
       _ => const AnimatedTextState(),

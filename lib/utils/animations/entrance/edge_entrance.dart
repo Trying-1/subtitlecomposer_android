@@ -17,3 +17,19 @@ AnimatedTextState evaluateStaggeredSlideFromTopEntrance(double t) {
 AnimatedTextState evaluateStaggeredSlideFromBottomEntrance(double t) {
   return AnimatedTextState(typewriterProgress: t);
 }
+
+AnimatedTextState evaluateSlideFromLeftEntrance(double t) {
+  return AnimatedTextState(offsetX: -1.0 * (1.0 - t));
+}
+
+AnimatedTextState evaluateSlideFromRightEntrance(double t) {
+  return AnimatedTextState(offsetX: 1.0 * (1.0 - t));
+}
+
+AnimatedTextState evaluateStaggeredSlideFromLeftEntrance(double t) {
+  return AnimatedTextState(typewriterProgress: t);
+}
+
+AnimatedTextState evaluateStaggeredSlideFromRightEntrance(double t) {
+  return AnimatedTextState(typewriterProgress: t);
+}

@@ -138,6 +138,16 @@ class AnimationLibrary {
       icon: Icons.expand_less_rounded,
     ),
     AnimationMetadata(
+      type: AnimationType.slideFromLeft,
+      label: 'Edge Left',
+      icon: Icons.arrow_right_alt_rounded,
+    ),
+    AnimationMetadata(
+      type: AnimationType.slideFromRight,
+      label: 'Edge Right',
+      icon: Icons.keyboard_backspace_rounded,
+    ),
+    AnimationMetadata(
       type: AnimationType.staggeredSlideFromTop,
       label: 'Stag Top',
       icon: Icons.keyboard_double_arrow_down_rounded,
@@ -146,6 +156,16 @@ class AnimationLibrary {
       type: AnimationType.staggeredSlideFromBottom,
       label: 'Stag Bottom',
       icon: Icons.keyboard_double_arrow_up_rounded,
+    ),
+    AnimationMetadata(
+      type: AnimationType.staggeredSlideFromLeft,
+      label: 'Stag Left',
+      icon: Icons.keyboard_double_arrow_right_rounded,
+    ),
+    AnimationMetadata(
+      type: AnimationType.staggeredSlideFromRight,
+      label: 'Stag Right',
+      icon: Icons.keyboard_double_arrow_left_rounded,
     ),
   ];
 
@@ -252,23 +272,43 @@ class AnimationLibrary {
     ),
     AnimationMetadata(
       type: AnimationType.slideFromTop,
-      label: 'Edge Top',
-      icon: Icons.expand_more_rounded,
-    ),
-    AnimationMetadata(
-      type: AnimationType.slideFromBottom,
-      label: 'Edge Bottom',
+      label: 'To Top Edge',
       icon: Icons.expand_less_rounded,
     ),
     AnimationMetadata(
+      type: AnimationType.slideFromBottom,
+      label: 'To Bottom Edge',
+      icon: Icons.expand_more_rounded,
+    ),
+    AnimationMetadata(
+      type: AnimationType.slideFromLeft,
+      label: 'To Left Edge',
+      icon: Icons.keyboard_backspace_rounded,
+    ),
+    AnimationMetadata(
+      type: AnimationType.slideFromRight,
+      label: 'To Right Edge',
+      icon: Icons.arrow_right_alt_rounded,
+    ),
+    AnimationMetadata(
       type: AnimationType.staggeredSlideFromTop,
-      label: 'Stag Top',
-      icon: Icons.keyboard_double_arrow_down_rounded,
+      label: 'Stag To Top',
+      icon: Icons.keyboard_double_arrow_up_rounded,
     ),
     AnimationMetadata(
       type: AnimationType.staggeredSlideFromBottom,
-      label: 'Stag Bottom',
-      icon: Icons.keyboard_double_arrow_up_rounded,
+      label: 'Stag To Bottom',
+      icon: Icons.keyboard_double_arrow_down_rounded,
+    ),
+    AnimationMetadata(
+      type: AnimationType.staggeredSlideFromLeft,
+      label: 'Stag To Left',
+      icon: Icons.keyboard_double_arrow_left_rounded,
+    ),
+    AnimationMetadata(
+      type: AnimationType.staggeredSlideFromRight,
+      label: 'Stag To Right',
+      icon: Icons.keyboard_double_arrow_right_rounded,
     ),
   ];
 

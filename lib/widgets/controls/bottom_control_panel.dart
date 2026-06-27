@@ -18,6 +18,7 @@ import 'tabs/audio_tab.dart';
 import 'tabs/timing_tab.dart';
 import 'tabs/keyframe_manager_tab.dart';
 import 'tabs/layout_tab.dart';
+import 'tabs/remove_bg_tab.dart';
 
 class BottomControlPanel extends StatefulWidget {
   final TimelineClip? clip;
@@ -89,6 +90,10 @@ class BottomControlPanel extends StatefulWidget {
     int? gradientColor1,
     int? gradientColor2,
     double? gradientAngle,
+    bool? isChromaKeyEnabled,
+    int? chromaKeyColor,
+    double? chromaKeySimilarity,
+    double? chromaKeySmoothness,
   }) onUpdate;
   final Function(String path) onAddAudioClip;
   final Function(AnimationPreset) onApplyPreset;
@@ -135,6 +140,7 @@ class BottomControlPanel extends StatefulWidget {
 class _BottomControlPanelState extends State<BottomControlPanel> {
 
   final List<Map<String, dynamic>> _tabs = [
+    {'name': 'Project', 'icon': Icons.folder_rounded},
     {'name': 'Text', 'icon': Icons.text_fields_rounded},
     {'name': 'Font', 'icon': Icons.font_download_rounded},
     {'name': 'Style', 'icon': Icons.palette_rounded},
@@ -149,7 +155,7 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
     {'name': 'Background', 'icon': Icons.wallpaper_rounded},
     {'name': 'Audio', 'icon': Icons.audiotrack_rounded},
     {'name': 'Aspect', 'icon': Icons.aspect_ratio_rounded},
-    {'name': 'Project', 'icon': Icons.folder_rounded},
+    {'name': 'Remove BG', 'icon': Icons.auto_awesome_rounded},
   ];
 
   @override
@@ -179,7 +185,7 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
   }
 
   Widget _buildActiveTabContentWrapper(int activeTabIndex) {
-    if (activeTabIndex >= 10) {
+    if (activeTabIndex == 0 || activeTabIndex >= 11) {
       return SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         child: _buildGlobalTabContent(activeTabIndex),
@@ -302,30 +308,30 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
   Widget _buildActiveTabContent(int activeTabIndex) {
     final clip = widget.clip!;
     switch (activeTabIndex) {
-      case 0: 
+      case 1: 
         if (clip is SubtitleClip) return TextTab(clip: clip, onUpdate: ({text, textCase, fontSize, letterSpacing, blendMode}) => widget.onUpdate(text: text, textCase: textCase, fontSize: fontSize, letterSpacing: letterSpacing, blendMode: blendMode));
         return _buildWrongClipTypeMessage("TEXT");
-      case 1: 
+      case 2: 
         if (clip is SubtitleClip) return FontTab(clip: clip, onUpdate: ({fontFamily}) => widget.onUpdate(fontFamily: fontFamily));
         return _buildWrongClipTypeMessage("FONT");
-      case 2: 
+      case 3: 
         if (clip is SubtitleClip) return StyleTab(clip: clip, onUpdate: ({color, textOpacity, entranceAnimation, exitAnimation, loopAnimation, isGradientEnabled, gradientColor1, gradientColor2, gradientAngle}) => widget.onUpdate(color: color, textOpacity: textOpacity, entranceAnimation: entranceAnimation, exitAnimation: exitAnimation, loopAnimation: loopAnimation, isGradientEnabled: isGradientEnabled, gradientColor1: gradientColor1, gradientColor2: gradientColor2, gradientAngle: gradientAngle));
         return _buildWrongClipTypeMessage("STYLE");
-      case 3: 
+      case 4: 
         if (clip is SubtitleClip || clip is OverlayClip) return EffectsTab(clip: clip, onUpdate: ({isShadowEnabled, shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY, isBackgroundEnabled, backgroundColor, backgroundRadius, isStrokeEnabled, strokeColor, strokeWidth, isGlowEnabled, glowColor, glowSize, isBendingEnabled, bendingAmount, isReflectionEnabled, reflectionOffset, reflectionOpacity, reflectionColor}) => widget.onUpdate(isShadowEnabled: isShadowEnabled, shadowColor: shadowColor, shadowBlur: shadowBlur, shadowOffsetX: shadowOffsetX, shadowOffsetY: shadowOffsetY, isBackgroundEnabled: isBackgroundEnabled, backgroundColor: backgroundColor, backgroundRadius: backgroundRadius, isStrokeEnabled: isStrokeEnabled, strokeColor: strokeColor, strokeWidth: strokeWidth, isGlowEnabled: isGlowEnabled, glowColor: glowColor, glowSize: glowSize, isBendingEnabled: isBendingEnabled, bendingAmount: bendingAmount, isReflectionEnabled: isReflectionEnabled, reflectionOffset: reflectionOffset, reflectionOpacity: reflectionOpacity, reflectionColor: reflectionColor));
         return _buildWrongClipTypeMessage("EFFECTS");
-      case 4:
+      case 5:
         return LayoutTab(
           onApplyPreset: (preset) => context.read<EditorProvider>().applyLayoutPreset(preset),
           selectedClipCount: widget.selectedClipIds.length,
         );
-      case 5: 
+      case 6: 
         if (clip is SubtitleClip) return AnimationTab(clip: clip, onUpdate: widget.onUpdate, onApplyPreset: widget.onApplyPreset);
         return _buildWrongClipTypeMessage("ANIMATION");
-      case 6: return KeyframeManagerTab(clip: clip, currentPosition: widget.currentTime, onUpdate: widget.onUpdate);
-      case 7: return TransformTab(clip: clip, onUpdate: widget.onUpdate);
-      case 8: return PositionTab(clip: clip, onUpdate: widget.onUpdate);
-      case 9: return TimingTab(clip: clip, onUpdate: (c, s, e, {resolve = true}) => widget.onUpdateTiming(c, s, e, resolve: resolve));
+      case 7: return KeyframeManagerTab(clip: clip, currentPosition: widget.currentTime, onUpdate: widget.onUpdate);
+      case 8: return TransformTab(clip: clip, onUpdate: widget.onUpdate);
+      case 9: return PositionTab(clip: clip, onUpdate: widget.onUpdate);
+      case 10: return TimingTab(clip: clip, onUpdate: (c, s, e, {resolve = true}) => widget.onUpdateTiming(c, s, e, resolve: resolve));
       default: return const SizedBox();
     }
   }
@@ -348,19 +354,23 @@ class _BottomControlPanelState extends State<BottomControlPanel> {
 
   Widget _buildGlobalTabContent(int activeTabIndex) {
     switch (activeTabIndex) {
-      case 10: return OverlayTab(
+      case 11: return OverlayTab(
         selectedOverlay: widget.selectedOverlay,
         onAddOverlay: widget.onAddOverlay,
-        onUpdate: widget.onUpdate,
+        onUpdate: ({x, y, rotation, scale, opacity, entranceAnimation, exitAnimation, loopAnimation, isChromaKeyEnabled, chromaKeyColor, chromaKeySimilarity, chromaKeySmoothness}) => widget.onUpdate(x: x, y: y, rotation: rotation, scale: scale, opacity: opacity, entranceAnimation: entranceAnimation, exitAnimation: exitAnimation, loopAnimation: loopAnimation, isChromaKeyEnabled: isChromaKeyEnabled, chromaKeyColor: chromaKeyColor, chromaKeySimilarity: chromaKeySimilarity, chromaKeySmoothness: chromaKeySmoothness),
       );
-      case 11: return const BackgroundTab();
-      case 12: return AudioTab(
+      case 12: return const BackgroundTab();
+      case 13: return AudioTab(
         selectedAudio: widget.selectedAudio,
         onAddAudio: widget.onAddAudioClip,
         onUpdate: ({volume}) => widget.onUpdate(volume: volume),
       );
-      case 13: return const AspectTab();
-      case 14: return ProjectTab(
+      case 14: return const AspectTab();
+      case 15: return RemoveBgTab(
+        selectedOverlay: widget.selectedOverlay,
+        onUpdate: ({isChromaKeyEnabled, chromaKeyColor, chromaKeySimilarity, chromaKeySmoothness}) => widget.onUpdate(isChromaKeyEnabled: isChromaKeyEnabled, chromaKeyColor: chromaKeyColor, chromaKeySimilarity: chromaKeySimilarity, chromaKeySmoothness: chromaKeySmoothness),
+      );
+      case 0: return ProjectTab(
         onImportAudio: widget.onImportAudio,
         onImportSubtitles: widget.onImportSubtitles,
         onImportTyposync: widget.onImportTyposync,

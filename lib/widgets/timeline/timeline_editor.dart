@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_config.dart';
@@ -35,6 +36,7 @@ class TimelineEditor extends StatefulWidget {
   final List<Track> overlayTracks;
   final List<Track> backgroundTracks;
   final List<Track> audioTracks;
+
   final Duration currentTime;
   final ValueNotifier<Duration>? playbackTime;
   final Duration totalDuration;
@@ -73,11 +75,11 @@ class TimelineEditor extends StatefulWidget {
   final bool showOverlayTracks;
   final bool showBackgroundTracks;
   final bool showAudioTracks;
+  final VoidCallback? onAddKeyframe;
   final VoidCallback onToggleTextTracks;
   final VoidCallback onToggleOverlayTracks;
   final VoidCallback onToggleBackgroundTracks;
   final VoidCallback onToggleAudioTracks;
-  final VoidCallback? onAddKeyframe;
   final VoidCallback? onClearKeyframes;
   final List<Duration> markers;
   final VoidCallback onAddMarker;
@@ -141,8 +143,8 @@ class TimelineEditor extends StatefulWidget {
     this.isKeyframeAtCurrentTime = false,
     this.showTextTracks = true,
     this.showOverlayTracks = true,
-    this.showBackgroundTracks = true,
-    this.showAudioTracks = true,
+    required this.showBackgroundTracks,
+    required this.showAudioTracks,
     required this.onToggleTextTracks,
     required this.onToggleOverlayTracks,
     required this.onToggleBackgroundTracks,
@@ -156,13 +158,13 @@ class TimelineEditor extends StatefulWidget {
     required this.onTogglePlayheadLock,
     required this.onAddText,
     required this.onBulkAudio,
+    required this.textTimelineColor,
+    required this.audioTimelineColor,
+    required this.overlayTimelineColor,
+    required this.backgroundTimelineColor,
     required this.isPreviewZoomMode,
     required this.onTogglePreviewZoomMode,
     required this.onResetPreviewZoom,
-    this.textTimelineColor = 0xFFFF9800,
-    this.audioTimelineColor = 0xFF009688,
-    this.overlayTimelineColor = 0xFF03A9F4,
-    this.backgroundTimelineColor = 0xFFFFEB3B,
   });
 
   @override
@@ -700,6 +702,8 @@ class _TimelineEditorState extends State<TimelineEditor> {
                       _buildVerticalToggle("BG", widget.showBackgroundTracks, widget.onToggleBackgroundTracks, icon: widget.showBackgroundTracks ? Icons.wallpaper_rounded : Icons.image_not_supported_rounded),
                       const SizedBox(width: 16),
                       _buildVerticalToggle("AUDIO", widget.showAudioTracks, widget.onToggleAudioTracks, icon: widget.showAudioTracks ? Icons.audiotrack_rounded : Icons.music_off_rounded),
+                      const SizedBox(width: 16),
+
                       const SizedBox(width: 16),
                     ],
 
@@ -1399,72 +1403,136 @@ class _TimelineEditorState extends State<TimelineEditor> {
           width: isSelected ? 1.5 : 1,
         ),
       ),
-      child: Stack(
-        clipBehavior: Clip.none,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Waveform for Audio Clips
-          if (clip is AudioClip && clip.waveform != null)
-            Positioned.fill(
-              child: CustomPaint(
-                painter: WaveformPainter(
-                  waveform: clip.waveform!,
-                  color: isSelected ? Colors.white.withOpacity(0.2) : Color(widget.audioTimelineColor).withOpacity(0.3),
-                ),
-              ),
-            ),
-          Center(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+          Expanded(
+            flex: 4,
+            child: Stack(
+              clipBehavior: Clip.none,
               children: [
-                if (clip is AudioClip) ...[
-                  Icon(Icons.audiotrack_rounded, size: 10, color: Color(widget.audioTimelineColor)),
-                  const SizedBox(width: 4),
-                ] else if (clip is OverlayClip) ...[
-                  Icon(Icons.layers_outlined, size: 10, color: Color(widget.overlayTimelineColor)),
-                  const SizedBox(width: 4),
-                ] else if (clip is BackgroundClip) ...[
-                  Icon(Icons.wallpaper_rounded, size: 10, color: Color(widget.backgroundTimelineColor)),
-                  const SizedBox(width: 4),
-                ] else if (clip is SubtitleClip) ...[
-                  // Removed text icon as requested
-                ],
-                Flexible(
-                  child: Text(
-                    clip is SubtitleClip ? clip.text : (clip is OverlayClip ? "Overlay" : (clip is AudioClip ? (clip.isMainAudio ? "Main Audio" : "Audio") : "Background")),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                    style: TextStyle(
-                      fontFamily: 'KleeOne',
-                      fontSize: 10, 
-                      color: isSelected ? Colors.white : Colors.white70, 
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                // Waveform for Audio Clips
+                if (clip is AudioClip && clip.waveform != null)
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: WaveformPainter(
+                        waveform: clip.waveform!,
+                        color: isSelected ? Colors.white.withOpacity(0.2) : Color(widget.audioTimelineColor).withOpacity(0.3),
+                      ),
                     ),
                   ),
-                ),
+                
+                // Image/Video Frame Background for Overlay/Background Clips
+                if (clip is OverlayClip && clip.imagePath.isNotEmpty)
+                  Positioned.fill(
+                    child: Opacity(
+                      opacity: 0.8,
+                      child: Image.file(
+                        File(clip.imagePath),
+                        fit: BoxFit.fitHeight,
+                        repeat: ImageRepeat.repeatX,
+                        alignment: Alignment.centerLeft,
+                        errorBuilder: (context, error, stackTrace) => const SizedBox(),
+                      ),
+                    ),
+                  ),
+                if (clip is BackgroundClip && clip.imagePath != null && clip.imagePath!.isNotEmpty)
+                  Positioned.fill(
+                    child: Opacity(
+                      opacity: 0.8,
+                      child: Image.file(
+                        File(clip.imagePath!),
+                        fit: BoxFit.fitHeight,
+                        repeat: ImageRepeat.repeatX,
+                        alignment: Alignment.centerLeft,
+                        errorBuilder: (context, error, stackTrace) => const SizedBox(),
+                      ),
+                    ),
+                  ),
+                  
+                // Subtitle text in the upper block
+                if (clip is SubtitleClip)
+                  Center(
+                    child: Text(
+                      clip.text,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontFamily: 'KleeOne',
+                        fontSize: 12, 
+                        color: isSelected ? Colors.white : Colors.white70, 
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                  ),
+
+                // Keyframe Indicators
+                if (clip.keyframes.isNotEmpty)
+                  ...clip.keyframes.map((k) {
+                    final pos = k.timeOffset * _pixelsPerSecond;
+                    return Positioned(
+                      left: pos - 4, // Center the 8px diamond
+                      bottom: -2,
+                      child: Transform.rotate(
+                        angle: 0.785398, // 45 degrees in radians
+                        child: Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: isSelected ? Colors.white : Colors.deepPurpleAccent,
+                            border: Border.all(color: Colors.white24, width: 0.5),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
               ],
             ),
           ),
-          // Keyframe Indicators
-          if (clip.keyframes.isNotEmpty)
-            ...clip.keyframes.map((k) {
-              final pos = k.timeOffset * _pixelsPerSecond;
-              return Positioned(
-                left: pos - 4, // Center the 8px diamond
-                bottom: -2,
-                child: Transform.rotate(
-                  angle: 0.785398, // 45 degrees in radians
-                  child: Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: isSelected ? Colors.white : Colors.deepPurpleAccent,
-                      border: Border.all(color: Colors.white24, width: 0.5),
+          if (context.watch<EditorProvider>().showTimelineClipNames)
+            Expanded(
+              flex: 1,
+            child: Container(
+              color: Colors.black.withOpacity(0.3),
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              alignment: Alignment.centerLeft,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (clip is AudioClip) ...[
+                    Icon(Icons.audiotrack_rounded, size: 6, color: Color(widget.audioTimelineColor)),
+                    const SizedBox(width: 4),
+                  ] else if (clip is OverlayClip) ...[
+                    Icon(Icons.layers_outlined, size: 6, color: Color(widget.overlayTimelineColor)),
+                    const SizedBox(width: 4),
+                  ] else if (clip is BackgroundClip) ...[
+                    Icon(Icons.wallpaper_rounded, size: 6, color: Color(widget.backgroundTimelineColor)),
+                    const SizedBox(width: 4),
+                  ],
+                  Flexible(
+                    child: Text(
+                      clip is OverlayClip 
+                          ? clip.imagePath.split('/').last 
+                          : (clip is BackgroundClip && clip.imagePath != null 
+                              ? clip.imagePath!.split('/').last 
+                              : (clip is AudioClip 
+                                  ? (clip.isMainAudio ? "Main Audio" : "Audio") 
+                                  : "Subtitle")),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontFamily: 'KleeOne',
+                        fontSize: 6, 
+                        height: 1.0,
+                        color: isSelected ? Colors.white : Colors.white70, 
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      ),
                     ),
                   ),
-                ),
-              );
-            }).toList(),
-          
+                ],
+              ),
+            ),
+          ),
           // Loop Indicator (Dotted Line)
           if (clip.sourceDurationMs > 0 && clip.duration.inMilliseconds > clip.sourceDurationMs)
             ...List.generate((clip.duration.inMilliseconds / clip.sourceDurationMs).floor(), (index) {
@@ -1697,6 +1765,7 @@ class _TimelineEditorState extends State<TimelineEditor> {
       case TrackType.overlay: return "OVERLAY";
       case TrackType.background: return "BG";
       case TrackType.audio: return "AUDIO";
+
     }
   }
 
@@ -1893,8 +1962,7 @@ class WaveformPainter extends CustomPainter {
 
     final paint = Paint()
       ..color = color
-      ..strokeWidth = 1.5
-      ..strokeCap = StrokeCap.round;
+      ..style = PaintingStyle.fill;
 
     final double width = size.width;
     final double height = size.height;
@@ -1903,17 +1971,27 @@ class WaveformPainter extends CustomPainter {
     final int totalPoints = waveform.length;
     final double spacing = width / totalPoints;
 
+    final Path path = Path();
+    path.moveTo(0, midY);
+
+    // Draw top half
     for (int i = 0; i < totalPoints; i++) {
       final double amplitude = waveform[i].clamp(0.0, 1.0);
       final double barHeight = amplitude * height * 0.8;
       final double x = i * spacing;
-      
-      canvas.drawLine(
-        Offset(x, midY - barHeight / 2),
-        Offset(x, midY + barHeight / 2),
-        paint,
-      );
+      path.lineTo(x, midY - barHeight / 2);
     }
+    
+    // Draw bottom half in reverse
+    for (int i = totalPoints - 1; i >= 0; i--) {
+      final double amplitude = waveform[i].clamp(0.0, 1.0);
+      final double barHeight = amplitude * height * 0.8;
+      final double x = i * spacing;
+      path.lineTo(x, midY + barHeight / 2);
+    }
+    
+    path.close();
+    canvas.drawPath(path, paint);
   }
 
   @override

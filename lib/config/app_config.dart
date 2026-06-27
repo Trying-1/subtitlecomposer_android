@@ -15,13 +15,13 @@ class AppConfig {
   static const bool showModelButton = true;                  //premium
   static const bool showAddTextButton = true;
   static const bool showExportButton = true;
-  static const bool showExportAssButton = true;
-  static const bool showExportJsonButton = true;
+  static const bool showExportAssButton = true;               //premium
+  static const bool showExportJsonButton = true;              //premium
   static const bool showTimelineColors = true;               //premium
   static const bool showTimelinePanControls = true;            //premium
   static const bool showExportProjectButton = true;            //premium
   static const bool showImportProjectButton = true;            //premium
-  static const bool showImportTyposyncButton = true;
+  static const bool showImportTyposyncButton = true;          //premium
   static const bool showSaveProjectButton = true;
   static const bool showImageTextImportExport = true;
 
@@ -51,6 +51,8 @@ class AppConfig {
   static const bool showTimelineLock = true;
   static const bool showTimelineLoop = true;
   static const bool showTimelineVisibilityToggles = true;
+  static const bool showTimelineClipNames = true;
+  static const bool showTimelineTrackHeightAdjust = true;     //premium
 
   // Other global toggles
   static const bool enableAdvancedAnimations = true;

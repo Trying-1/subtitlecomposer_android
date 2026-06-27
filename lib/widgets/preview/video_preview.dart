@@ -199,7 +199,9 @@ class _VideoPreviewState extends State<VideoPreview> {
                         }
                       });
 
-                      return Container(
+                      return RepaintBoundary(
+                        key: provider.previewRepaintKey,
+                        child: Container(
                           key: _canvasKey,
                           color: Color(provider.backgroundColor), // Actual video background
                           child: Stack(
@@ -221,7 +223,8 @@ class _VideoPreviewState extends State<VideoPreview> {
                               _buildSelectionOverlay(provider, constraints),
                             ],
                           ),
-                        );
+                        ),
+                      );
                       },
                   ),
                 ),

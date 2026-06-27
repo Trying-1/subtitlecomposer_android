@@ -6,6 +6,7 @@ import '../../utils/palette_presets.dart';
 import '../../services/kinetic/kinetic_style.dart';
 import '../common/custom_color_picker.dart';
 import '../../services/ads/ad_service.dart';
+import '../../utils/animations/library/animation_library.dart';
 
 class KineticPresetSheet extends StatefulWidget {
   final List<String> allFonts;
@@ -73,8 +74,12 @@ class _KineticPresetSheetState extends State<KineticPresetSheet> {
     AnimationType.staggeredSlideUp,
     AnimationType.slideFromTop,
     AnimationType.slideFromBottom,
+    AnimationType.slideFromLeft,
+    AnimationType.slideFromRight,
     AnimationType.staggeredSlideFromTop,
     AnimationType.staggeredSlideFromBottom,
+    AnimationType.staggeredSlideFromLeft,
+    AnimationType.staggeredSlideFromRight,
     AnimationType.scaleUp,
     AnimationType.scaleDown,
     AnimationType.bounceIn,
@@ -104,6 +109,14 @@ class _KineticPresetSheetState extends State<KineticPresetSheet> {
     AnimationType.slideDown,
     AnimationType.slideLeft,
     AnimationType.slideRight,
+    AnimationType.slideFromTop,
+    AnimationType.slideFromBottom,
+    AnimationType.slideFromLeft,
+    AnimationType.slideFromRight,
+    AnimationType.staggeredSlideFromTop,
+    AnimationType.staggeredSlideFromBottom,
+    AnimationType.staggeredSlideFromLeft,
+    AnimationType.staggeredSlideFromRight,
     AnimationType.scaleUp,
     AnimationType.scaleDown,
     AnimationType.zoomIn,
@@ -1038,6 +1051,7 @@ class _KineticPresetSheetState extends State<KineticPresetSheet> {
                         _selectedEntrancePool = selectedPreset.entrancePool.toSet();
                       });
                     },
+                    false,
                   ),
                   const Divider(color: Colors.white10, height: 24),
                   
@@ -1054,6 +1068,7 @@ class _KineticPresetSheetState extends State<KineticPresetSheet> {
                         _selectedExitPool = selectedPreset.exitPool.toSet();
                       });
                     },
+                    true,
                   ),
 
                   const SizedBox(height: 24),
@@ -1810,6 +1825,7 @@ class _KineticPresetSheetState extends State<KineticPresetSheet> {
     List<AnimationType> availablePool,
     Set<AnimationType> selectedPool,
     VoidCallback onReset,
+    bool isExit,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1873,7 +1889,16 @@ class _KineticPresetSheetState extends State<KineticPresetSheet> {
             runSpacing: 6,
             children: availablePool.map((anim) {
               final isSelected = selectedPool.contains(anim);
-              final name = anim.name.replaceAllMapped(RegExp(r'[A-Z]'), (match) => ' ${match.group(0)}').trim();
+              final library = isExit ? AnimationLibrary.exitAnimations : AnimationLibrary.entranceAnimations;
+              final meta = library.firstWhere(
+                (m) => m.type == anim,
+                orElse: () => AnimationMetadata(
+                  type: anim,
+                  label: anim.name.replaceAllMapped(RegExp(r'[A-Z]'), (match) => ' ${match.group(0)}').trim(),
+                  icon: Icons.animation,
+                )
+              );
+              final name = meta.label;
               return GestureDetector(
                 onTap: () {
                   setState(() {

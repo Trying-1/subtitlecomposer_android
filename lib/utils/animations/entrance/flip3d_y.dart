@@ -1,4 +1,4 @@
-import '../../base/animated_text_state.dart';
+import '../base/animated_text_state.dart';
 
 AnimatedTextState evaluateFlip3DY(double t) {
   final rotationY = -90.0 * (1.0 - t);

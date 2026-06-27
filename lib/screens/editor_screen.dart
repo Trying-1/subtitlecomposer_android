@@ -24,9 +24,34 @@ class EditorScreen extends StatefulWidget {
   State<EditorScreen> createState() => _EditorScreenState();
 }
 
-class _EditorScreenState extends State<EditorScreen> {
+class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver {
   final AudioService _audioService = AudioService();
   String _pastedSubtitlesText = '';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive || state == AppLifecycleState.hidden) {
+      if (mounted) {
+        final provider = context.read<EditorProvider>();
+        if (provider.isPlaying) {
+          provider.togglePlay();
+        }
+      }
+    }
+  }
+
 
   Future<void> _pickAudio(BuildContext context, EditorProvider provider) async {
     final result = await FilePicker.pickFiles(type: FileType.audio);
@@ -1263,6 +1288,7 @@ class _EditorScreenState extends State<EditorScreen> {
                           overlayTracks: provider.overlayTracks,
                           backgroundTracks: provider.backgroundTracks,
                           audioTracks: provider.audioTracks,
+
                           currentTime: provider.currentTime,
                           playbackTime: provider.playbackTime,
                           totalDuration: provider.totalDuration,
@@ -1303,10 +1329,12 @@ class _EditorScreenState extends State<EditorScreen> {
                           showOverlayTracks: provider.showOverlayTracks,
                           showBackgroundTracks: provider.showBackgroundTracks,
                           showAudioTracks: provider.showAudioTracks,
+
                           onToggleTextTracks: provider.toggleTextTracks,
                           onToggleOverlayTracks: provider.toggleOverlayTracks,
                           onToggleBackgroundTracks: provider.toggleBackgroundTracks,
                           onToggleAudioTracks: provider.toggleAudioTracks,
+
                           markers: provider.markers,
                           onAddMarker: () => provider.addMarker(),
                           onClearMarkers: () => provider.clearMarkers(),
@@ -1447,6 +1475,10 @@ class _EditorScreenState extends State<EditorScreen> {
                             int? gradientColor1,
                             int? gradientColor2,
                             double? gradientAngle,
+                            bool? isChromaKeyEnabled,
+                            int? chromaKeyColor,
+                            double? chromaKeySimilarity,
+                            double? chromaKeySmoothness,
                           }) {
                             provider.updateClips(
                               provider.selectedClipIds,
@@ -1492,6 +1524,10 @@ class _EditorScreenState extends State<EditorScreen> {
                               gradientColor1: gradientColor1,
                               gradientColor2: gradientColor2,
                               gradientAngle: gradientAngle,
+                              isChromaKeyEnabled: isChromaKeyEnabled,
+                              chromaKeyColor: chromaKeyColor,
+                              chromaKeySimilarity: chromaKeySimilarity,
+                              chromaKeySmoothness: chromaKeySmoothness,
                             );
                           },
                           onApplyPreset: (preset) {

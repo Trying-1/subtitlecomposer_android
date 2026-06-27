@@ -228,7 +228,7 @@ class VideoExporter(
         for (clip in activeClips) {
             val animState = AnimationEvaluator.evaluate(clip, currentTimeMs)
             if (clip.isText) {
-                subtitleRenderer?.drawTextClip(clip, animState, assetManager)
+                subtitleRenderer?.drawTextClip(clip, animState, assetManager, currentTimeMs)
             } else {
                 subtitleRenderer?.drawImageClip(clip, animState, currentTimeMs, 10000L)
             }

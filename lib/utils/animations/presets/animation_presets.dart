@@ -19,6 +19,10 @@ import 'edge_top.dart';
 import 'edge_bottom.dart';
 import 'stag_top.dart';
 import 'stag_bottom.dart';
+import 'edge_left.dart';
+import 'edge_right.dart';
+import 'stag_left.dart';
+import 'stag_right.dart';
 import 'elastic_stretch.dart';
 import 'spiral_drop.dart';
 import 'glitch.dart';
@@ -66,8 +70,12 @@ class AnimationPresets {
     charSlidePreset,
     edgeTopPreset,
     edgeBottomPreset,
+    edgeLeftPreset,
+    edgeRightPreset,
     stagTopPreset,
     stagBottomPreset,
+    stagLeftPreset,
+    stagRightPreset,
     elasticStretchPreset,
     spiralDropPreset,
     glitchPreset,
@@ -112,8 +120,12 @@ class AnimationPresets {
       case AnimationType.staggeredSlideUp: return 'Staggered Slide';
       case AnimationType.slideFromTop: return 'Edge Top';
       case AnimationType.slideFromBottom: return 'Edge Bottom';
+      case AnimationType.slideFromLeft: return 'Edge Left';
+      case AnimationType.slideFromRight: return 'Edge Right';
       case AnimationType.staggeredSlideFromTop: return 'Stag Top';
       case AnimationType.staggeredSlideFromBottom: return 'Stag Bottom';
+      case AnimationType.staggeredSlideFromLeft: return 'Stag Left';
+      case AnimationType.staggeredSlideFromRight: return 'Stag Right';
       case AnimationType.elasticStretch: return 'Motion Stretch';
       case AnimationType.spiralDrop: return 'Spring Zoom';
       case AnimationType.glitch: return 'Pendulum Swing';

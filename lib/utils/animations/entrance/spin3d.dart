@@ -1,4 +1,4 @@
-import '../../base/animated_text_state.dart';
+import '../base/animated_text_state.dart';
 
 AnimatedTextState evaluateSpin3D(double t) {
   final rotationX = -180.0 * (1.0 - t);

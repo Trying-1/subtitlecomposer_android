@@ -2,4 +2,4 @@ package com.typography.animations.exit
 
 import com.typography.AnimatedTextState
 
-fun evaluateFadeOut(t: Float) = AnimatedTextState(opacity = 1f - t)
+fun evaluateFadeOut(t: Float) = AnimatedTextState(opacity = t)

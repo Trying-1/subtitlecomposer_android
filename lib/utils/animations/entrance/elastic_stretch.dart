@@ -1,6 +1,6 @@
 import 'dart:math';
-import '../../base/animated_text_state.dart';
-import '../../easing/easing_functions.dart';
+import '../base/animated_text_state.dart';
+import '../easing/easing_functions.dart';
 import '../../../models/editor_models.dart';
 
 AnimatedTextState evaluateElasticStretch(double t) {

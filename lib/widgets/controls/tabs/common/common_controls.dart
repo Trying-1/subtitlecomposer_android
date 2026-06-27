@@ -451,7 +451,8 @@ class CommonControls {
 
   static Widget buildFontFamilyDropdown(String current, ValueChanged<String> onChanged, {List<String> customFonts = const []}) {
     final defaultFonts = [
-      'Poppins', 'Bellota', 'BhuTukaExpandedOne', 'Bokor', 'BungeeHairline',
+      'Poppins', 'Poppins-Thin', 'Poppins-Light', 'Poppins-Medium', 'Poppins-SemiBold', 'Poppins-Black',
+      'Bellota', 'BhuTukaExpandedOne', 'Bokor', 'BungeeHairline',
       'Caramel', 'Centralwell', 'Chalk Board', 'Eternal', 'Explora',
       'GrandifloraOne', 'KleeOne', 'Lacquer', 'LibreBarcode39Text',
       'LuckiestGuy', 'MajorMonoDisplay', 'Metrophobic', 'Michroma',

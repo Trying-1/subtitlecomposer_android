@@ -1,5 +1,5 @@
 import 'dart:math';
-import '../../base/animated_text_state.dart';
+import '../base/animated_text_state.dart';
 
 AnimatedTextState evaluateGlitch(double t) {
   if (t >= 1.0) {

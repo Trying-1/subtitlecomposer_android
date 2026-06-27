@@ -35,8 +35,12 @@ object ExitAnimations {
             AnimationType.ELASTIC_DROP -> evaluateElasticDrop(t)
             AnimationType.SLIDE_FROM_TOP -> evaluateSlideFromTop(t)
             AnimationType.SLIDE_FROM_BOTTOM -> evaluateSlideFromBottom(t)
+            AnimationType.SLIDE_FROM_LEFT -> evaluateSlideFromLeft(t)
+            AnimationType.SLIDE_FROM_RIGHT -> evaluateSlideFromRight(t)
             AnimationType.STAGGERED_SLIDE_FROM_TOP -> evaluateStaggeredSlideFromTop(t)
             AnimationType.STAGGERED_SLIDE_FROM_BOTTOM -> evaluateStaggeredSlideFromBottom(t)
+            AnimationType.STAGGERED_SLIDE_FROM_LEFT -> evaluateStaggeredSlideFromLeft(t)
+            AnimationType.STAGGERED_SLIDE_FROM_RIGHT -> evaluateStaggeredSlideFromRight(t)
             else -> AnimatedTextState()
         }
     }

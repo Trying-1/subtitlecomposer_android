@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../providers/editor_provider.dart';
 import '../../common/custom_color_picker.dart';
 import '../../../config/app_config.dart';
+import '../../dialogs/voiceover_dialog.dart';
 import 'common/common_controls.dart';
 
 class ProjectTab extends StatelessWidget {
@@ -104,7 +105,25 @@ class ProjectTab extends StatelessWidget {
               CommonControls.buildSquareActionButton(icon: Icons.paste_rounded, label: 'Paste', onTap: onPasteSubtitles),
             
             if (AppConfig.showVoiceButton)
-              CommonControls.buildSquareActionButton(icon: Icons.mic_rounded, label: 'Voice', onTap: onTranscribe, color: Colors.orangeAccent),
+              CommonControls.buildSquareActionButton(
+                icon: Icons.mic_rounded, 
+                label: 'Voice', 
+                onTap: onTranscribe, 
+                color: Colors.orangeAccent
+              ),
+            
+            CommonControls.buildSquareActionButton(
+              icon: Icons.mic_external_on_rounded,
+              label: 'Voiceover',
+              color: Colors.pinkAccent,
+              onTap: () {
+                showDialog(
+                  context: context,
+                  barrierDismissible: false, // Prevent accidental dismissal
+                  builder: (_) => const VoiceoverDialog(),
+                );
+              },
+            ),
             
             if (AppConfig.showJsonButton)
               CommonControls.buildSquareActionButton(icon: Icons.data_object_rounded, label: 'JSON Edit', onTap: onBulkEditJson, color: Colors.blueAccent),
@@ -184,6 +203,19 @@ class ProjectTab extends StatelessWidget {
             ),
           ],
         ),
+        if (AppConfig.showTimelineClipNames) ...[
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Expanded(child: Text('Show Clip Names in Timeline', style: TextStyle(color: Colors.white70, fontSize: 11))),
+              Switch(
+                value: context.watch<EditorProvider>().showTimelineClipNames,
+                onChanged: (v) => context.read<EditorProvider>().toggleShowTimelineClipNames(),
+                activeColor: Colors.deepPurpleAccent,
+              ),
+            ],
+          ),
+        ],
         const SizedBox(height: 16),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,

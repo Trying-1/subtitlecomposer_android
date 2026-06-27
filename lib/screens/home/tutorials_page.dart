@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'faq_page.dart';
+
 class TutorialItem {
   final String title;
   final String description;
@@ -197,7 +199,145 @@ class _TutorialsPageState extends State<TutorialsPage> {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: _buildFilteredSections(),
+                children: [
+                  if (_searchQuery.isEmpty) _buildFaqBanner(context),
+                  if (_searchQuery.isEmpty) const SizedBox(height: 16),
+                  if (_searchQuery.isEmpty) _buildQuickStartGuide(),
+                  if (_searchQuery.isEmpty) const SizedBox(height: 32),
+                  ..._buildFilteredSections(),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFaqBanner(BuildContext context) {
+    return InkWell(
+      onTap: () {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const FaqPage()));
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.03),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(0.08)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.deepPurpleAccent.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.help_outline_rounded, color: Colors.deepPurpleAccent, size: 24),
+            ),
+            const SizedBox(width: 16),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'FAQ & Interface Guide',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'KleeOne',
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'What does this button do? Read the UI breakdown.',
+                    style: TextStyle(
+                      color: Colors.white54,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white24, size: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickStartGuide() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.deepPurpleAccent.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.deepPurpleAccent.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.rocket_launch_rounded, size: 20, color: Colors.deepPurpleAccent),
+              SizedBox(width: 12),
+              Text(
+                'QUICK START GUIDE',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2,
+                  fontFamily: 'KleeOne',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildGuideStep('1', 'Import your audio (select an audio file or extract from a video).'),
+          _buildGuideStep('2', 'Click the "Paste Text" button to add your script. Make sure to use newlines properly for each sentence or phrase.'),
+          _buildGuideStep('3', 'Adjust those sentence segments properly in the timeline to match the audio.'),
+          _buildGuideStep('4', 'Use the Auto AI button to automatically generate typography and animations!'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGuideStep(String number, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              color: Colors.deepPurpleAccent.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(
+                number,
+                style: const TextStyle(
+                  color: Colors.deepPurpleAccent,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.8),
+                fontSize: 13,
+                height: 1.5,
               ),
             ),
           ),

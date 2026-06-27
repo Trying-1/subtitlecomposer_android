@@ -21,6 +21,10 @@ class OverlayTab extends StatefulWidget {
     ClipAnimation? entranceAnimation,
     ClipAnimation? exitAnimation,
     ClipAnimation? loopAnimation,
+    bool? isChromaKeyEnabled,
+    int? chromaKeyColor,
+    double? chromaKeySimilarity,
+    double? chromaKeySmoothness,
   }) onUpdate;
 
   const OverlayTab({

@@ -1,5 +1,22 @@
-lib/widgets/timeline/kinetic_preset_sheet.dart:152:52: Error: The getter 'initialPreset' isn't defined for the class '_KineticPresetSheetState'.
- - '_KineticPresetSheetState' is from 'package:typgraphyeditor/widgets/timeline/kinetic_preset_sheet.dart' ('lib/widgets/timeline/kinetic_preset_sheet.dart').
-Try correcting the name to the name of an existing getter, or defining a getter or field named 'initialPreset'.
-    _selectedTextColors = _rememberedTextColors ?? initialPreset.colorPalette.toList();
-                                                   ^^^^^^^^^^^^^
+lib/models/editor_models.dart:1200:14: Error: Type 'EffectClip' not found.
+  final List<EffectClip> effects;
+             ^^^^^^^^^^
+lib/models/editor_models.dart:1243:10: Error: Type 'EffectClip' not found.
+    List<EffectClip>? effects,
+         ^^^^^^^^^^
+lib/models/editor_models.dart:1200:14: Error: 'EffectClip' isn't a type.
+  final List<EffectClip> effects;
+             ^^^^^^^^^^
+lib/models/editor_models.dart:1221:37: Error: The method 'toJson' isn't defined for the class 'Object?'.
+ - 'Object' is from 'dart:core'.
+Try correcting the name to the name of an existing method, or defining a method named 'toJson'.
+    'effects': effects.map((c) => c.toJson()).toList(),
+                                    ^^^^^^
+lib/models/editor_models.dart:1232:58: Error: Undefined name 'EffectClip'.
+    effects: (json['effects'] as List? ?? []).map((e) => EffectClip.fromJson(Map<String, dynamic>.from(e))).toList(),
+                                                         ^^^^^^^^^^
+lib/models/editor_models.dart:1243:10: Error: 'EffectClip' isn't a type.
+    List<EffectClip>? effects,
+         ^^^^^^^^^^
+Target kernel_snapshot_program failed: Exception
+

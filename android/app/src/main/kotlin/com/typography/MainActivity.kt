@@ -366,6 +366,48 @@ class MainActivity : FlutterActivity() {
                         }
                     }
                 }
+                "getAssetThumbnail" -> {
+                    val path = call.argument<String>("path") ?: ""
+                    if (path.isEmpty()) {
+                        result.success(null)
+                        return@setMethodCallHandler
+                    }
+                    Thread {
+                        val lowerPath = path.lowercase()
+                        var bitmap: android.graphics.Bitmap? = null
+                        if (lowerPath.endsWith(".mp4") || lowerPath.endsWith(".mov") || lowerPath.endsWith(".m4v") || lowerPath.endsWith(".3gp")) {
+                            val retriever = android.media.MediaMetadataRetriever()
+                            try {
+                                retriever.setDataSource(path)
+                                bitmap = retriever.getFrameAtTime(0, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            } finally {
+                                retriever.release()
+                            }
+                        } else {
+                            try {
+                                bitmap = android.graphics.BitmapFactory.decodeFile(path)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        }
+                        
+                        if (bitmap != null) {
+                            val stream = java.io.ByteArrayOutputStream()
+                            // scale down slightly if very large
+                            val maxDim = 800
+                            if (bitmap.width > maxDim || bitmap.height > maxDim) {
+                                val ratio = Math.min(maxDim.toFloat() / bitmap.width, maxDim.toFloat() / bitmap.height)
+                                bitmap = android.graphics.Bitmap.createScaledBitmap(bitmap, (bitmap.width * ratio).toInt(), (bitmap.height * ratio).toInt(), true)
+                            }
+                            bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, stream)
+                            runOnUiThread { result.success(stream.toByteArray()) }
+                        } else {
+                            runOnUiThread { result.success(null) }
+                        }
+                    }.start()
+                }
                 "initAudioEngine" -> {
                     initAudioEngine()
                     result.success(null)
@@ -589,7 +631,11 @@ class MainActivity : FlutterActivity() {
                 brightness = (it["brightness"] as? Number)?.toFloat() ?: 1.0f,
                 saturation = (it["saturation"] as? Number)?.toFloat() ?: 1.0f,
                 contrast = (it["contrast"] as? Number)?.toFloat() ?: 1.0f,
-                blur = (it["blur"] as? Number)?.toFloat() ?: 0.0f
+                blur = (it["blur"] as? Number)?.toFloat() ?: 0.0f,
+                isChromaKeyEnabled = it["isChromaKeyEnabled"] as? Boolean ?: false,
+                chromaKeyColor = (it["chromaKeyColor"] as? Number)?.toInt() ?: 0xFF00FF00.toInt(),
+                chromaKeySimilarity = (it["chromaKeySimilarity"] as? Number)?.toFloat() ?: 0.1f,
+                chromaKeySmoothness = (it["chromaKeySmoothness"] as? Number)?.toFloat() ?: 0.05f
             )
         }
     }

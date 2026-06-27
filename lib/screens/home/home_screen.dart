@@ -1,8 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/editor_provider.dart';
 import '../editor_screen.dart';
-import '../profile/profile_screen.dart';
+
 import '../../config/app_config.dart';
 
 import 'package:intl/intl.dart';
@@ -43,13 +44,44 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         actions: [
-          if (AppConfig.showHomeProfile)
-            IconButton(
-              icon: const Icon(Icons.person_outline_rounded, color: Colors.white70),
-              onPressed: () {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
-              },
-            ),
+          TextButton(
+            child: const Text('Feedback', style: TextStyle(color: Colors.white70)),
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  backgroundColor: const Color(0xFF252525),
+                  title: const Text('Feedback', style: TextStyle(color: Colors.white, fontSize: 16)),
+                  content: const TextField(
+                    autofocus: true,
+                    maxLines: 4,
+                    style: TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: 'Tell us what you think...',
+                      hintStyle: TextStyle(color: Colors.white24),
+                      enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white10)),
+                      focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('CANCEL', style: TextStyle(color: Colors.white38)),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Thank you for your feedback!')),
+                        );
+                      },
+                      child: const Text('SUBMIT', style: TextStyle(color: Colors.white)),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
           const SizedBox(width: 8),
         ],
       ),
@@ -224,8 +256,16 @@ class _HomeScreenState extends State<HomeScreen> {
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.05),
                       borderRadius: BorderRadius.circular(8),
+                      image: project.thumbnailPath != null && File(project.thumbnailPath!).existsSync()
+                          ? DecorationImage(
+                              image: FileImage(File(project.thumbnailPath!)),
+                              fit: BoxFit.cover,
+                            )
+                          : null,
                     ),
-                    child: const Icon(Icons.movie_outlined, color: Colors.white24, size: 24),
+                    child: project.thumbnailPath == null || !File(project.thumbnailPath!).existsSync()
+                        ? const Icon(Icons.movie_outlined, color: Colors.white24, size: 24)
+                        : null,
                   ),
                   const SizedBox(width: 16),
                   Expanded(

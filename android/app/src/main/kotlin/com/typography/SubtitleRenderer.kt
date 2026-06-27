@@ -143,6 +143,16 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
     private var uContrastOESLoc: Int = 0
     private var uBlurAmountOESLoc: Int = 0
 
+    private var uChromaKeyEnabledLoc: Int = 0
+    private var uChromaKeyColorLoc: Int = 0
+    private var uChromaKeySimilarityLoc: Int = 0
+    private var uChromaKeySmoothnessLoc: Int = 0
+
+    private var uChromaKeyEnabledOESLoc: Int = 0
+    private var uChromaKeyColorOESLoc: Int = 0
+    private var uChromaKeySimilarityOESLoc: Int = 0
+    private var uChromaKeySmoothnessOESLoc: Int = 0
+
     private val vertexShaderCode = """
         precision highp float;
         attribute vec4 vPosition;
@@ -187,6 +197,20 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                 float localT = clamp((uWipeProgress - (qx) * stagger) / (1.0 - stagger), 0.0, 1.0);
                 pos.y += 2.0 * (1.0 - localT); 
             }
+            if (uWipeType == 10) { // Staggered Slide From Left
+                float stagger = 0.6;
+                float blocks = max(uCharCount, 1.0);
+                float qx = floor(vTexCoord.x * blocks) / blocks;
+                float localT = clamp((uWipeProgress - (1.0 - qx) * stagger) / (1.0 - stagger), 0.0, 1.0);
+                pos.x -= 2.0 * (1.0 - localT); 
+            }
+            if (uWipeType == 11) { // Staggered Slide From Right
+                float stagger = 0.6;
+                float blocks = max(uCharCount, 1.0);
+                float qx = floor(vTexCoord.x * blocks) / blocks;
+                float localT = clamp((uWipeProgress - (qx) * stagger) / (1.0 - stagger), 0.0, 1.0);
+                pos.x += 2.0 * (1.0 - localT); 
+            }
             gl_Position = uMVPMatrix * pos;
             fTexCoord = vTexCoord;
             fTypewriterCoord = vTexCoord;
@@ -223,6 +247,11 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         uniform vec4 uGradientColor1;
         uniform vec4 uGradientColor2;
         uniform float uGradientAngle;
+        
+        uniform int uChromaKeyEnabled;
+        uniform vec3 uChromaKeyColor;
+        uniform float uChromaKeySimilarity;
+        uniform float uChromaKeySmoothness;
 
         void main() {
             vec2 uv = fTexCoord;
@@ -250,7 +279,7 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                 float qx = (uWipeType == 7) ? floor(uv.x * blocks) / blocks : uv.x;
                 float localT = clamp((uWipeProgress - (1.0 - qx) * stagger) / (1.0 - stagger), 0.0, 1.0);
                 alphaMod *= localT;
-            } else if (uWipeType == 8 || uWipeType == 9) { // Staggered Edge Slide (Fade)
+            } else if (uWipeType >= 8 && uWipeType <= 11) { // Staggered Edge Slide (Fade)
                 float stagger = 0.6;
                 float blocks = max(uCharCount, 1.0);
                 float qx = floor(uv.x * blocks) / blocks;
@@ -277,8 +306,30 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
             } else {
                 texColor = texture2D(sTexture, uv);
             }
+            
             if (texColor.a > 0.0) {
                 texColor.rgb /= texColor.a;
+            }
+            
+            if (uChromaKeyEnabled == 1) {
+                float y = dot(texColor.rgb, vec3(0.299, 0.587, 0.114));
+                float cb = (texColor.b - y) * 0.565;
+                float cr = (texColor.r - y) * 0.713;
+                
+                float keyY = dot(uChromaKeyColor, vec3(0.299, 0.587, 0.114));
+                float keyCb = (uChromaKeyColor.b - keyY) * 0.565;
+                float keyCr = (uChromaKeyColor.r - keyY) * 0.713;
+                
+                float chromaDist = distance(vec2(cb, cr), vec2(keyCb, keyCr));
+                float alpha = smoothstep(uChromaKeySimilarity, uChromaKeySimilarity + uChromaKeySmoothness, chromaDist);
+                
+                texColor.a *= alpha;
+                
+                // Spill reduction
+                if (alpha < 1.0) {
+                    float luma = dot(texColor.rgb, vec3(0.299, 0.587, 0.114));
+                    texColor.rgb = mix(vec3(luma), texColor.rgb, alpha);
+                }
             }
             
             // Adjust brightness
@@ -391,6 +442,11 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         uniform vec4 uGradientColor1;
         uniform vec4 uGradientColor2;
         uniform float uGradientAngle;
+        
+        uniform int uChromaKeyEnabled;
+        uniform vec3 uChromaKeyColor;
+        uniform float uChromaKeySimilarity;
+        uniform float uChromaKeySmoothness;
 
         void main() {
             vec2 uv = fTexCoord;
@@ -418,7 +474,7 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                 float qx = (uWipeType == 7) ? floor(uv.x * blocks) / blocks : uv.x;
                 float localT = clamp((uWipeProgress - (1.0 - qx) * stagger) / (1.0 - stagger), 0.0, 1.0);
                 alphaMod *= localT;
-            } else if (uWipeType == 8 || uWipeType == 9) { // Staggered Edge Slide (Fade)
+            } else if (uWipeType >= 8 && uWipeType <= 11) { // Staggered Edge Slide (Fade)
                 float stagger = 0.6;
                 float blocks = max(uCharCount, 1.0);
                 float qx = floor(uv.x * blocks) / blocks;
@@ -445,8 +501,30 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
             } else {
                 texColor = texture2D(sTexture, uv);
             }
+            
             if (texColor.a > 0.0) {
                 texColor.rgb /= texColor.a;
+            }
+            
+            if (uChromaKeyEnabled == 1) {
+                float y = dot(texColor.rgb, vec3(0.299, 0.587, 0.114));
+                float cb = (texColor.b - y) * 0.565;
+                float cr = (texColor.r - y) * 0.713;
+                
+                float keyY = dot(uChromaKeyColor, vec3(0.299, 0.587, 0.114));
+                float keyCb = (uChromaKeyColor.b - keyY) * 0.565;
+                float keyCr = (uChromaKeyColor.r - keyY) * 0.713;
+                
+                float chromaDist = distance(vec2(cb, cr), vec2(keyCb, keyCr));
+                float alpha = smoothstep(uChromaKeySimilarity, uChromaKeySimilarity + uChromaKeySmoothness, chromaDist);
+                
+                texColor.a *= alpha;
+                
+                // Spill reduction
+                if (alpha < 1.0) {
+                    float luma = dot(texColor.rgb, vec3(0.299, 0.587, 0.114));
+                    texColor.rgb = mix(vec3(luma), texColor.rgb, alpha);
+                }
             }
             
             // Adjust brightness
@@ -602,6 +680,16 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         uContrastOESLoc = GLES20.glGetUniformLocation(programOES, "uContrast")
         uBlurAmountOESLoc = GLES20.glGetUniformLocation(programOES, "uBlurAmount")
 
+        uChromaKeyEnabledLoc = GLES20.glGetUniformLocation(program, "uChromaKeyEnabled")
+        uChromaKeyColorLoc = GLES20.glGetUniformLocation(program, "uChromaKeyColor")
+        uChromaKeySimilarityLoc = GLES20.glGetUniformLocation(program, "uChromaKeySimilarity")
+        uChromaKeySmoothnessLoc = GLES20.glGetUniformLocation(program, "uChromaKeySmoothness")
+
+        uChromaKeyEnabledOESLoc = GLES20.glGetUniformLocation(programOES, "uChromaKeyEnabled")
+        uChromaKeyColorOESLoc = GLES20.glGetUniformLocation(programOES, "uChromaKeyColor")
+        uChromaKeySimilarityOESLoc = GLES20.glGetUniformLocation(programOES, "uChromaKeySimilarity")
+        uChromaKeySmoothnessOESLoc = GLES20.glGetUniformLocation(programOES, "uChromaKeySmoothness")
+
         GLES20.glEnable(GLES20.GL_BLEND)
         GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA)
     }
@@ -633,7 +721,8 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
     fun drawTextClip(
         clip: SubtitleClip,
         animState: AnimatedTextState = AnimatedTextState(),
-        assetManager: android.content.res.AssetManager? = null
+        assetManager: android.content.res.AssetManager? = null,
+        currentTimeMs: Long = 0L
     ) {
         if (animState.opacity <= 0f) return
 
@@ -805,7 +894,13 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         
         // Handle Wipe Animations
         var wipeType = 0 // Default typewriter
-        when (clip.entranceAnimation.type) {
+        var activeAnimType = clip.entranceAnimation.type
+        val remaining = clip.endTime - currentTimeMs
+        if (clip.exitAnimation.type != AnimationType.NONE && remaining < clip.exitAnimation.durationMs) {
+            activeAnimType = clip.exitAnimation.type
+        }
+        
+        when (activeAnimType) {
             AnimationType.GRADIENT_WIPE -> wipeType = 1
             AnimationType.RADIAL_WIPE -> wipeType = 2
             AnimationType.WAVY_BEND -> wipeType = 3
@@ -813,6 +908,8 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
             AnimationType.STAGGERED_SLIDE_UP -> wipeType = 7
             AnimationType.STAGGERED_SLIDE_FROM_TOP -> wipeType = 8
             AnimationType.STAGGERED_SLIDE_FROM_BOTTOM -> wipeType = 9
+            AnimationType.STAGGERED_SLIDE_FROM_LEFT -> wipeType = 10
+            AnimationType.STAGGERED_SLIDE_FROM_RIGHT -> wipeType = 11
             AnimationType.TYPEWRITER -> wipeType = 6
             else -> {}
         }
@@ -1102,12 +1199,23 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
         val uGradC1 = if (isOES) uGradientColor1OESLoc else uGradientColor1Loc
         val uGradC2 = if (isOES) uGradientColor2OESLoc else uGradientColor2Loc
         val uGradA = if (isOES) uGradientAngleOESLoc else uGradientAngleLoc
+        
+        val uChromaEn = if (isOES) uChromaKeyEnabledOESLoc else uChromaKeyEnabledLoc
+        val uChromaCol = if (isOES) uChromaKeyColorOESLoc else uChromaKeyColorLoc
+        val uChromaSim = if (isOES) uChromaKeySimilarityOESLoc else uChromaKeySimilarityLoc
+        val uChromaSm = if (isOES) uChromaKeySmoothnessOESLoc else uChromaKeySmoothnessLoc
 
         GLES20.glUniform2f(uTSize, 1f / bmpWidth, 1f / bmpHeight)
         
         // Image/Overlay Wipe
         var wipeType = 0
-        when (clip.entranceAnimation.type) {
+        var activeAnimType = clip.entranceAnimation.type
+        val remaining = clip.endTime - currentTimeMs
+        if (clip.exitAnimation.type != AnimationType.NONE && remaining < clip.exitAnimation.durationMs) {
+            activeAnimType = clip.exitAnimation.type
+        }
+        
+        when (activeAnimType) {
             AnimationType.GRADIENT_WIPE -> wipeType = 1
             AnimationType.RADIAL_WIPE -> wipeType = 2
             AnimationType.WAVY_BEND -> wipeType = 3
@@ -1115,6 +1223,8 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
             AnimationType.STAGGERED_SLIDE_UP -> wipeType = 7
             AnimationType.STAGGERED_SLIDE_FROM_TOP -> wipeType = 8
             AnimationType.STAGGERED_SLIDE_FROM_BOTTOM -> wipeType = 9
+            AnimationType.STAGGERED_SLIDE_FROM_LEFT -> wipeType = 10
+            AnimationType.STAGGERED_SLIDE_FROM_RIGHT -> wipeType = 11
             AnimationType.TYPEWRITER -> wipeType = 6
             else -> {}
         }
@@ -1141,6 +1251,18 @@ class SubtitleRenderer(private var width: Int, private var height: Int) {
                 android.graphics.Color.alpha(clip.gradientColor2) / 255f)
             GLES20.glUniform1f(uGradA, clip.gradientAngle)
         }
+        
+        GLES20.glUniform1i(uChromaEn, if (clip.isChromaKeyEnabled) 1 else 0)
+        if (clip.isChromaKeyEnabled) {
+            val cColor = clip.chromaKeyColor
+            GLES20.glUniform3f(uChromaCol, 
+                android.graphics.Color.red(cColor) / 255f,
+                android.graphics.Color.green(cColor) / 255f,
+                android.graphics.Color.blue(cColor) / 255f)
+            GLES20.glUniform1f(uChromaSim, clip.chromaKeySimilarity)
+            GLES20.glUniform1f(uChromaSm, clip.chromaKeySmoothness)
+        }
+
         if (!isOES) {
             GLES20.glUniform2f(uBlurVectorLoc, 0f, 0f) 
         }

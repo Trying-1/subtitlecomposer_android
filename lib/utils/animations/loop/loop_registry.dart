@@ -1,5 +1,5 @@
 import 'dart:math';
-import '../../models/editor_models.dart';
+import '../../../models/editor_models.dart';
 import '../base/animated_text_state.dart';
 import 'shake.dart';
 import 'wobble.dart';

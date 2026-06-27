@@ -1,11 +1,14 @@
 import 'dart:io';
 import 'dart:convert';
 import 'dart:async';
+import 'dart:ui' as ui;
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:just_audio/just_audio.dart';
 import '../utils/transliteration_utils.dart';
 import '../models/editor_models.dart';
+
 import '../services/native_bridge.dart';
 import '../utils/subtitle_parser.dart';
 import '../utils/animation_presets.dart';
@@ -15,12 +18,15 @@ import 'package:path/path.dart' as p;
 import '../services/force_align_service.dart';
 import '../services/project_service.dart';
 import '../services/typosync_service.dart';
+import '../config/app_config.dart';
 import 'package:uuid/uuid.dart';
 import '../utils/toast_utils.dart';
 import '../models/editor_models.dart';
 import '../services/kinetic/kinetic_engine.dart';
 import '../services/kinetic/kinetic_style.dart';
 import '../services/kinetic/layout_solver.dart';
+import '../services/audio/voiceover_service.dart';
+import 'package:record/record.dart';
 
 class HistoryState {
   final List<Track> tracks;
@@ -99,8 +105,10 @@ class EditorProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _voiceoverService.dispose();
     super.dispose();
   }
+  final GlobalKey previewRepaintKey = GlobalKey();
   
   List<Track> _tracks = [];
   List<Track> _overlayTracks = [];
@@ -120,6 +128,9 @@ class EditorProvider extends ChangeNotifier {
   String? get audioPath => _audioPath;
   double _mainAudioVolume = 1.0;
   double get mainAudioVolume => _mainAudioVolume;
+  
+  final VoiceoverService _voiceoverService = VoiceoverService();
+  bool get isVoiceoverRecording => _voiceoverService.isRecording;
   
   // Timeline Colors
   int _textTimelineColor = 0xFFFF9800; // Orange
@@ -166,6 +177,13 @@ class EditorProvider extends ChangeNotifier {
   bool get showPanControls => _showPanControls;
   void toggleShowPanControls() {
     _showPanControls = !_showPanControls;
+    notifyListeners();
+  }
+
+  bool _showTimelineClipNames = AppConfig.showTimelineClipNames;
+  bool get showTimelineClipNames => _showTimelineClipNames;
+  void toggleShowTimelineClipNames() {
+    _showTimelineClipNames = !_showTimelineClipNames;
     notifyListeners();
   }
 
@@ -458,7 +476,26 @@ class EditorProvider extends ChangeNotifier {
       return;
     }
 
-    final project = currentProject;
+    String? thumbnailPath = currentProject.thumbnailPath;
+
+    try {
+      final boundary = previewRepaintKey.currentContext?.findRenderObject();
+      if (boundary != null && boundary is RenderRepaintBoundary) {
+        final image = await boundary.toImage(pixelRatio: 0.5); // Downscale to keep file size small
+        final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+        if (byteData != null) {
+          final directory = await getApplicationDocumentsDirectory();
+          final path = '${directory.path}/thumb_${_projectId}_${DateTime.now().millisecondsSinceEpoch}.png';
+          final file = File(path);
+          await file.writeAsBytes(byteData.buffer.asUint8List());
+          thumbnailPath = path;
+        }
+      }
+    } catch (e) {
+      debugPrint("Failed to capture thumbnail: $e");
+    }
+
+    final project = currentProject.copyWith(thumbnailPath: thumbnailPath);
     await ProjectService.saveProject(project);
     _hasUnsavedChanges = false;
     notifyListeners();
@@ -958,6 +995,7 @@ class EditorProvider extends ChangeNotifier {
     for (var track in _backgroundTracks) {
       selected.addAll(track.backgrounds.where((c) => _selectedClipIds.contains(c.id)));
     }
+
     return selected;
   }
 
@@ -980,6 +1018,7 @@ class EditorProvider extends ChangeNotifier {
     final clip = selectedTimelineClip;
     return clip is BackgroundClip ? clip : null;
   }
+
 
   TrackType? _getClipType(String id) {
     for (var t in _tracks) {
@@ -1357,6 +1396,10 @@ class EditorProvider extends ChangeNotifier {
     double? saturation,
     double? contrast,
     double? blur,
+    bool? isChromaKeyEnabled,
+    int? chromaKeyColor,
+    double? chromaKeySimilarity,
+    double? chromaKeySmoothness,
     bool silent = false,
   }) {
     final idSet = ids.toSet();
@@ -1501,6 +1544,10 @@ class EditorProvider extends ChangeNotifier {
             saturation: saturation,
             contrast: contrast,
             blur: blur,
+            isChromaKeyEnabled: isChromaKeyEnabled,
+            chromaKeyColor: chromaKeyColor,
+            chromaKeySimilarity: chromaKeySimilarity,
+            chromaKeySmoothness: chromaKeySmoothness,
             keyframes: updatedKeyframes,
           );
         }
@@ -1892,6 +1939,7 @@ class EditorProvider extends ChangeNotifier {
     for (var track in _audioTracks) {
       track.audioClips.removeWhere((c) => _selectedClipIds.contains(c.id));
     }
+
     
     _selectedClipIds = {};
     syncToNative();
@@ -2350,6 +2398,7 @@ class EditorProvider extends ChangeNotifier {
     _syncBackgroundIfChanged();
     notifyListeners();
   }
+
 
 
   void addClip(String text) {
@@ -2824,13 +2873,13 @@ class EditorProvider extends ChangeNotifier {
         bgCol = styles.first.colorPalette[0];
       } else {
         final styleNameLower = styles.first.name.toLowerCase();
-        if (styleNameLower.contains('cyberpunk')) {
+        if (styleNameLower.contains('scattered') || styleNameLower.contains('random')) {
           bgCol = 0xFF07040B; 
         } else if (styleNameLower.contains('minimal')) {
           bgCol = 0xFF12131C; 
-        } else if (styleNameLower.contains('retro')) {
+        } else if (styleNameLower.contains('retro') || styleNameLower.contains('collage')) {
           bgCol = 0xFF0E0A1E; 
-        } else if (styleNameLower.contains('nature')) {
+        } else if (styleNameLower.contains('wavy') || styleNameLower.contains('flow')) {
           bgCol = 0xFF0B1310; 
         }
       }
@@ -3036,12 +3085,14 @@ class EditorProvider extends ChangeNotifier {
     _overlayTracks.removeWhere((t) => t.id == id && t.isEmpty);
     _backgroundTracks.removeWhere((t) => t.id == id && t.isEmpty);
     _audioTracks.removeWhere((t) => t.id == id && t.isEmpty);
+
     
     // Ensure at least one track remains if it was the last one (optional, based on _cleanupEmptyTracks logic)
     if (_tracks.isEmpty) _tracks.add(Track(id: '${DateTime.now().millisecondsSinceEpoch}_t', name: 'Track 1', type: TrackType.text, clips: []));
     if (_overlayTracks.isEmpty) _overlayTracks.add(Track(id: '${DateTime.now().millisecondsSinceEpoch}_o', name: 'Overlay 1', type: TrackType.overlay, overlays: []));
     if (_backgroundTracks.isEmpty) _backgroundTracks.add(Track(id: '${DateTime.now().millisecondsSinceEpoch}_b', name: 'Background 1', type: TrackType.background, backgrounds: []));
     if (_audioTracks.isEmpty) _audioTracks.add(Track(id: '${DateTime.now().millisecondsSinceEpoch}_a', name: 'Audio 1', type: TrackType.audio, audioClips: []));
+
 
     syncToNative();
     notifyListeners();
@@ -3098,7 +3149,6 @@ class EditorProvider extends ChangeNotifier {
     final bool isOverlay = clip is OverlayClip;
     final bool isBackground = clip is BackgroundClip;
     final bool isAudio = clip is AudioClip;
-    
     final trackList = isOverlay ? _overlayTracks : (isBackground ? _backgroundTracks : (isAudio ? _audioTracks : _tracks));
 
     for (int i = 0; i < trackList.length; i++) {
@@ -3660,7 +3710,7 @@ class EditorProvider extends ChangeNotifier {
         ? _overlayTracks 
         : (isBackgroundMove ? _backgroundTracks : (isAudioMove ? _audioTracks : _tracks));
     final trackType = isOverlayMove 
-        ? TrackType.overlay 
+        ? TrackType.overlay
         : (isBackgroundMove ? TrackType.background : (isAudioMove ? TrackType.audio : TrackType.text));
 
     final Map<String, int> clipToCurrentTrackIndex = {};
@@ -3739,15 +3789,25 @@ class EditorProvider extends ChangeNotifier {
       final dynamic updatedClip;
       if (isOverlayMove) {
         updatedClip = (c as OverlayClip).copyWith(startTime: startTime, endTime: startTime + duration);
+        trackList[newTrackIdx].overlays.add(updatedClip);
+        trackList[newTrackIdx].overlays.sort((a, b) => a.startTime.compareTo(b.startTime));
       } else if (isBackgroundMove) {
         updatedClip = (c as BackgroundClip).copyWith(startTime: startTime, endTime: startTime + duration);
+        trackList[newTrackIdx].backgrounds.add(updatedClip);
+        trackList[newTrackIdx].backgrounds.sort((a, b) => a.startTime.compareTo(b.startTime));
       } else if (isAudioMove) {
         updatedClip = (c as AudioClip).copyWith(startTime: startTime, endTime: startTime + duration);
+        trackList[newTrackIdx].audioClips.add(updatedClip);
+        trackList[newTrackIdx].audioClips.sort((a, b) => a.startTime.compareTo(b.startTime));
       } else {
         updatedClip = (c as SubtitleClip).copyWith(startTime: startTime, endTime: startTime + duration);
+        trackList[newTrackIdx].clips.add(updatedClip);
+        trackList[newTrackIdx].clips.sort((a, b) => a.startTime.compareTo(b.startTime));
       }
 
-      _resolveCollisions(updatedClip, newTrackIdx);
+      if (_isCollisionAdjustEnabled && !isOverlayMove && !isBackgroundMove && !isAudioMove) {
+        _resolveCollisions(updatedClip, newTrackIdx);
+      }
     }
 
     _cleanupEmptyTracks();
@@ -3775,6 +3835,7 @@ class EditorProvider extends ChangeNotifier {
     if (_audioTracks.isEmpty) {
       _audioTracks.add(Track(id: '${DateTime.now().millisecondsSinceEpoch}_a', name: 'Audio 1', type: TrackType.audio, audioClips: []));
     }
+
   }
 
   void seek(Duration pos) {
@@ -3991,6 +4052,49 @@ class EditorProvider extends ChangeNotifier {
     _pushAudioToNative();
     notifyListeners();
     ToastUtils.show('Bulk SFX applied successfully');
+  }
+
+  Duration? _voiceoverStartTime;
+
+  Future<void> startVoiceoverRecording() async {
+    final path = await _voiceoverService.startRecording();
+    if (path != null) {
+      _voiceoverStartTime = _currentTime;
+      notifyListeners();
+      ToastUtils.show('Recording Voiceover...');
+    } else {
+      ToastUtils.show('Failed to start recording. Check permissions.');
+    }
+  }
+
+  Stream<Amplitude> getVoiceoverAmplitudeStream(Duration interval) {
+    return _voiceoverService.onAmplitudeChanged(interval);
+  }
+
+  Future<void> stopVoiceoverRecording() async {
+    final path = await _voiceoverService.stopRecording();
+    final startTime = _voiceoverStartTime ?? _currentTime;
+    _voiceoverStartTime = null;
+    notifyListeners();
+    
+    if (path != null) {
+      ToastUtils.show('Voiceover saved. Adding to timeline...');
+      
+      // Temporarily set current time to start time so addAudioClip places it correctly
+      final originalTime = _currentTime;
+      _currentTime = startTime;
+      await addAudioClip(path);
+      _currentTime = originalTime; // restore
+    } else {
+      ToastUtils.show('Failed to save voiceover.');
+    }
+  }
+
+  Future<void> cancelVoiceoverRecording() async {
+    await _voiceoverService.cancelRecording();
+    _voiceoverStartTime = null;
+    notifyListeners();
+    ToastUtils.show('Recording canceled.');
   }
 
   Future<void> addAudioClip(String path) async {

@@ -40,7 +40,8 @@ class _FontTabState extends State<FontTab> {
     final customFonts = fontProvider.customFonts;
     
     final defaultFonts = [
-      'Poppins', 'Bellota', 'BhuTukaExpandedOne', 'Bokor', 'BungeeHairline',
+      'Poppins', 'Poppins-Thin', 'Poppins-Light', 'Poppins-Medium', 'Poppins-SemiBold', 'Poppins-Black',
+      'Bellota', 'BhuTukaExpandedOne', 'Bokor', 'BungeeHairline',
       'Caramel', 'Explora', 'GrandifloraOne', 'KleeOne', 'Lacquer', 
       'LibreBarcode39Text', 'LuckiestGuy', 'MajorMonoDisplay', 'Metrophobic', 
       'Michroma', 'NewRocker', 'NewTegomin', 'ProtestRevolution'
